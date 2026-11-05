@@ -16,6 +16,17 @@ export const ASSESSMENT_PATH = "/v1/x402/vibration-assessment";
 /** A vendor's urgent call-out, sold per reservation: the deposit goes straight to the vendor's Hedera account */
 export const CALLOUT_PATH = "/v1/x402/vendors/:vendorId/callout";
 export const calloutVendor = (path: string) => /^\/v1\/x402\/vendors\/([\w-]+)\/callout$/.exec(path)?.[1] ?? null;
+/** A vendor's offer of a stage resource, sold per quantity (`?qty=`): price × qty, paid straight to the vendor's Hedera account */
+export const OFFER_PATH = "/v1/x402/vendors/:vendorId/offers/:sku";
+export const offerOf = (path: string) => {
+  const m = /^\/v1\/x402\/vendors\/([\w-]+)\/offers\/([^/]+)$/.exec(path);
+  if (!m) return null;
+  try {
+    return { vendorId: m[1]!, sku: decodeURIComponent(m[2]!) };
+  } catch {
+    return null;
+  }
+};
 const HBAR = "0.0.0";
 
 type Network = "hedera:testnet" | "hedera:mainnet";
@@ -90,6 +101,15 @@ export interface SellerConfig {
   facilitator?: FacilitatorClient;
   /** Vendors' call-outs: each vendor is paid at its own account, at its own deposit */
   vendors?: { payTo: (vendorId: string) => Promise<string | null>; deposit: (vendorId: string) => Promise<bigint> };
+  /**
+   * Vendors' offers of stage resources: each priced at its price × `?qty=` and paid to the vendor's own account. Once the
+   * payment settles, `settled` records the sale and returns the body to send instead (the delivery receipt with the tx).
+   */
+  offers?: {
+    payTo: (vendorId: string) => Promise<string | null>;
+    price: (vendorId: string, sku: string, qty: number) => Promise<bigint>;
+    settled: (s: { vendorId: string; sku: string; payer: string | null; transaction: string; network: string; body: Uint8Array }) => Promise<Uint8Array | null>;
+  };
 }
 
 class HonoAdapter implements HTTPAdapter {
@@ -157,6 +177,30 @@ export function x402Seller(cfg: SellerConfig) {
           },
         }
       : {}),
+    ...(cfg.offers
+      ? {
+          [`POST ${OFFER_PATH}`]: {
+            accepts: {
+              scheme: "exact",
+              network: cfg.network,
+              payTo: async (ctx: HTTPRequestContext) => {
+                const account = await cfg.offers!.payTo(offerOf(ctx.path)?.vendorId ?? "");
+                if (!account) throw new Error("This vendor has no Hedera account");
+                return account;
+              },
+              price: async (ctx: HTTPRequestContext) => {
+                const o = offerOf(ctx.path);
+                const qty = Number(ctx.adapter.getQueryParam?.("qty") ?? 1);
+                return { amount: (await cfg.offers!.price(o?.vendorId ?? "", o?.sku ?? "", qty)).toString(), asset: HBAR };
+              },
+              maxTimeoutSeconds: 120,
+            },
+            description: "A vendor's offer of a stage resource, priced per quantity; paid to the vendor, delivered with a receipt signed by Ordo",
+            mimeType: "application/json",
+            serviceName: "Ordo vendor offers",
+          },
+        }
+      : {}),
   });
   let ready: Promise<void> | null = null;
 
@@ -190,7 +234,19 @@ export function x402Seller(cfg: SellerConfig) {
       c.res = new Response(JSON.stringify(settled.response.body ?? {}), { status: settled.response.status, headers: settled.response.headers });
       return;
     }
-    const out = new Response(body, { status: res.status, headers: res.headers });
+    // a vendor's offer: record the sale now that it settled, and answer with the signed delivery receipt instead
+    const offer = cfg.offers ? offerOf(c.req.path) : null;
+    let final: Uint8Array<ArrayBuffer> = body;
+    if (offer) {
+      const s = settled as unknown as { transaction?: string; payer?: string; network?: string };
+      const receipt = await cfg.offers!.settled({ ...offer, payer: s.payer ?? null, transaction: s.transaction ?? "", network: s.network ?? cfg.network, body }).catch((e) => {
+        console.error("[ordo] x402 offer settled but not recorded", e);
+        return null;
+      });
+      if (receipt) final = new Uint8Array(receipt);
+    }
+    const out = new Response(final, { status: res.status, headers: res.headers });
+    if (final !== body) out.headers.delete("content-length");
     for (const [k, v] of Object.entries(settled.headers)) out.headers.set(k, v);
     out.headers.set("cache-control", "private, no-store");
     c.res = undefined;

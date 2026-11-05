@@ -8,6 +8,7 @@ import { Agents } from "./agents/agents.js";
 import { Auth, Signatures } from "./auth/auth.js";
 import { Assessments } from "./core/assessments.js";
 import { Machines } from "./core/machines.js";
+import { Resources } from "./core/resources.js";
 import { AgentLicenses } from "./core/agent-licenses.js";
 import { AgentMemory } from "./core/agent-memory.js";
 import { AgentNfts } from "./core/agent-nfts.js";
@@ -114,6 +115,8 @@ export interface System {
   /** The metered MCP server: tools other agents pay for per call over x402 */
   mcp: (ReturnType<typeof import("./chain/mcp.js").meteredMcp> & { sales(limit?: number): Promise<McpSaleView[]> }) | null;
   ensNames: { lookup(addresses: string[]): Promise<Record<string, string | null>> } | null;
+  /** Stage resources: vendors' offers, the x402 storefront, machines' look-ahead purchases and the resource gate */
+  resources: Resources;
   /** One engine cycle: pull data, advance runs, watch for anomalies, refund expired escrows, anchor. Throttled and lease-guarded. */
   advance(force?: boolean): Promise<void>;
   close(): Promise<void>;
@@ -472,6 +475,21 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     mcp = { ...server, sales };
   }
 
+  // ---- Stage resources: vendors' offers sold over x402, bought ahead by machines from their own accounts ----
+  const resources = new Resources(db, rec, sigs, engine, plant, machines.bank, { payTo: payTo ?? null, network: cfg.HEDERA_NETWORK, chainId: cfg.SIGNATURE_CHAIN_ID }, cfg.HEDERA_OPERATOR_KEY ?? cfg.LEDGER_SIGNING_KEY ?? "ordo-local", now);
+  engine.resources = resources;
+  if (x402Net && payTo) {
+    const { x402Seller } = await import("./chain/x402.js");
+    resources.store = x402Seller({
+      network: x402Net,
+      payTo,
+      price: cfg.X402_PRICE_TINYBARS,
+      facilitatorUrl: cfg.X402_FACILITATOR_URL,
+      facilitator: opts.x402Facilitator,
+      offers: { payTo: (id) => resources.payTo(id), price: (id, sku, qty) => resources.price(id, sku, qty), settled: (s) => resources.settled(s) },
+    }).middleware;
+  }
+
   const advance = async (force = false) => {
     // throttle: one cycle per 4 s across all instances (the lease is left to expire, not released)
     if (!force && !(await plant.tryLease("advance", 4_000))) return;
@@ -540,6 +558,11 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       live: contributions.router.network !== "mock",
     },
     { rail: "autonomy policies", mode: trustChain?.cfg.policies ? `OrdoPolicies ${cfg.TRUST_POLICIES_ADDRESS}` : "in-app signatures", live: Boolean(trustChain?.cfg.policies) },
+    {
+      rail: "resource purchasing",
+      mode: resources.store ? `vendors' offers sold over x402 (paid to each vendor) · machines buy ahead from their own accounts · receipts signed by ${resources.receiptSigner}` : "off: stages wait for resources until a manager waives them",
+      live: Boolean(resources.store && machines.bank),
+    },
   ];
 
   return {
@@ -586,6 +609,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     machines,
     payOnProof,
     ensNames,
+    resources,
     advance,
     close: () => db.close(),
   };

@@ -464,4 +464,24 @@ CREATE TABLE stage_outputs (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCE
 CREATE INDEX stage_outputs_stage ON stage_outputs (run_id, stage_code, outcome_key, version DESC);
 `,
   },
+  {
+    version: 29,
+    name: "stage resources: vendors' offers, purchases over x402 and waivers",
+    sql: `
+ALTER TABLE vendors ADD COLUMN hedera_account TEXT;
+CREATE TABLE vendor_offers (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), vendor_id TEXT NOT NULL REFERENCES vendors(id),
+  kind TEXT NOT NULL, sku TEXT NOT NULL, label TEXT NOT NULL, unit TEXT NOT NULL DEFAULT '', price TEXT NOT NULL, lead_min INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), archived_at TIMESTAMPTZ);
+CREATE INDEX vendor_offers_kind ON vendor_offers (site_id, kind) WHERE archived_at IS NULL;
+CREATE INDEX vendor_offers_vendor ON vendor_offers (vendor_id, sku);
+CREATE TABLE resource_purchases (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), run_id TEXT, stage_code TEXT, resource_key TEXT,
+  kind TEXT NOT NULL, qty DOUBLE PRECISION NOT NULL, unit TEXT NOT NULL DEFAULT '', amount_tinybar TEXT NOT NULL, vendor_id TEXT NOT NULL, sku TEXT NOT NULL,
+  buyer_account TEXT, tx_id TEXT, audit_tx TEXT, receipt_json TEXT, status TEXT NOT NULL, by_asset TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), delivered_at TIMESTAMPTZ);
+CREATE INDEX resource_purchases_stage ON resource_purchases (run_id, stage_code, resource_key);
+CREATE INDEX resource_purchases_site ON resource_purchases (site_id, created_at DESC);
+CREATE TABLE resource_waivers (run_id TEXT NOT NULL, stage_code TEXT NOT NULL, site_id TEXT NOT NULL REFERENCES sites(id), by_user TEXT NOT NULL,
+  reason TEXT NOT NULL, signature_id TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (run_id, stage_code));
+`,
+  },
 ];

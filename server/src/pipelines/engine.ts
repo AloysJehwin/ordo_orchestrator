@@ -74,6 +74,8 @@ export class RunEngine {
   series: StageSeries | null = null;
   /** a run starts only when every stage has a machine (STAGE_MACHINES=required) */
   requireMachines = true;
+  /** Set when a stage waits for the resources it consumes (core/resources.ts): what has not arrived yet, by label */
+  resources: { missing(runId: string, quantity: number, resources: StageSpec["resources"], stage: string): Promise<string[]> } | null = null;
   constructor(
     private db: Db,
     private plant: PlantService,
@@ -343,6 +345,15 @@ export class RunEngine {
         state.set(row.code, "completed");
         started.push(row.code);
         continue;
+      }
+      // a stage that consumes resources waits until each has arrived (bought ahead over x402), or a manager waives it
+      if (this.resources && spec.resources.length) {
+        const missing = await this.resources.missing(ctx.run.id, ctx.run.quantity, spec.resources, row.code);
+        if (missing.length) {
+          const reason = `Waiting for resources: ${missing.join(", ")}`;
+          if ((JSON.parse(row.data_json) as StageData).waitingReason !== reason) await this.patchData(ctx.run.id, row.code, { waitingReason: reason });
+          continue;
+        }
       }
       const pinned = spec.machine ? ctx.assets.get(spec.machine) ?? null : null;
       const candidates = pinned ? [pinned] : [...ctx.assets.values()].filter((a) => a.kind === spec.resourceKind);

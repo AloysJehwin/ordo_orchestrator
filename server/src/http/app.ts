@@ -14,6 +14,7 @@ import { LICENSE_DAYS } from "../core/agent-licenses.js";
 import { lineInScope, needLevel, redactRun, redactRuns, stageInScope, type Access } from "../core/access.js";
 import { FinishBody } from "../core/contributions.js";
 import { MAX_OUTPUT_BYTES, MAX_PREVIEW_BYTES, OutputMeta } from "../core/outputs.js";
+import { OfferBody, OfferPatch } from "../core/resources.js";
 import { publicBase } from "../config.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
@@ -282,6 +283,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
       .min(1)
       .max(40),
   });
+  // a machine asks what the stages after its running stage still need, with the best offer for each (look-ahead buying)
+  app.get("/v1/edge/purchases/needed", async (c) => c.json(await sys.resources.needed(await sys.readings.assetsOf((await edge(c)).device))));
   app.post("/v1/edge/measurements", async (c) => {
     const e = await edge(c);
     const b = MeasurementsBody.parse(e.json());
@@ -335,6 +338,9 @@ export function createApp(sys: System, opts: AppOptions = {}) {
             offers: [
               { method: "POST", path: ASSESSMENT_PATH, ...sys.x402.terms, unit: "tinybar" },
               { method: "POST", path: "/v1/x402/vendors/{vendorId}/callout", network: sys.x402.terms.network, payTo: "the vendor's Hedera account", price: "a tenth of the vendor's hourly rate, at least 0.1 HBAR", asset: sys.x402.terms.asset },
+              ...(sys.resources.store
+                ? [{ method: "POST", path: "/v1/x402/vendors/{vendorId}/offers/{sku}?qty=&run=&stage=&resource=", network: sys.x402.terms.network, payTo: "the vendor's Hedera account", price: "the offer's price × qty (GET /v1/x402/vendors/{vendorId}/offers)", asset: sys.x402.terms.asset }]
+                : []),
             ],
             mcp: sys.mcp ? { path: MCP_PATH, transport: "streamable-http", ...sys.mcp.priceList(), recentSales: await sys.mcp.sales(10) } : null,
           }
@@ -368,6 +374,20 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const b = await body(c, z.object({ assetId: z.string().max(64).optional(), reason: z.string().max(300).optional() }));
     return c.json(await sys.machines.reserveCallout(c.req.param("vendorId"), b));
   });
+
+  // A vendor's offers of stage resources, sold per quantity: price × qty paid to the vendor; a delivery receipt Ordo signs
+  const VENDOR_OFFER = "/v1/x402/vendors/:vendorId/offers/:sku";
+  const offerQuery = (c: Context) => ({ qty: c.req.query("qty"), run: c.req.query("run"), stage: c.req.query("stage"), resource: c.req.query("resource") });
+  app.use("/v1/x402/vendors/:vendorId/offers", x402Cors);
+  app.get("/v1/x402/vendors/:vendorId/offers", async (c) => c.json(await sys.resources.catalog(c.req.param("vendorId"))));
+  app.use(VENDOR_OFFER, x402Cors);
+  app.use(VENDOR_OFFER, async (c, next) => {
+    if (!sys.resources.store) throw new HttpError(404, "This deployment does not sell vendors' offers");
+    // check the offer, the quantity and the stage before asking for payment, so nobody pays for what cannot be sold
+    if (c.req.method === "POST") await sys.resources.check(c.req.param("vendorId")!, c.req.param("sku")!, offerQuery(c));
+    return sys.resources.store(c, next);
+  });
+  app.post(VENDOR_OFFER, async (c) => c.json(await sys.resources.sell(c.req.param("vendorId"), c.req.param("sku"), offerQuery(c))));
 
   // ---------------- Site scope ----------------
   const site = new Hono<Env>();
@@ -1143,6 +1163,35 @@ export function createApp(sys: System, opts: AppOptions = {}) {
         cases: await sys.cases.due(s, me(c).user, manager),
       },
     });
+  });
+
+  // ---- Stage resources: vendors' offers, what each stage has received, the signed waiver, a run's resource budget ----
+  site.get("/vendors/offers", async (c) => {
+    lvl(c, 4, "vendors");
+    return c.json({ suppliers: await sys.resources.suppliers(sid(c), c.req.query("archived") === "1"), storefront: Boolean(sys.resources.store), receiptSigner: sys.resources.receiptSigner });
+  });
+  site.post("/vendors/:vendorId/offers", async (c) => c.json(await sys.resources.addOffer(sid(c), me(c).user, c.get("roles"), c.req.param("vendorId"), await body(c, OfferBody))));
+  site.patch("/vendors/:vendorId/offers/:offerId", async (c) => c.json(await sys.resources.editOffer(sid(c), me(c).user, c.get("roles"), c.req.param("vendorId"), c.req.param("offerId"), await body(c, OfferPatch))));
+  site.delete("/vendors/:vendorId/offers/:offerId", async (c) => c.json(await sys.resources.archiveOffer(sid(c), me(c).user, c.get("roles"), c.req.param("vendorId"), c.req.param("offerId"))));
+  site.get("/runs/:runId/stages/:code/resources", async (c) => {
+    const { run, stage } = await stageFor(c, c.req.param("runId"), c.req.param("code"), 2, "this stage");
+    return c.json(await sys.resources.stageView(sid(c), run, stage, c.get("access").level));
+  });
+  const WaiveBody = z.object({ reason: z.string().trim().min(3).max(300) });
+  site.post("/runs/:runId/stages/:code/resources/waive/sign-request", async (c) => {
+    const b = await body(c, WaiveBody.extend({ chainId: z.number().int().optional() }));
+    return c.json(await sys.resources.waiveRequest(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), c.req.param("code"), b.reason, b.chainId));
+  });
+  site.post("/runs/:runId/stages/:code/resources/waive", async (c) => {
+    const b = await body(c, WaiveBody.merge(SignedBody));
+    await sys.resources.waive(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), c.req.param("code"), b);
+    return c.json(await runFor(c, c.req.param("runId")));
+  });
+  site.get("/runs/:runId/budget", async (c) => {
+    lvl(c, 4, "budgets");
+    await runFor(c, c.req.param("runId"));
+    const m = c.req.query("margin");
+    return c.json(await sys.resources.budget(sid(c), c.req.param("runId"), m === undefined ? undefined : Math.min(100, Math.max(0, Number(m) || 0))));
   });
 
   app.route("/v1/sites/:siteId", site);
