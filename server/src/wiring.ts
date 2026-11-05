@@ -555,29 +555,44 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const budgets = new Budgets(db, rec, sigs, inbox, engine, templates, trust, trustChain ? treasuryRail : null, { marginPct: cfg.TREASURY_BUDGET_MARGIN_PCT, hours: cfg.TREASURY_BUDGET_HOURS, seed: cfg.TREASURY_SEED_TINYBARS, topUpMax: cfg.TREASURY_TOPUP_MAX_TINYBARS }, now);
   budgets.offerPrices = (siteId) => resources.offerPrices(siteId);
 
+  // upload-heavy passes (evidence copies and agent memory on 0G Storage take tens of seconds each) run beside the cycle,
+  // one at a time, so the engine and the org's money never wait on a file copy and two cycles never upload the same file
+  // (a local store answers at once, so there they stay in the cycle)
+  const slowStore = validation.replicas?.store.kind === "0g-storage";
+  const beside = new Set<string>();
+  const inBackground = async (name: string, pass: () => Promise<unknown>) => {
+    if (!slowStore) return pass().catch((e) => console.error(`[ordo] ${name}`, e));
+    if (beside.has(name)) return;
+    beside.add(name);
+    void pass()
+      .catch((e) => console.error(`[ordo] ${name}`, e))
+      .finally(() => beside.delete(name));
+  };
+
   const advance = async (force = false) => {
     // throttle: one cycle per 4 s across all instances (the lease is left to expire, not released)
     if (!force && !(await plant.tryLease("advance", 4_000))) return;
     // one failing site or service must not stop the cycle for everyone else
     await plant.ingest().catch((e) => console.error("[ordo] ingest", e));
     await engine.tick();
+    // budgets right after the engine: a run's budget and its top-ups are what let its machines buy
+    await budgets.reconcile().catch((e) => console.error("[ordo] budgets", e));
     const sites = await db.query<{ id: string }>("SELECT id FROM sites");
     for (const s of sites.rows) await monitor.scan(s.id).catch((e) => console.error(`[ordo] monitor ${s.id}`, e));
     await schedules?.reconcile().catch((e) => console.error("[ordo] schedules", e));
     await workOrders.refundExpired().catch((e) => console.error("[ordo] refunds", e));
     await passports.reconcile().catch((e) => console.error("[ordo] passports", e));
     await stageProofs.reconcile().catch((e) => console.error("[ordo] stage proofs", e));
-    await jobs.run().catch((e) => console.error("[ordo] jobs", e));
+    await inBackground("jobs", () => jobs.run());
     await payOnProof.reconcile().catch((e) => console.error("[ordo] pay on proof", e));
     await machines!.topUps().catch((e) => console.error("[ordo] machine top-ups", e));
     await names.reconcile().catch((e) => console.error("[ordo] ens", e));
     await lotNames.reconcile().catch((e) => console.error("[ordo] ens lots", e));
     await agentLicenses.reconcile().catch((e) => console.error("[ordo] licences", e));
-    await agentMemory.reconcile().catch((e) => console.error("[ordo] agent memory", e));
+    await inBackground("agent memory", () => agentMemory.reconcile());
     await agentNfts.reconcile().catch((e) => console.error("[ordo] inft", e));
     await contributions.reconcile().catch((e) => console.error("[ordo] proof-of-work sessions", e));
     await selection.reconcile().catch((e) => console.error("[ordo] reward settlement", e));
-    await budgets.reconcile().catch((e) => console.error("[ordo] budgets", e));
     await bodies.reconcile().catch((e) => console.error("[ordo] machine bodies", e));
     const head = await ledger.head();
     const last = (await proof.anchors(1))[0];
