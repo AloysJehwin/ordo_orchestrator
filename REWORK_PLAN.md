@@ -2,7 +2,7 @@
 
 The working plan for the November 2026 rework: a portastake-style UI, four roles, proof of work through 0G Private Computer, and tester slashing. A new session, including Claude Code on the web, should read this file first and continue from **Status**. `PLAN.md` and `TASKS.md` describe the earlier stack and are superseded.
 
-**Repo:** `AloysJehwin/ordo_orchestrator` (public), with this folder as the git root (since 5 Nov 2026; the old `ai_warriors` repo and Vercel project were deleted). **Next plan:** machine bodies, multimedia outcomes and x402 resource agents on Hedera, in Batches 0–10 (`~/.claude/plans/federated-noodling-feigenbaum.md`, mirrored in **Next: machine bodies** below). Batches 0 and 1 are done.
+**Repo:** `AloysJehwin/ordo_orchestrator` (public), with this folder as the git root (since 5 Nov 2026; the old `ai_warriors` repo and Vercel project were deleted). **Next plan:** machine bodies, multimedia outcomes and x402 resource agents on Hedera, in Batches 0–10 (`~/.claude/plans/federated-noodling-feigenbaum.md`, mirrored in **Next: machine bodies** below). Batches 0–9 are built and on `main` (6 Nov 2026); Batch 10 (docs, pitch) is in progress.
 
 ## Status (5 Nov 2026)
 
@@ -14,6 +14,13 @@ The working plan for the November 2026 rework: a portastake-style UI, four roles
 | 4 | 0G Private Computer proof of work: `sdk/` CLI, sessions, signing page, public proof (Part D) | **Built.** The model is `0gm-1.0-35b-a3b` (TeeML; `glm-5.3` lost its private-mode providers), with `whisper-large-v3` allowed on session keys. Runs locally with the scripted interviewer, which the CLI now picks by itself, until `ZG_ROUTER_MGMT_KEY` is set. CLI `ordo-pow` (62 tests) **not published yet** (publishing is pre-approved, planned with 0.2.0 in Batch 9). |
 | 5 | Selection, rewards page, cases and slashing UI (Part E) | **Built.** `test/flow/pow.test.ts` runs session → finish → sign → select (stage closes) → case → decision. |
 | 6 | Docs, doctor (Part F) | **Docs and doctor updated** for four roles, v3 and the Router change. Playwright runs left to the user, who tests by hand. |
+| B2–B4 | Multimedia outcomes, a machine on every stage, high-value templates | **Built.** At least five outcomes per stage (thermal, image, audio, video, spectrum, document), device-signed outputs (migration 27), `STAGE_MACHINES=required`, four aerospace templates in `templates-v2.json` (biologics skipped by the user). |
+| B5 | Machine bodies (`body/`) | **Built.** Virtual machines with a body process, media renderers, a 0G agent in the loop, safe stop, episode log, replay (migration 28). `BODY_RUNTIME=local` in dev. |
+| B6 | Vercel Sandbox and Render | **Built.** `SandboxBodies` (one microVM per machine, idle stop and snapshot), `Dockerfile`, `render.yaml`. Vercel project `ordo-machines` exists in team `aloys-jehwins-projects`; the doctor's sandbox rail passes. Render Blueprint: the user is deploying it. |
+| B7 | Stage resources over x402 | **Built.** Vendor offers, storefront, resource gate and waivers (migration 29). The bodies' buy-ahead wiring is in progress. |
+| B8 | OrdoTreasury on Hedera | **Built and deployed.** OrdoTreasury `0xe90ec7e22864dca8cdcafc1e94d7f9e0b94dc1bb` (testnet); each org's treasury is keyed to its own key contract, spent only through schedules a manager approves (HIP-755, spike results in `docs/hedera.md`; migration 30). |
+| B9 | Multimodal CLI | **Built.** `ordo-pow` 0.2.x reviews the machine's outcomes, asks the machine, shows photos and transcribes voice notes with per-file consent (migration 31). Publishing 0.2.1 waits for the user's npm one-time code. |
+| 0G | Trust mode | **Since 6 Nov 2026 the mainnet Router lists no private (TeeML) provider** (`0gm-1.0-35b-a3b` and `whisper-large-v3` are gone; pc.0g.ai shows Private: 0). `ZG_ROUTER_TRUST_MODE` (default `private`) runs on `standard` with `qwen3-omni-flash` (images and audio) meanwhile, stored per session (migration 32) and labelled "not a TEE" everywhere. Switch back when private providers return. |
 | B1 | Review fixes | **Done.** Selected proof of work is committed by Ordo (no contributor-signed readings); on v3 a manager needs a stake to select and a case needs a challengeable acceptance; managers hold `operator` in ENS; an org's only manager may approve a package they performed; preview and Render links; empty env values count as unset. |
 
 **Green as of 5 Nov 2026:** `pnpm -r typecheck` (server, web, contracts, sdk), server 233/233, contracts 45/45, sdk 61/61, doctor healthy (one warning: OrdoTrust is pre-v3).
@@ -76,8 +83,10 @@ Earlier the same day:
 
 ## Inputs still needed from the user
 
-1. **`ZG_ROUTER_MGMT_KEY`:** an `mk-` key from pc.0g.ai (Key Manager: account:read, keys:read, keys:create, keys:manage), created by the wallet holding the iAI credits. Without it, sessions use the CLI's scripted interviewer and receipts say "no TEE".
-2. **`VERCEL_TOKEN`** (and team id) for the machine sandboxes, and a Render account or `RENDER_API_KEY` for hosting Ordo (Batch 6). The user enters these; they are never printed.
+`ZG_ROUTER_MGMT_KEY` and `VERCEL_TOKEN` are set in the user's `server/.env` (6 Nov 2026; account balance 1.00 USD).
+
+1. **Render:** the user deploys the Blueprint, then pastes the secrets (Environment → Add from .env). Ordo's public URL goes in `PUBLIC_URL` if it is not the `onrender.com` one; machine sandboxes call Ordo there.
+2. **npm:** a one-time code to publish `ordo-pow@0.2.1` (never published before).
 
 Pre-approved by the user (5 Nov): pushing to `origin/main`, redeploying contracts on Hedera testnet, publishing `ordo-pow` to npm, creating Vercel Sandbox VMs, creating and funding testnet accounts.
 
@@ -90,7 +99,7 @@ Pre-approved by the user (5 Nov): pushing to `origin/main`, redeploying contract
 
 ## Layout and commands
 
-- **Code:** this folder is the repo root, a pnpm workspace (`server`, `web`, `contracts`, `sdk`). Node 22 or newer, pnpm 10.28.
+- **Code:** this folder is the repo root, a pnpm workspace (`server`, `web`, `contracts`, `sdk`, `body`). Node 22 or newer, pnpm 10.28.
 - **Run locally:** `pnpm install`, then `pnpm dev` (API :8080, console :5173 proxied). The server reads `server/.env` (git-ignored). With no `.env`, every rail is off: PGlite on disk, offline AI, local anchor. That's enough for UI work.
 - **Deploy:** Ordo moves to Render (Docker and Postgres, `render.yaml`) in Batch 6. `pnpm vercel-build` still builds the static console plus one Node function. Production needs `DATABASE_URL` (Postgres).
 - **Secrets** are in the user's local `server/.env` (and the host's environment once deployed). They are never in git. A cloud session works fine with every rail off; ask the user before needing live keys.
@@ -107,6 +116,8 @@ Pre-approved by the user (5 Nov): pushing to `origin/main`, redeploying contract
 | OrdoPayOnProof | 0x792d5049fcaba10c04754a54f3025be19127d22f |
 | ENS (Sepolia) | parent ordo-mfg.eth · OrdoEnsRoles 0x100f40fbdec56c458d0aa350b9971040d83eab91 · OrdoLotResolver 0x83bcae34de88b862f9641a408d926e1964b25795 |
 | 0G Galileo iNFT | OrdoAgentNFT 0x9577498d6305a8498744ab33217fab6722ff8141 |
+| OrdoTreasury | 0xe90ec7e22864dca8cdcafc1e94d7f9e0b94dc1bb (Hedera testnet; org treasuries open from the console) |
+| Vercel Sandbox | project `ordo-machines` (prj_uNwJOJRZRJ1LcflhpEM7bEgoML7M) in team `aloys-jehwins-projects` |
 
 ### GitHub workflows
 

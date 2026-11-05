@@ -142,7 +142,12 @@ export class ZgRouter implements Router {
   }
 
   async revokeKey(keyId: string) {
-    await this.call("DELETE", `/api-keys/${encodeURIComponent(keyId)}`);
+    // a key from the scripted interviewer (before this Ordo had a Router) was never on the Router
+    if (keyId.startsWith("mock_")) return;
+    await this.call("DELETE", `/api-keys/${encodeURIComponent(keyId)}`).catch((e: Error) => {
+      // already revoked, expired or deleted on the Router: nothing left to revoke
+      if (!/HTTP 404/.test(e.message)) throw e;
+    });
   }
 
   async balance(): Promise<RouterBalance> {

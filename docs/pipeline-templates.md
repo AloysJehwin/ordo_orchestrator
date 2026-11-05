@@ -25,6 +25,19 @@ The Gate role column lists the job titles of the original prototype. In Ordo eve
 | Rework & recall | Quality | 8 | 5 | stage 05 → 04 |
 | Protein synthesis | Regulated | 7 | 1 | — |
 
+## High-value templates: multimedia outcomes and resources
+
+Four aerospace templates (`server/src/library/templates-v2.json`) show the full model: every stage runs on a machine, has at least five outcomes the machine captures as media (thermal image, photo or micrograph, audio, video, spectrum or chromatogram, document) with the value read from each, and lists the resources it consumes, which the machine of the stage before buys ahead over x402 ([machines.md](machines.md), [hedera.md](hedera.md)).
+
+| Template | Category | Stages | Outcomes | Resources |
+| --- | --- | --- | --- | --- |
+| Single-crystal turbine blade | Aerospace | 10 | 55 | 17 |
+| CFRP wing spar | Aerospace | 8 | 45 | 13 |
+| Satellite integration and environmental test | Aerospace | 9 | 52 | 12 |
+| Titanium airframe bracket, laser powder bed fusion | Aerospace | 10 | 56 | 12 |
+
+Each outcome's value becomes a success criterion of its stage (`outcome.<key>`), so the engine, the zero-knowledge spec proofs and proof of work treat it like any other measured parameter. In the builder, a new stage starts from the outcome presets of its machine kind.
+
 ## Discrete assembly
 
 *Discrete.* Order-driven build of multi-part products: sourcing and tooling run in parallel, a vision gate before packing, and a rework loop back to sub-assembly.
