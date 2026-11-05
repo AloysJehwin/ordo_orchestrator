@@ -55,6 +55,8 @@ sequenceDiagram
   O->>H: HCS: the reasoning (first)
   O->>H: ScheduleCreate(treasury → machine, the shortfall)
   O->>C: inbox: a top-up to review in Finance → Machine budgets
+  M->>O: GET /v1/edge/purchases/needed: within budget once the top-up executed
+  M->>O: x402 purchase from the machine's account, paid to the vendor
 ```
 
 ### The pieces
@@ -76,8 +78,10 @@ sequenceDiagram
   - the console computes it from the mirror node's copy of the schedule, never from what the server says;
   - before asking for a signature, the console checks that the schedule debits only the treasury, pays exactly the credits shown, moves nothing else, and is neither executed nor deleted.
 - **Server** (`server/src/core/budgets.ts`, `server/src/chain/treasury.ts`):
-  - **Run budget.** At run start, ONE ScheduleCreate wraps a transfer of at most 9 credits. Each line is the stage's resources (quantity × max price, plus a margin), credited to the machine of the stage that buys them.
-  - **Top-up.** It is for the shortfall above the machine's balance, capped at `TREASURY_TOPUP_MAX_TINYBARS`.
+  - **Run budget.** At run start, ONE ScheduleCreate wraps a transfer of at most 9 credits. The amounts come from `server/src/core/run-budget.ts`: each line is the stage's resources (quantity × max price), and each machine that buys them is credited its lines plus a margin.
+  - **Top-up.** It is for the shortfall: what the purchase costs above the machine's balance, or above what the stage's max price allows, whichever is more. It is capped at `TREASURY_TOPUP_MAX_TINYBARS`, and one purchase has at most one top-up waiting for a manager.
+  - **Buying after a top-up.** Once a top-up has executed, Ordo's list of what a machine should buy counts that offer as within budget, up to the purchase amount the manager approved, so the machine's body buys it on its next cycle (`server/src/core/resources.ts`).
+  - **A machine without a 0G brain** still asks: its reasoning is its report of the facts, and the top-up records no 0G request id. The console and the inbox say so.
   - **The relayer** sends approvals to OrdoTreasury.
   - **Reconciliation.** The server records executed, deleted or expired states from the mirror node.
   - **Expired or declined top-ups** hold the dependent stage as "Not approved".

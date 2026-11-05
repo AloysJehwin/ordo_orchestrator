@@ -213,6 +213,18 @@ await check(
   },
   cfg.BODY_RUNTIME === "sandbox" ? "sandbox runtime" : "BODY_RUNTIME=off: virtual machines do not run",
 );
+// ---- Resource purchasing: bodies buy what their next stages consume over x402, from their machine's own account ----
+if (cfg.BODY_RUNTIME === "off") results.push({ rail: "resource purchasing", status: "off", detail: "BODY_RUNTIME=off: no machine bodies buy ahead" });
+else if (!["testnet", "mainnet"].includes(cfg.HEDERA_NETWORK) || !(cfg.X402_PAY_TO ?? cfg.HEDERA_OPERATOR_ID))
+  warn("resource purchasing", "no x402 storefront (HEDERA_NETWORK testnet or mainnet, and X402_PAY_TO or HEDERA_OPERATOR_ID): bodies do not buy ahead, and stages wait for their resources until a manager waives them");
+else if (!cfg.HEDERA_OPERATOR_ID || !cfg.HEDERA_OPERATOR_KEY)
+  warn("resource purchasing", "no machine accounts (the operator, HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY, opens them): bodies have nothing to pay with and do not buy ahead");
+else
+  results.push({
+    rail: "resource purchasing",
+    status: "pass",
+    detail: `bodies buy ahead over x402 (${cfg.X402_FACILITATOR_URL}) from their machine's own account, never more than Ordo quoted; ${cfg.TREASURY_CONTRACT_ADDRESS ? "over budget, they ask the org treasury for a top-up" : "no treasury: they buy only what their accounts hold"}`,
+  });
 
 const icon = { pass: "✔", warn: "!", fail: "✘", off: "·" } as const;
 const w = Math.max(...results.map((r) => r.rail.length));
