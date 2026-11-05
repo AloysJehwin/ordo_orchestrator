@@ -166,6 +166,8 @@ export const Criterion = z
     agg: SignalAgg.optional(),
     /** a range: `target` is the lower bound (op ≥) and this the upper */
     targetMax: z.number().optional(),
+    /** set when the criterion is an outcome's metric (made from `outcomes`, read from signal `outcome.<key>`) */
+    outcome: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.kind === "signal" && !c.signal) ctx.addIssue({ code: "custom", message: "A measured-signal criterion names the signal it reads", path: ["signal"] });
@@ -198,6 +200,48 @@ export interface CriterionResult {
   /** the upper half of a range (the window maximum for `envelope`): a second proof, under `label#max` */
   measuredMax?: { value: number; op: "<="; target: number };
 }
+/**
+ * What a stage's machine captures as media: a thermal image, a photo or micrograph, audio, video, a spectrum or
+ * chromatogram, or a document. Each carries one number read from it (its metric), which becomes a measured-signal
+ * criterion on `outcome.<key>`, so it is judged, proven in zero knowledge and signed like any measured parameter.
+ */
+export const OUTCOME_MEDIA = ["thermal", "image", "audio", "video", "spectrum", "document"] as const;
+export const OutcomeMedia = z.enum(OUTCOME_MEDIA);
+export type OutcomeMedia = z.infer<typeof OutcomeMedia>;
+export const OUTCOME_MEDIA_LABEL: Record<OutcomeMedia, string> = { thermal: "Thermal image", image: "Photo or micrograph", audio: "Audio", video: "Video", spectrum: "Spectrum or chromatogram", document: "Document" };
+/** What each media type may be uploaded as. A preview (keyframe, spectrogram, chart) is always PNG or JPEG. */
+export const OUTCOME_MIME: Record<OutcomeMedia, string[]> = {
+  thermal: ["image/png", "image/jpeg"],
+  image: ["image/png", "image/jpeg", "image/webp"],
+  audio: ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/ogg", "audio/webm"],
+  video: ["video/mp4", "video/webm"],
+  spectrum: ["image/png", "text/csv", "application/json"],
+  document: ["application/pdf", "text/csv", "text/plain", "application/json"],
+};
+export const Outcome = z
+  .object({
+    key: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/, "a key is lowercase letters, digits and _, starting with a letter"),
+    label: z.string().trim().min(1).max(60),
+    media: OutcomeMedia,
+    /** what captures it: "FLIR A700 on the jacket", "Raman probe" */
+    instrument: z.string().trim().min(1).max(80),
+    metric: z.object({
+      label: z.string().trim().min(1).max(60),
+      unit: z.string().trim().max(16).default(""),
+      op: z.enum(CRITERION_OPS),
+      target: z.number(),
+      targetMax: z.number().optional(),
+      agg: SignalAgg.optional(),
+    }),
+    required: z.boolean().default(true),
+  })
+  .superRefine((o, ctx) => {
+    if (o.metric.targetMax !== undefined && o.metric.op !== ">=") ctx.addIssue({ code: "custom", message: "A range uses ≥ for its lower bound", path: ["metric", "op"] });
+    if (o.metric.targetMax !== undefined && o.metric.targetMax < o.metric.target) ctx.addIssue({ code: "custom", message: "The upper bound must be at least the lower bound", path: ["metric", "targetMax"] });
+  });
+export type Outcome = z.infer<typeof Outcome>;
+export const outcomeSignal = (key: string) => `outcome.${key}`;
+
 export const StageSpec = z.object({
   code: z.string().regex(/^\d{2}[a-z]?$/),
   column: z.number().int().min(1),
@@ -210,6 +254,18 @@ export const StageSpec = z.object({
   criteria: z.array(Criterion).default([]),
   /** work is done when the asset reports this signal with this value (a batch process's phase, e.g. execution = COMPLETE) instead of when the counts reach the quantity */
   completeOn: z.object({ signal: z.string().regex(/^[\w.:-]{1,40}$/), equals: z.string().trim().min(1).max(40) }).optional(),
+  /** what the stage's machine captures; each metric is also one of `criteria` (see `withOutcomeCriteria`) */
+  outcomes: z
+    .array(Outcome)
+    .max(12)
+    .default([])
+    .superRefine((os, ctx) => {
+      const seen = new Set<string>();
+      for (const [i, o] of os.entries()) {
+        if (seen.has(o.key)) ctx.addIssue({ code: "custom", message: `Two outcomes use the key ${o.key}`, path: [i, "key"] });
+        seen.add(o.key);
+      }
+    }),
 });
 export type StageSpec = z.infer<typeof StageSpec>;
 export const TemplateSpec = z.object({

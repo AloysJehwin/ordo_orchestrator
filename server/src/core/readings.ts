@@ -123,7 +123,7 @@ export class Readings {
 
   // ---------------------------------------------------------------- gateway requests
   /** The gateway that signed this request. */
-  async device(h: { device?: string; ts?: string; nonce?: string; sig?: string }, method: string, path: string, body: string): Promise<Address> {
+  async device(h: { device?: string; ts?: string; nonce?: string; sig?: string }, method: string, path: string, body: string | Uint8Array): Promise<Address> {
     if (!h.device || !h.ts || !h.sig || !h.nonce || !/^0x[0-9a-fA-F]{40}$/.test(h.device) || !/^[\w-]{8,64}$/.test(h.nonce)) throw new HttpError(401, "Sign the request with the gateway's key (x-ordo-device, x-ordo-ts, x-ordo-nonce, x-ordo-sig)");
     const ts = Number(h.ts);
     if (!Number.isFinite(ts) || Math.abs(ts - this.now() / 1000) > SKEW_S) throw new HttpError(401, "The request's timestamp is too far from Ordo's clock");
@@ -139,7 +139,8 @@ export class Readings {
   }
 
   /** The assets whose data source is this gateway. */
-  private async assetsOf(device: Address) {
+  /** The assets whose data source is this machine's key (its gateway). */
+  async assetsOf(device: Address) {
     const r = await this.db.query<{ id: string; site_id: string; source_json: string }>("SELECT id, site_id, source_json FROM assets WHERE archived_at IS NULL");
     const mine = r.rows.filter((a) => {
       const s = JSON.parse(a.source_json) as { type: string; device?: string };
@@ -349,5 +350,5 @@ export class Readings {
 }
 
 /** What a gateway signs to authenticate one request. */
-export const edgeMessage = (ts: number, nonce: string, method: string, path: string, body: string) =>
+export const edgeMessage = (ts: number, nonce: string, method: string, path: string, body: string | Uint8Array) =>
   `ordo-edge:${ts}:${nonce}:${method.toUpperCase()}:${path}:${createHash("sha256").update(body).digest("hex")}`;

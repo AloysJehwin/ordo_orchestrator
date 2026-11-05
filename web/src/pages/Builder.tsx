@@ -145,7 +145,7 @@ export function Builder() {
     // criteria from the palette entry, else seeded from the library defaults for that agent (taken from any template that uses it)
     const { criteria: own, ...rest } = p;
     const crit = own ?? templates?.flatMap((t) => t.spec.stages).find((s) => s.agent === p.agent)?.criteria ?? [];
-    setStages([...stages, { ...rest, key, column: maxCol + 1, timeoutMin: 60, criteria: crit }]);
+    setStages([...stages, { ...rest, key, column: maxCol + 1, timeoutMin: 60, criteria: crit, outcomes: [] }]);
     setSelected(key);
   };
   // Move a stage one column left/right; "parallel" puts it in the same column as its neighbour.

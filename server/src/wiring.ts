@@ -18,6 +18,7 @@ import { LotNames } from "./core/lot-names.js";
 import { Names } from "./core/names.js";
 import { Openings } from "./core/openings.js";
 import { Passports } from "./core/passports.js";
+import { MachineOutputs } from "./core/outputs.js";
 import { Readings } from "./core/readings.js";
 import { StageProofs } from "./core/stage-proofs.js";
 import { SpecProofs } from "./core/spec-proofs.js";
@@ -91,6 +92,8 @@ export interface System {
   names: Names;
   lotNames: LotNames;
   readings: Readings;
+  /** The media each stage's machine captures for its outcomes */
+  outputs: MachineOutputs;
   stageProofs: StageProofs;
   /** Proof of work through 0G Private Computer */
   contributions: Contributions;
@@ -362,6 +365,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   passports.specs = new SpecProofs(db, rec, now);
   const stageProofs = new StageProofs(db, engine, now);
   const readings = new Readings(db, engine, plant, rec, now);
+  const outputs = new MachineOutputs(db, engine, readings, plant, rec, now);
   validation.stageProofs = stageProofs;
   validation.specProofs = passports.specs;
   readings.specProofs = passports.specs;
@@ -423,6 +427,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     now,
   );
   contributions.replicas = validation.replicas ?? null;
+  outputs.replicas = validation.replicas ?? null;
   const selection = new Selection(db, engine, rec, sigs, trust, contributions, now);
   const cases = new Cases(db, engine, rec, sigs, trust, selection, contributions, now);
   agentLicenses.memory = agentMemory;
@@ -563,6 +568,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     names,
     lotNames,
     readings,
+    outputs,
     stageProofs,
     contributions,
     selection,

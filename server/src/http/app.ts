@@ -13,6 +13,7 @@ import { REJECT } from "../core/inbox.js";
 import { LICENSE_DAYS } from "../core/agent-licenses.js";
 import { lineInScope, needLevel, redactRun, redactRuns, stageInScope, type Access } from "../core/access.js";
 import { FinishBody } from "../core/contributions.js";
+import { MAX_OUTPUT_BYTES, MAX_PREVIEW_BYTES, OutputMeta } from "../core/outputs.js";
 import { publicBase } from "../config.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
@@ -283,6 +284,27 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const e = await edge(c);
     const b = MeasurementsBody.parse(e.json());
     return c.json(await sys.readings.submitMeasurementsFromDevice(e.device, b.runId, b.stage, b.measurements));
+  });
+  /**
+   * A machine uploads the media it captured for one of its stage's outcomes: multipart with `meta` (JSON: run, stage,
+   * outcome, capturedAt, value, sha256, its OrdoOutput signature, and its agent's reading), `file`, and an optional
+   * `preview` (a keyframe, spectrogram or chart). The request itself is signed like every edge request, over the bytes.
+   */
+  app.post("/v1/edge/outputs", async (c) => {
+    const len = Number(c.req.header("content-length") ?? 0);
+    if (len > MAX_OUTPUT_BYTES + MAX_PREVIEW_BYTES + 64 * 1024) throw new HttpError(400, "The upload is too large");
+    const raw = new Uint8Array(await c.req.arrayBuffer());
+    const device = await sys.readings.device({ device: c.req.header("x-ordo-device"), ts: c.req.header("x-ordo-ts"), nonce: c.req.header("x-ordo-nonce"), sig: c.req.header("x-ordo-sig") }, c.req.method, c.req.path, raw);
+    const form = await new Request("http://edge/", { method: "POST", headers: { "content-type": c.req.header("content-type") ?? "" }, body: raw }).formData().catch(() => {
+      throw new HttpError(400, "Send multipart/form-data with meta and file");
+    });
+    const metaRaw = form.get("meta");
+    const file = form.get("file");
+    const preview = form.get("preview");
+    if (typeof metaRaw !== "string" || !(file instanceof File)) throw new HttpError(400, "Send multipart/form-data with meta and file");
+    const meta = OutputMeta.parse(JSON.parse(metaRaw));
+    const asUpload = async (f: File) => ({ bytes: new Uint8Array(await f.arrayBuffer()), mime: f.type });
+    return c.json(await sys.outputs.ingest(device, meta, await asUpload(file), preview instanceof File ? await asUpload(preview) : null));
   });
 
   // ---------------- Running pipelines: public, no sign-in, so a newcomer can see what a site runs and apply for a role ----------------
@@ -638,6 +660,19 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const { run, stage } = await stageFor(c, c.req.param("runId"), c.req.param("code"), 1, "this stage");
     return c.json(await sys.contributions.forStage(sid(c), run.id, stage.code, { userId: me(c).user.id, level: c.get("access").level }));
   });
+  // ---------------- Outcomes: the media each stage's machine captured ----------------
+  site.get("/runs/:runId/stages/:code/outputs", async (c) => {
+    const { run, stage } = await stageFor(c, c.req.param("runId"), c.req.param("code"), 2, "outcomes");
+    return c.json({ outcomes: await sys.outputs.forStage(sid(c), run.id, stage, c.get("access").level) });
+  });
+  for (const which of ["file", "preview"] as const) {
+    site.get(`/runs/:runId/stages/:code/outputs/:key/${which}`, async (c) => {
+      const { run, stage } = await stageFor(c, c.req.param("runId"), c.req.param("code"), 3, "outcome media");
+      const v = c.req.query("version");
+      const f = await sys.outputs.file(sid(c), run.id, stage.code, c.req.param("key"), which, v && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
+      return new Response(f.bytes, { headers: { "content-type": f.mime, "content-disposition": `inline; filename="${f.name}"`, "cache-control": "private, max-age=300", "x-content-type-options": "nosniff" } });
+    });
+  }
   site.get("/runs/:runId/contribution-counts", async (c) => {
     lvl(c, 1);
     const run = await runFor(c, c.req.param("runId"));

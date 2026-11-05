@@ -294,6 +294,11 @@ export class PlantService {
     return inserted;
   }
 
+  /** A value the machine read from one of its outcome media, as signal `outcome.<key>`: kept whatever the filters. */
+  async outcomeObservation(assetId: string, signal: string, ts: string, value: number) {
+    return this.store(assetId, [{ signal, ts: new Date(ts).toISOString(), value, text: null, quality: "good" }]);
+  }
+
   async samples(assetId: string, minutes: number): Promise<TelemetrySample[]> {
     const since = new Date(this.now() - minutes * 60_000).toISOString();
     const r = await this.db.query<{ signal: string; ts: string; value: number | null; quality: Quality }>(

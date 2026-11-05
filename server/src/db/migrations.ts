@@ -452,4 +452,16 @@ CREATE INDEX cases_site ON cases (site_id, created_at);
 CREATE INDEX cases_contribution ON cases (contribution_id);
 `,
   },
+  {
+    version: 27,
+    name: "machine outputs: the media a stage's machine captures for each outcome",
+    sql: `
+CREATE TABLE stage_outputs (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), run_id TEXT NOT NULL, stage_code TEXT NOT NULL,
+  outcome_key TEXT NOT NULL, version INTEGER NOT NULL, asset_id TEXT, media TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL,
+  sha256 TEXT NOT NULL, preview_sha256 TEXT, preview_mime TEXT, value_scaled TEXT NOT NULL, device TEXT NOT NULL, signature TEXT NOT NULL,
+  captured_at TIMESTAMPTZ NOT NULL, analysis_json TEXT, ledger_seq INTEGER, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (run_id, stage_code, outcome_key, version));
+CREATE INDEX stage_outputs_stage ON stage_outputs (run_id, stage_code, outcome_key, version DESC);
+`,
+  },
 ];

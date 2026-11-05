@@ -1,6 +1,7 @@
 import type { Db } from "../db/db.js";
 import { hashOf } from "../domain/canonical.js";
 import { HttpError } from "../engine/errors.js";
+import { withOutcomeCriteria } from "../pipelines/outcomes.js";
 import { TemplateSpec, type AgentKey, type Criterion, type StageSpec, type TemplateView } from "../domain/types.js";
 import library from "../library/templates.json" with { type: "json" };
 import { validateSpec } from "../pipelines/graph.js";
@@ -57,7 +58,7 @@ export class Templates {
       if (exists.rows.length) continue;
       // a stage may carry its own criteria (the lab templates do); otherwise it takes its agent's
       const stages: StageSpec[] = t.stages.map((s) => ({ ...(s as Omit<StageSpec, "criteria">), criteria: (s as { criteria?: Criterion[] }).criteria ?? CRITERIA_BY_AGENT[s.agent as AgentKey] ?? [] }));
-      const spec = TemplateSpec.parse({ stages, rework: t.rework });
+      const spec = withOutcomeCriteria(TemplateSpec.parse({ stages, rework: t.rework }));
       await this.db.tx(async (q) => {
         await q.query("INSERT INTO templates (id, site_id, key, name, category, description, origin) VALUES ($1, NULL, $2, $3, $4, $5, 'library')", [id, t.key, t.name, t.category, t.description]);
         await q.query("INSERT INTO template_versions (id, template_id, version, spec_json, note) VALUES ($1, $2, 1, $3, 'Library version')", [`${id}_v1`, id, JSON.stringify(spec)]);
@@ -95,7 +96,13 @@ export class Templates {
    * creates the site's own copy (based on the library one).
    */
   async publish(siteId: string, by: string, input: { templateId?: string; name: string; category: string; description: string; spec: TemplateSpec; note?: string }): Promise<TemplateView> {
-    const spec = TemplateSpec.parse(input.spec);
+    let spec: TemplateSpec;
+    try {
+      spec = withOutcomeCriteria(TemplateSpec.parse(input.spec));
+    } catch (e) {
+      if (e instanceof Error && !("issues" in e)) throw new HttpError(400, e.message);
+      throw e;
+    }
     const errors = validateSpec(spec.stages, spec.rework);
     if (errors.length) throw new HttpError(400, errors.join("; "));
     let templateId = input.templateId ?? null;
