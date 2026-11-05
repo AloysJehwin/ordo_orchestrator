@@ -1,13 +1,116 @@
-# Ordo on Hedera: run budgets the manager approves
+# Ordo on Hedera
 
-Machines buy the resources their stages need with HBAR from their own native accounts. This document covers where that HBAR comes from:
+Ordo runs a plant's production pipelines. Every stage runs on a machine, and every machine is an AI agent with its own body. On Hedera, Ordo does four kinds of work:
+
+- **Money:** machine accounts, the org treasury, x402 purchases, Agent Kit escrow, stablecoin holds.
+- **Records:** the HCS-anchored ledger and HCS audit lines.
+- **Tokens:** lot passports as HTS NFTs, and the OUSD stablecoin.
+- **Deadlines:** schedules that execute or lapse on the network, whether or not Ordo is running.
+
+This page first maps every place Ordo uses Hedera, each confirmed in the code. It then goes deep on the most Hedera-native piece: run budgets the manager approves.
+
+## One run, and every Hedera step in it
+
+1. **The org gets its machines.** One manager signature creates every machine its templates need. Each machine gets its own Hedera account, an ECDSA account with an EVM alias, opened by the operator. A machine's balance is a hard cap on what it can ever spend. (`core/fleet.ts`, `core/machines.ts`, `chain/machine-bank.ts`)
+2. **The run is funded from the treasury.**
+   - When the run starts, its budget becomes one scheduled transfer from the org treasury to the machines that will buy.
+   - The treasury is a native account keyed to the org's own contract. HBAR leaves it only when `OrdoTreasury` has checked a manager's signature and signs the schedule through the Schedule Service (HIP-755).
+   - The console reads the schedule's body from the public mirror node before the manager signs.
+   - (`core/budgets.ts`, `chain/treasury.ts`, `contracts/src/OrdoTreasury.sol`, `web/src/pages/MachineBudgets.tsx`)
+3. **Machines buy what the next stages consume.**
+   - Each machine pays the vendor's own account from its own account over x402, with no one approving each purchase.
+   - Every sale is written to HCS, and the machine gets a delivery receipt signed by Ordo.
+   - (`core/resources.ts`, `body/src/buy.ts`, `edge/purchasing.ts`)
+4. **A machine that runs short asks.**
+   - Its reasoning, 0G request id and value at risk go to HCS first. Only then is the shortfall scheduled from the treasury for a manager to approve.
+   - Unapproved, the schedule lapses on the ledger (HIP-423), and Ordo deletes a top-up whose stage no longer needs it.
+   - (`core/budgets.ts` `overBudget`)
+5. **Stage deadlines run on Hedera.** Each stage's timeout is a scheduled topic message. Ordo deletes it when the stage finishes in time. (`core/schedules.ts`, `pipelines/engine.ts`)
+6. **A drifting machine gets help.**
+   - It buys a vibration assessment over x402 for 0.1 HBAR from its own account.
+   - The maintenance agent escrows a vendor work order through the Hedera Agent Kit into `OrdoWorkOrders`. Three checks guard it: an Agent Kit policy, caps in the contract, and a person's signature to release. An HCS audit hook records every escrow call.
+   - The refund is scheduled at the escrow's expiry.
+   - (`chain/agent-kit.ts`, `core/workorders.ts`, `core/assessments.ts`, `chain/x402.ts`)
+7. **People confirm the work.**
+   - A contributor signs a proof of work. A validator who staked HBAR on `OrdoTrust` selects it, and the acceptance is recorded on Hedera.
+   - Validator payouts are scheduled at the end of the unstake cooldown.
+   - (`core/selection.ts`, `chain/trust.ts`, `contracts/src/OrdoTrust.sol`)
+8. **The lot is a token.**
+   - Each lot is an HTS NFT whose metadata is the public passport (HIP-412). The metadata is updated as the lot is held, completed or shipped (HIP-657), so its history on HashScan follows production.
+   - On a signed ship, the NFT is airdropped to the customer (HIP-904).
+   - (`chain/passport.ts`, `core/passports.ts`)
+9. **The customer pays on proof.**
+   - The lot's price sits in a Stablecoin Studio hold of OUSD, with `OrdoPayOnProof` as escrow. It pays out when `OrdoTrust` records the three-signature release, and refunds at expiry.
+   - Before release, the plant can sell the receivable to a financier.
+   - (`chain/payonproof.ts`, `core/finance.ts`, `contracts/src/OrdoPayOnProof.sol`)
+10. **Everything is anchored.** The head of Ordo's hash-chained ledger goes to an HCS topic every few entries. Anyone can check a proof against the consensus timestamp, which cannot be back-dated. (`chain/hedera.ts`, `core/proof.ts`)
+
+Outside a run, Ordo also sells three MCP tools at 0.1 HBAR a call over x402 (`chain/mcp.ts`, at `/v1/x402/mcp`).
+
+## Every integration
+
+All of them are assembled in `server/src/wiring.ts` (`buildSystem`). Each turns itself on when its env vars are set, and they are all on in local dev.
+
+| Integration | Hedera services | What it does | Code |
+| --- | --- | --- | --- |
+| Org treasury | Contract-keyed account, Schedule Service (HIP-755, HIP-423), Mirror Node, HCS | Run budgets and top-ups as schedules a manager approves; no server key can move the HBAR | `chain/treasury.ts`, `core/budgets.ts`, `contracts/src/OrdoTreasury.sol` |
+| Machine wallets | Accounts (ECDSA alias), crypto transfer, Mirror Node, HCS | One account per machine; the balance is its spending cap | `chain/machine-bank.ts`, `core/machines.ts`, `core/fleet.ts` |
+| Resource purchasing | x402 (`@x402/hedera`), HBAR, HCS | Machines buy ahead from vendors' offers, paid to each vendor's account | `core/resources.ts`, `body/src/buy.ts` |
+| Agent payments | Hedera Agent Kit (plugin, policy, HCS audit hook), Smart Contracts | The maintenance agent escrows work orders in `OrdoWorkOrders` | `chain/agent-kit.ts`, `core/workorders.ts` |
+| x402 assessments | x402, HBAR | Ordo sells an assessment; the agent or a machine buys one per drift | `chain/x402.ts`, `core/assessments.ts` |
+| Metered MCP | x402 over MCP, HBAR | Three paid tools, settled only when the tool succeeds | `chain/mcp.ts` |
+| Hedera schedules | Schedule Service (HIP-423), Mirror Node | Escrow refunds, validator payouts and stage timeouts run by the network | `chain/hedera.ts`, `core/schedules.ts` |
+| Lot passports | HTS NFT (HIP-412, HIP-657, HIP-904) | One NFT per lot; its metadata follows the lot; airdropped on ship | `chain/passport.ts`, `core/passports.ts` |
+| Pay on proof | Stablecoin Studio holds, HTS fungible (OUSD), Smart Contracts, accounts with automatic associations | The customer's payment is held until the release is on-chain; receivables can be sold | `chain/payonproof.ts`, `core/finance.ts` |
+| Ledger anchoring | HCS, Mirror Node | The ledger head is consensus-timestamped; proofs verify against it | `chain/hedera.ts`, `core/proof.ts` |
+| HCS audit lines | HCS | Machine purchases, wallet openings, over-budget reasoning and Agent Kit calls each get a line | `core/resources.ts`, `core/budgets.ts`, `core/machines.ts` |
+| Trust and policies | Smart Contracts on Hedera EVM (chain 296), HBAR stakes | Roles, validator stakes, rewards, cases, acceptances, lot releases, each line's autonomy policy | `chain/trust.ts`, `contracts/src/OrdoTrust.sol`, `OrdoPolicies.sol` |
+
+## Where Hedera has the most impact, for the pitch
+
+1. **The org treasury: no server can move the org's money.**
+   - The treasury is a native account keyed to a contract, and HBAR leaves it only on a manager's verified signature (HIP-755).
+   - The manager checks the payees against the public mirror node before signing.
+   - This needs Hedera itself; it cannot be rebuilt on a generic EVM chain.
+2. **Machines that pay for themselves.**
+   - Every machine is an agent with its own account, buying what its next stages need over x402 within a balance the manager funded.
+   - Each purchase is on HCS. When it runs short, its reasoning is on HCS before any money is scheduled.
+3. **Agent Kit escrow with three locks.** The agent signs from its own account, but an Agent Kit policy, the contract's caps and a person's signature all stand between it and the vendor. An HCS hook audits every call.
+4. **The lot as a token.** An HTS NFT per lot whose metadata follows production (HIP-657) and that lands with the customer (HIP-904). Its OUSD payment is held until the release is on-chain, and the receivable can be sold before then.
+5. **Deadlines and records the network keeps.**
+   - Refunds, payouts and stage timeouts are schedules the network executes, whether or not Ordo is running.
+   - The ledger head and every agent decision that moves money carry consensus timestamps that cannot be back-dated.
+
+Hedera tracks these fit:
+- **AI and agentic payments:** points 1, 2 and 3.
+- **Tokenization:** point 4.
+- **Creative use of HCS:** reasoning ordered before money, stage timeouts as scheduled topic messages, and the anchored ledger.
+
+### Hedera-only, or portable
+
+- **Hedera-only:**
+  - the treasury: a contract-keyed account plus `authorizeSchedule`;
+  - every schedule;
+  - HCS anchoring and audit lines;
+  - HTS passports with metadata updates and airdrops;
+  - native machine accounts as hard caps;
+  - x402 with a protocol fee payer;
+  - the Agent Kit policy and hooks;
+  - Stablecoin Studio holds.
+- **Portable Solidity, deployed on Hedera EVM:** `OrdoTrust`, `OrdoWorkOrders`, `OrdoPolicies` and `OrdoPayOnProof`.
+
+Say this plainly in the pitch: the contracts hold the rules, and Hedera is what makes money move only when those rules and people say so.
+
+## Run budgets the manager approves
+
+Machines buy the resources their stages need with HBAR from their own native accounts. This section covers where that HBAR comes from:
 - each org has a **treasury account**;
 - a run's budget and every over-budget top-up leave the treasury as a **Hedera scheduled transfer**;
 - the transfer executes only when one of the org's managers approves it.
 
 It also explains why that part of Ordo is built on Hedera and cannot simply move to another chain, and what the testnet spike showed before any of it was built.
 
-## Why Hedera is irreplaceable here
+### Why Hedera is irreplaceable here
 
 1. **The treasury is a contract key.**
    - The org's treasury account is keyed to a contract: its own `OrdoTreasuryKey`, created by `OrdoTreasury`.
@@ -35,7 +138,7 @@ Remove Hedera and you would need four trusted components in its place:
 
 On Hedera, protocol features do all four jobs.
 
-## How it fits together
+### How it fits together
 
 ```mermaid
 sequenceDiagram
@@ -59,7 +162,7 @@ sequenceDiagram
   M->>O: x402 purchase from the machine's account, paid to the vendor
 ```
 
-### The pieces
+#### The pieces
 
 - **OrdoTreasury** (`contracts/src/OrdoTreasury.sol`): one deployment per Ordo instance.
   - It reads roles from OrdoTrust.
@@ -92,11 +195,11 @@ sequenceDiagram
   - over-budget requests with their reasoning, 0G request id and value at risk;
   - Approve and Decline.
 
-## What the testnet spike showed
+### What the testnet spike showed
 
 The spike ran on testnet on 6 Nov 2026, before anything was built. The operator was `0.0.11022138`.
 
-### 1. A contract can sign for an account keyed to it (HIP-755)
+#### 1. A contract can sign for an account keyed to it (HIP-755)
 
 | Step | Result |
 | --- | --- |
@@ -108,7 +211,7 @@ The spike ran on testnet on 6 Nov 2026, before anything was built. The operator 
 
 The threshold-key fallback, where Ordo would hold an approver key, was therefore not needed. The doctor would flag such a key as a custodial fallback.
 
-### 2. Only the account's own contract counts
+#### 2. Only the account's own contract counts
 
 | Step | Result |
 | --- | --- |
@@ -118,7 +221,7 @@ The threshold-key fallback, where Ordo would hold an approver key, was therefore
 
 `authorizeSchedule` returning SUCCESS means "signature added", not "transfer done". This is why the server records an approval as executed only once the mirror node says so.
 
-### 3. The real contracts, end to end
+#### 3. The real contracts, end to end
 
 This run used a throwaway OrdoTrust and OrdoTreasury, so the live OrdoTrust was untouched.
 
@@ -138,7 +241,7 @@ This run used a throwaway OrdoTrust and OrdoTreasury, so the live OrdoTrust was 
 
 The nested call matters. The Schedule Service signs with the **immediate** caller, which is the org's key contract and not OrdoTreasury. Each org's key can therefore only sign its own treasury's schedules.
 
-### 4. An unapproved schedule simply lapses
+#### 4. An unapproved schedule simply lapses
 
 | Step | Result |
 | --- | --- |

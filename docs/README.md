@@ -7,7 +7,7 @@ Markdown versions of the Ordo product, architecture and validation documentation
 | [technical-requirements.md](technical-requirements.md) | **MVP build spec (Oct–Nov 2026):** scope, stack, repo layout, agents, policy guard, ledger, adapters, API, tests, milestones. Wins over other docs for the MVP |
 | [environments.md](environments.md) | **How to run, configure and live-test Ordo:** Vercel environments, syncing variables, env doctor, the preview rework loop |
 | [contracts-and-deployment.md](contracts-and-deployment.md) | On-chain accounts, Hedera resources, Solidity contracts, ENS, 0G, and app deployment (GCP, Neon, Vercel, CI/CD), step by step |
-| [hedera.md](hedera.md) | Why Ordo's money moves on Hedera: org treasuries keyed to a contract, run budgets and machines' top-ups as scheduled transfers a manager approves (HIP-755), and what the testnet spike showed |
+| [hedera.md](hedera.md) | Every place Ordo uses Hedera (a run walked through step by step, each integration with its code, the ranking for the pitch), then the org treasury in depth: run budgets and machines' top-ups as scheduled transfers a manager approves (HIP-755), and what the testnet spike showed |
 | [improvements.md](improvements.md) | Review of PRD, plan and docs: blockers, inconsistencies, safety and engineering fixes |
 | [ethglobal-mumbai-strategy.md](ethglobal-mumbai-strategy.md) | ETHGlobal Mumbai partner choice (Hedera, 0G, ENS) |
 | [proof-of-work.md](proof-of-work.md) | Proof of work through 0G Private Computer: sessions, the terminal agent, signing, selection, cases, rewards; signed stage readings, zero-knowledge proofs, release statements; ceremony |
