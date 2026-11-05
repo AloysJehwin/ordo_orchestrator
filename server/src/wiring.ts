@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { BodyService } from "./core/bodies.js";
 import { resolve } from "node:path";
 import { publicBase, type Config } from "./config.js";
 import { geminiProvider, OfflineLlm, openAiCompatProvider, type LlmProvider } from "./adapters/llm.js";
@@ -94,6 +95,8 @@ export interface System {
   readings: Readings;
   /** The media each stage's machine captures for its outcomes */
   outputs: MachineOutputs;
+  /** machine bodies (virtual machines with their own agent); null until a runtime is configured (BODY_RUNTIME) */
+  bodies: BodyService | null;
   stageProofs: StageProofs;
   /** Proof of work through 0G Private Computer */
   contributions: Contributions;
@@ -570,6 +573,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     lotNames,
     readings,
     outputs,
+    bodies: null,
     stageProofs,
     contributions,
     selection,

@@ -16,6 +16,12 @@ const Env = z.object({
   ENGINE_TIMER: z.enum(["auto", "on", "off"]).default("auto"),
   /** required: a run starts only when every stage has a machine to run on. optional: a stage with none waits for a person to record it (the earlier manual mode). */
   STAGE_MACHINES: z.enum(["required", "optional"]).default("required"),
+  /** where machine bodies run: local (a process per machine on this host), sandbox (a Vercel Sandbox microVM per machine), off */
+  BODY_RUNTIME: z.enum(["local", "sandbox", "off"]).default("off"),
+  /** Vercel Sandbox: a token with access to the team, and the project the sandboxes belong to */
+  VERCEL_TOKEN: z.string().optional(),
+  VERCEL_TEAM_ID: z.string().optional(),
+  VERCEL_SANDBOX_PROJECT: z.string().optional(),
   TICK_MS: z.coerce.number().int().min(1000).default(5000),
   VERCEL: z.string().optional(),
   VERCEL_ENV: z.string().optional(),

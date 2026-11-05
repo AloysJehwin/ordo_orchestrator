@@ -77,3 +77,9 @@ export interface BodyAnswer {
   requestId: string | null;
   model: string | null;
 }
+
+/** The machine bodies of every org, as the rest of Ordo uses them (the proof-of-work interviewer asks them questions). */
+export interface BodyService {
+  ask(siteId: string, assetId: string, question: string): Promise<BodyAnswer>;
+  status(siteId: string, assetId: string): Promise<BodyStatus | null>;
+}
