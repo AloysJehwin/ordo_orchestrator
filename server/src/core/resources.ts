@@ -327,6 +327,14 @@ export const storefrontPath = (vendorId: string, sku: string, qty: number, b?: B
  * top-up for that purchase has executed (a manager approved it, budgets.ts), the offer counts as within budget up to
  * the amount approved. A stage with resources starts only once each is delivered, unless a manager signs a waiver.
  */
+/** The machine that buys a ready stage's own resources: its pinned machine, the one its run budget paid, or the first of its kind (by name) with a wallet. */
+export function ownBuyer(s: { machine?: string | null; resourceKind: string }, paid: string | undefined, views: Map<string, { id: string; name: string; kind: string }>, wallets: Set<string>): string | null {
+  if (s.machine) return s.machine;
+  if (paid && views.get(paid)?.kind === s.resourceKind) return paid;
+  const ofKind = [...views.values()].filter((a) => a.kind === s.resourceKind).sort((a, b) => a.name.localeCompare(b.name));
+  return (ofKind.find((a) => wallets.has(a.id)) ?? ofKind[0])?.id ?? null;
+}
+
 export class Resources {
   private receiptKey: PrivateKeyAccount;
   private accounts = new Map<string, { account: string | null; at: number }>();
@@ -819,11 +827,11 @@ export class Resources {
     const wallets: NeededView["wallets"] = [];
     const w = await this.db.query<{ asset_id: string; account_id: string; status: string }>("SELECT asset_id, account_id, status FROM machine_wallets WHERE account_id IS NOT NULL AND status = 'active'");
     for (const x of w.rows.filter((r) => mine.has(r.asset_id))) wallets.push({ assetId: x.asset_id, accountId: x.account_id, balanceTinybar: this.bank ? await this.bank.balance(x.account_id).then(String).catch(() => null) : null });
+    const walletIds = new Set(w.rows.map((r) => r.asset_id));
     const needed: NeededResource[] = [];
     for (const siteId of [...new Set(assets.map((a) => a.site_id))]) {
       await this.ensureDemo(siteId);
       const views = new Map<string, AssetView>((await this.plant.views(siteId)).map((a) => [a.id, a]));
-      const kinds = new Map([...mine].filter((id) => views.has(id)).map((id) => [id, views.get(id)!.kind]));
       const runs = await this.db.query<{ id: string }>("SELECT id FROM runs WHERE site_id = $1 AND status = 'running' ORDER BY started_at", [siteId]);
       for (const { id: runId } of runs.rows) {
         const v = await this.engine.view(siteId, runId, views, false);
@@ -837,10 +845,11 @@ export class Resources {
           // the machine of the stage before it buys ahead; a stage ready to start with nothing bought buys for itself
           const before = ps.find((p) => p.assetId && mine.has(p.assetId) && ACTIVE.includes(p.state));
           const ready = ps.every((p) => DONE.includes(p.state));
-          // the machine the run's budget funded to run it, when it is one of these; else the first of its kind
-          const paid = funded.get(s.code);
-          const own = ready ? (s.machine ? (mine.has(s.machine) ? s.machine : null) : paid && kinds.get(paid) === s.resourceKind ? paid : ([...kinds].find(([, k]) => k === s.resourceKind)?.[0] ?? null)) : null;
-          const buyer = before?.assetId ?? own;
+          // one machine of the org buys for itself, the same one whichever body asks (each body asks for its own machines):
+          // the pinned one, else the one the run's budget funded, else the first of its kind by name with a wallet
+          const own = ready ? ownBuyer(s, funded.get(s.code), views, walletIds) : null;
+          if (own && !mine.has(own) && !before) continue;
+          const buyer = before?.assetId ?? (own && mine.has(own) ? own : null);
           if (!buyer || (await this.waiver(runId, s.code))) continue;
           for (const r of s.resources) {
             const need = resourceNeed(r, v.quantity);

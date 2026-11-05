@@ -26,6 +26,8 @@ export interface BlobStore {
  * tamper-evident on 0G without being readable by anyone else. The root is of the ciphertext; Ordo checks a download by
  * decrypting it and comparing the SHA-256 recorded in its ledger.
  */
+const UPLOAD_LIMIT_MS = 180_000;
+
 export class ZeroGStorage implements BlobStore {
   readonly kind = "0g-storage";
   private key: Uint8Array;
@@ -33,17 +35,29 @@ export class ZeroGStorage implements BlobStore {
     if (!cfg.ZG_PRIVATE_KEY) throw new Error("0G Storage needs ZG_PRIVATE_KEY");
     this.key = createHash("sha256").update(`ordo:evidence:${cfg.ZG_PRIVATE_KEY.replace(/^0x/, "")}`).digest();
   }
-  /** uploads one at a time: they all sign with the one 0G wallet, and two at once take the same nonce and one fails */
+  /**
+   * Uploads one at a time: they all sign with the one 0G wallet, and two at once take the same nonce and one fails.
+   * Each gets UPLOAD_LIMIT_MS, so an upload that never returns fails instead of holding every one after it (and the
+   * engine cycle that waits on them).
+   */
   private queue: Promise<unknown> = Promise.resolve();
   put(bytes: Uint8Array) {
-    const next = this.queue.then(() => this.upload(bytes));
+    const next = this.queue.then(() => {
+      let timer: NodeJS.Timeout | undefined;
+      const limit = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`0G upload: no answer in ${UPLOAD_LIMIT_MS / 1000} s`)), UPLOAD_LIMIT_MS);
+      });
+      return Promise.race([this.upload(bytes), limit]).finally(() => clearTimeout(timer));
+    });
     this.queue = next.catch(() => undefined);
     return next;
   }
   private async upload(bytes: Uint8Array) {
     const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
     const indexer = new Indexer(this.cfg.ZG_INDEXER_URL);
-    const [r, err] = await indexer.upload(new MemData(bytes), this.cfg.ZG_RPC_URL, (await wallet(this.cfg)) as never, { encryption: { type: "aes256", key: this.key } } as never);
+    // not waiting for finality: Ordo records the root and the submission once the segments are on the storage nodes, and
+    // a node that never reports the entry finalized (seen on the testnet) would otherwise hold the upload forever
+    const [r, err] = await indexer.upload(new MemData(bytes), this.cfg.ZG_RPC_URL, (await wallet(this.cfg)) as never, { encryption: { type: "aes256", key: this.key }, finalityRequired: false } as never);
     if (err) throw new Error(`0G upload: ${err.message ?? err}`);
     const one = "rootHash" in r ? r : { rootHash: r.rootHashes[0]!, txHash: r.txHashes[0]! };
     return { root: one.rootHash, tx: one.txHash, url: `${ZG_EXPLORER}/tx/${one.txHash}` };

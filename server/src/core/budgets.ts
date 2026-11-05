@@ -704,10 +704,12 @@ export class Budgets {
       ...(await this.db.query<{ asset_id: string }>("SELECT asset_id FROM stage_runs WHERE run_id = $1 AND asset_id IS NOT NULL", [run.id])).rows.map((r) => r.asset_id),
       ...tpl.spec.stages.map((s) => s.machine).filter((m): m is string => Boolean(m)),
     ]);
-    const mine = (await this.db.query<{ id: string; name: string; source_json: string; account_id: string | null }>(
-      "SELECT a.id, a.name, a.source_json, w.account_id FROM assets a LEFT JOIN machine_wallets w ON w.asset_id = a.id AND w.status = 'active' WHERE a.site_id = $1 AND a.archived_at IS NULL",
+    // a stage still waiting to start buys its own resources with a machine of its kind, before any is bound to it
+    const queued = (await this.db.query<{ state: string }>("SELECT state FROM stage_runs WHERE run_id = $1 AND code = $2", [run.id, b.stage])).rows[0]?.state === "queued";
+    const mine = (await this.db.query<{ id: string; name: string; kind: string; source_json: string; account_id: string | null }>(
+      "SELECT a.id, a.name, a.kind, a.source_json, w.account_id FROM assets a LEFT JOIN machine_wallets w ON w.asset_id = a.id AND w.status = 'active' WHERE a.site_id = $1 AND a.archived_at IS NULL",
       [run.site_id],
-    )).rows.filter((a) => (JSON.parse(a.source_json) as { device?: string }).device?.toLowerCase() === device.toLowerCase() && inRun.has(a.id));
+    )).rows.filter((a) => (JSON.parse(a.source_json) as { device?: string }).device?.toLowerCase() === device.toLowerCase() && (inRun.has(a.id) || (queued && a.kind === stage.resourceKind)));
     const asset = b.assetId ? mine.find((a) => a.id === b.assetId) : (mine.find((a) => a.account_id) ?? mine[0]);
     if (!asset) throw new HttpError(403, b.assetId ? `${b.assetId} is not a machine of that run that this device feeds` : "This device is not the data source of a machine in that run");
     if (!asset.account_id) throw new HttpError(409, `${asset.name} has no Hedera account to top up`);
