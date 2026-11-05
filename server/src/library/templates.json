@@ -1,0 +1,1777 @@
+{
+ "templates": [
+  {
+   "key": "discrete-assembly",
+   "name": "Discrete assembly",
+   "category": "Discrete",
+   "description": "Order-driven build of multi-part products: sourcing and tooling run in parallel, a vision gate before packing, and a rework loop back to sub-assembly.",
+   "rework": {
+    "from": "06",
+    "to": "04"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Order intake",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Material sourcing",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Tooling prep",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Machining",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Fixture build",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Sub-assembly",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05a",
+     "column": 5,
+     "name": "Final assembly",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05b",
+     "column": 5,
+     "name": "Documentation pack",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Quality inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Packaging",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Dispatch",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "batch-chemical-process",
+   "name": "Batch chemical process",
+   "category": "Process",
+   "description": "Recipe-controlled batches from receiving to release, with QC sampling holding the batch until lab results clear.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Demand planning",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Raw material receiving",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Weighing & dispensing",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Mixing",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Reaction",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "QC sampling",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Filling",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Labeling",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "09",
+     "column": 9,
+     "name": "Batch release",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    }
+   ]
+  },
+  {
+   "key": "machining-job-shop",
+   "name": "Machining job shop",
+   "category": "Fabrication",
+   "description": "High-mix, low-volume jobs. CAM programming and stock procurement overlap; CMM inspection closes each job.",
+   "rework": {
+    "from": "07",
+    "to": "05"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Quote & order",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "CAM programming",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Stock procurement",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Program simulation",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Stock cutting",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Fixture setup",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "CNC milling",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Deburr & finish",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "CMM inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Ship",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "injection-molding",
+   "name": "Injection molding",
+   "category": "Discrete",
+   "description": "Resin drying and mold setup in parallel, cycle-level monitoring on the press, visual inspection before pack-out.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Order intake",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Resin drying",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Mold setup",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Molding",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Trim & degate",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Visual inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Pack",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "electronics-smt-line",
+   "name": "Electronics SMT line",
+   "category": "Electronics",
+   "description": "Board assembly from kitting through reflow, AOI and functional test to box build.",
+   "rework": {
+    "from": "06a",
+    "to": "04"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Work order",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Component kitting",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Stencil prep",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Solder paste print",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Pick & place",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Reflow",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06a",
+     "column": 6,
+     "name": "AOI inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06b",
+     "column": 6,
+     "name": "X-ray sampling",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Functional test",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Box build",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "food-beverage-batch",
+   "name": "Food & beverage batch",
+   "category": "Process",
+   "description": "Ingredient traceability through blending, heat treatment and filling, with lab release before shipment.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Production plan",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Ingredient receiving",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Packaging receiving",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Blending",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Packaging QC",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Heat treatment",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Cooling",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Filling",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Lab release",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Palletize & ship",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "pharma-gmp-batch",
+   "name": "Pharma GMP batch",
+   "category": "Regulated",
+   "description": "Electronic batch record from issue to QA release. Every stage signs its record; in-process QC gates compression.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Batch record issue",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Dispensing",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Equipment cleaning",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Granulation",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Drying",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Compression",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06a",
+     "column": 6,
+     "name": "In-process QC",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06b",
+     "column": 6,
+     "name": "Coating prep",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Coating",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "QA release",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    }
+   ]
+  },
+  {
+   "key": "additive-manufacturing",
+   "name": "Additive manufacturing",
+   "category": "Fabrication",
+   "description": "Powder-bed builds: powder QC and nesting in parallel, post-processing chain, CT scan before release.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Build prep",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Powder QC",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Nesting",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Print",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Depowder",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05a",
+     "column": 5,
+     "name": "Heat treat",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05b",
+     "column": 5,
+     "name": "Build report",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Support removal",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "CT scan inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Ship",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "sheet-metal-fabrication",
+   "name": "Sheet metal fabrication",
+   "category": "Fabrication",
+   "description": "Nest, cut, bend, weld and coat, with a final dimensional inspection before dispatch.",
+   "rework": {
+    "from": "07",
+    "to": "05"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Order intake",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Nesting",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Laser cutting",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Tube cutting",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04a",
+     "column": 4,
+     "name": "Press brake bending",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04b",
+     "column": 4,
+     "name": "Tube bending",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Welding",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Powder coat",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Final inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Dispatch",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "surface-finishing",
+   "name": "Surface finishing",
+   "category": "Process",
+   "description": "Pre-treatment, primer and paint booth passes, oven cure and film-thickness QC.",
+   "rework": {
+    "from": "06",
+    "to": "04"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Receive parts",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Pre-treatment",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Primer",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Paint booth",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Cure oven",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Film-thickness QC",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Unload & pack",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "warehouse-kitting",
+   "name": "Warehouse & kitting",
+   "category": "Logistics",
+   "description": "Demand-signal driven picking and kitting with verification before line-side delivery.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Demand signal",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Pick",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Kitting",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Labeling",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Kit verification",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Line delivery",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "predictive-maintenance",
+   "name": "Predictive maintenance",
+   "category": "Maintenance",
+   "description": "From anomaly to return-to-service: diagnosis, parts and downtime scheduled in parallel, verified by a test run.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Anomaly detection",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Diagnosis",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Spare parts reservation",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Downtime scheduling",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Repair",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Verification run",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Return to service",
+     "agent": "maintenance",
+     "resourceKind": "maintenance_crew",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "engineer-to-order",
+   "name": "Engineer-to-order",
+   "category": "Lifecycle",
+   "description": "Customer-specific designs: design review gates procurement and fabrication, factory acceptance test before delivery.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Customer request",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Engineering design",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Design review",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "04a",
+     "column": 4,
+     "name": "Procurement",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04b",
+     "column": 4,
+     "name": "Fabrication",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04c",
+     "column": 4,
+     "name": "Software config",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05a",
+     "column": 5,
+     "name": "Long-lead receiving",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05b",
+     "column": 5,
+     "name": "Machining",
+     "agent": "scheduler",
+     "resourceKind": "cnc",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05c",
+     "column": 5,
+     "name": "Controls test",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Assembly",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Factory acceptance test",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "08",
+     "column": 8,
+     "name": "Delivery",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "new-product-introduction",
+   "name": "New product introduction",
+   "category": "Lifecycle",
+   "description": "Design release to rate: pilot build, first article inspection and capability study before ramp.",
+   "rework": {
+    "from": "04",
+    "to": "03"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Design release",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Process planning",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Pilot build",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "First article inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Capability study",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Ramp to rate",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    }
+   ]
+  },
+  {
+   "key": "rework-recall",
+   "name": "Rework & recall",
+   "category": "Quality",
+   "description": "Containment and root cause on a reported defect, rework, re-inspection and customer notice.",
+   "rework": {
+    "from": "05",
+    "to": "04"
+   },
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Defect report",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "02a",
+     "column": 2,
+     "name": "Containment",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "02b",
+     "column": 2,
+     "name": "Customer notice",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "03a",
+     "column": 3,
+     "name": "Root-cause analysis",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "03b",
+     "column": 3,
+     "name": "Stock sweep",
+     "agent": "supply",
+     "resourceKind": "agv",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Rework",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 90
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Re-inspection",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "Close-out",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 120
+    }
+   ]
+  },
+  {
+   "key": "protein-synthesis",
+   "name": "Protein synthesis",
+   "category": "Regulated",
+   "description": "Recombinant protein from batch record to fill and finish. Expression, purification and characterisation are judged on measured instrument parameters, each proven in zero knowledge; QC release is a quality engineer's gate. One unit is one batch.",
+   "rework": null,
+   "stages": [
+    {
+     "code": "01",
+     "column": 1,
+     "name": "Batch record issue",
+     "agent": "planning",
+     "resourceKind": "system",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 60,
+     "criteria": []
+    },
+    {
+     "code": "02",
+     "column": 2,
+     "name": "Expression (bioreactor)",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 1440,
+     "criteria": [
+      { "label": "Culture temperature", "kind": "signal", "signal": "temperature", "agg": "envelope", "op": ">=", "target": 35, "targetMax": 39, "unit": "°C" },
+      { "label": "Cell density OD600", "kind": "signal", "signal": "od600", "agg": "last", "op": ">=", "target": 0.6, "unit": "" },
+      { "label": "Dissolved oxygen", "kind": "signal", "signal": "dissolved_oxygen", "agg": "min", "op": ">=", "target": 30, "unit": "%" }
+     ]
+    },
+    {
+     "code": "03",
+     "column": 3,
+     "name": "Harvest and lysis",
+     "agent": "line",
+     "resourceKind": "robot",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 240,
+     "criteria": [
+      { "label": "Yield", "kind": "yield", "op": ">=", "target": 95, "unit": "%" }
+     ]
+    },
+    {
+     "code": "04",
+     "column": 4,
+     "name": "Purification (FPLC)",
+     "agent": "process",
+     "resourceKind": "process_vessel",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 480,
+     "criteria": [
+      { "label": "Protein yield", "kind": "signal", "signal": "yield_mg_l", "agg": "last", "op": ">=", "target": 10, "unit": "mg/L" },
+      { "label": "Purity", "kind": "signal", "signal": "purity_pct", "agg": "last", "op": ">=", "target": 95, "unit": "%" },
+      { "label": "Column pressure", "kind": "signal", "signal": "pressure_bar", "agg": "max", "op": "<=", "target": 3, "unit": "bar" }
+     ]
+    },
+    {
+     "code": "05",
+     "column": 5,
+     "name": "Characterisation",
+     "agent": "vision_qa",
+     "resourceKind": "inspection",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 240,
+     "criteria": [
+      { "label": "Specific activity", "kind": "signal", "signal": "specific_activity", "agg": "last", "op": ">=", "target": 50, "unit": "U/mg" },
+      { "label": "Aggregates", "kind": "signal", "signal": "aggregate_pct", "agg": "max", "op": "<=", "target": 5, "unit": "%" }
+     ]
+    },
+    {
+     "code": "06",
+     "column": 6,
+     "name": "QC release",
+     "agent": "vision_qa",
+     "resourceKind": "manual_station",
+     "mode": "approve",
+     "escalationRole": "manager",
+     "timeoutMin": 480,
+     "criteria": [
+      { "label": "Endotoxin", "kind": "signal", "signal": "endotoxin_eu_mg", "agg": "last", "op": "<=", "target": 0.5, "unit": "EU/mg" },
+      { "label": "Bioburden", "kind": "signal", "signal": "bioburden_cfu", "agg": "last", "op": "==", "target": 0, "unit": "CFU" }
+     ]
+    },
+    {
+     "code": "07",
+     "column": 7,
+     "name": "Fill and finish",
+     "agent": "logistics",
+     "resourceKind": "pack_line",
+     "mode": "auto",
+     "escalationRole": "manager",
+     "timeoutMin": 240,
+     "criteria": [
+      { "label": "Fill yield", "kind": "yield", "op": ">=", "target": 99, "unit": "%" }
+     ]
+    }
+   ]
+  }
+ ],
+ "criteriaByAgent": {
+  "vision_qa": [
+   {
+    "label": "First-pass yield",
+    "op": ">=",
+    "target": 97.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Defects",
+    "op": "<=",
+    "target": 500.0,
+    "unit": "ppm",
+    "abs": false
+   },
+   {
+    "label": "Cpk (critical dim.)",
+    "op": ">=",
+    "target": 1.33,
+    "unit": "",
+    "abs": false
+   }
+  ],
+  "planning": [
+   {
+    "label": "On-time release",
+    "op": ">=",
+    "target": 98.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Plan adherence",
+    "op": ">=",
+    "target": 95.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Data completeness",
+    "op": "==",
+    "target": 100.0,
+    "unit": "%"
+   }
+  ],
+  "supply": [
+   {
+    "label": "Kit accuracy",
+    "op": ">=",
+    "target": 99.5,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Material availability",
+    "op": "==",
+    "target": 100.0,
+    "unit": "%"
+   },
+   {
+    "label": "Inbound lead time",
+    "op": "<=",
+    "target": 2.0,
+    "unit": "h",
+    "abs": false
+   }
+  ],
+  "line": [
+   {
+    "label": "Cycle time",
+    "op": "<=",
+    "target": 62.0,
+    "unit": "s",
+    "abs": false
+   },
+   {
+    "label": "OEE",
+    "op": ">=",
+    "target": 80.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Scrap",
+    "op": "<=",
+    "target": 1.0,
+    "unit": "%",
+    "abs": false
+   }
+  ],
+  "scheduler": [
+   {
+    "label": "OEE",
+    "op": ">=",
+    "target": 80.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Scrap rate",
+    "op": "<=",
+    "target": 1.5,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Cycle time",
+    "op": "<=",
+    "target": 4.2,
+    "unit": "min",
+    "abs": false
+   }
+  ],
+  "process": [
+   {
+    "label": "Temperature deviation",
+    "op": "<=",
+    "target": 2.0,
+    "unit": "°C",
+    "abs": true
+   },
+   {
+    "label": "Batch yield",
+    "op": ">=",
+    "target": 96.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Moisture",
+    "op": "<=",
+    "target": 2.5,
+    "unit": "%",
+    "abs": false
+   }
+  ],
+  "logistics": [
+   {
+    "label": "Pack accuracy",
+    "op": ">=",
+    "target": 99.8,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "On-time ship",
+    "op": ">=",
+    "target": 97.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Damage rate",
+    "op": "<=",
+    "target": 0.2,
+    "unit": "%",
+    "abs": false
+   }
+  ],
+  "maintenance": [
+   {
+    "label": "MTTR",
+    "op": "<=",
+    "target": 90.0,
+    "unit": "min",
+    "abs": false
+   },
+   {
+    "label": "Planned vs unplanned",
+    "op": ">=",
+    "target": 85.0,
+    "unit": "%",
+    "abs": false
+   },
+   {
+    "label": "Repeat failures",
+    "op": "==",
+    "target": 0.0,
+    "unit": ""
+   }
+  ]
+ }
+}
