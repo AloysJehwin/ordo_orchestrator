@@ -65,6 +65,25 @@ const iso = (s: string | null) => (s ? new Date(s).toISOString() : null);
  * (MTConnect PartCount or an uploaded dataset) or from what an operator records; it is never
  * invented. Gates stop the run until a person with the stage's escalation role signs.
  */
+/**
+ * Per buying stage, the machine the run's executed budget credited for it: a stage's machine buys the resources of the
+ * stages after it (a first stage buys its own), and the budget funded the machine it expected to run that stage.
+ */
+export async function fundedBuyers(db: Db, runId: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const b = (await db.query<{ credits_json: string; lines_json: string }>(
+    "SELECT credits_json, lines_json FROM budget_schedules WHERE run_id = $1 AND kind = 'run' AND status = 'executed' ORDER BY created_at DESC LIMIT 1",
+    [runId],
+  )).rows[0];
+  if (!b) return out;
+  const credits = JSON.parse(b.credits_json) as { assetId: string; stages: string[] }[];
+  for (const l of JSON.parse(b.lines_json) as { stage: string; buyer: string }[]) {
+    const c = credits.find((x) => x.stages.includes(l.stage));
+    if (c && !out.has(l.buyer)) out.set(l.buyer, c.assetId);
+  }
+  return out;
+}
+
 export class RunEngine {
   /** set after construction (the inbox executes engine actions and the engine raises inbox items) */
   inbox!: Inbox;
@@ -329,6 +348,7 @@ export class RunEngine {
     const busy = new Map<string, number>();
     const act = await this.db.query<{ asset_id: string; n: string }>("SELECT asset_id, COUNT(*)::text n FROM stage_runs sr JOIN runs r ON r.id = sr.run_id WHERE r.status = 'running' AND sr.state IN ('running','awaiting_approval','held') AND sr.asset_id IS NOT NULL GROUP BY asset_id");
     for (const r of act.rows) busy.set(r.asset_id, Number(r.n));
+    let funded: Map<string, string> | null = null;
     for (const row of ctx.rows) {
       if (row.state !== "queued") continue;
       if (!(preds.get(row.code) ?? []).every((p) => DONE.includes(state.get(p)!))) continue;
@@ -363,7 +383,10 @@ export class RunEngine {
         continue;
       }
       const usable = candidates.filter((a) => !["offline", "alarm", "no_data"].includes(a.status));
-      const pick = (usable.length ? usable : candidates).sort((a, b) => (busy.get(a.id) ?? 0) - (busy.get(b.id) ?? 0) || (a.status === "idle" ? -1 : 1))[0] ?? null;
+      // the machine the run's budget paid to buy as this stage runs it, so the HBAR is where the purchases are made
+      funded ??= await fundedBuyers(this.db, ctx.run.id);
+      const paid = usable.find((a) => a.id === funded!.get(row.code));
+      const pick = paid ?? (usable.length ? usable : candidates).sort((a, b) => (busy.get(a.id) ?? 0) - (busy.get(b.id) ?? 0) || (a.status === "idle" ? -1 : 1))[0] ?? null;
       const baseline = pick?.latest.part_count?.value ?? null;
       const waiting = !pick
         ? `No ${ASSET_KIND_LABEL[spec.resourceKind].toLowerCase()} is registered: an operator records this stage`

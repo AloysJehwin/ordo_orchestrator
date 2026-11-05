@@ -7,7 +7,7 @@ import type { Db } from "../db/db.js";
 import { canApproveAny } from "../domain/policy.js";
 import type { AccessLevel, AssetView, Role, StageResource, StageRunView } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
-import type { RunEngine } from "../pipelines/engine.js";
+import { fundedBuyers, type RunEngine } from "../pipelines/engine.js";
 import { predecessors } from "../pipelines/graph.js";
 import { newId, type PlantService } from "../plant/plant.js";
 import type { Recorder } from "./recorder.js";
@@ -828,6 +828,7 @@ export class Resources {
       for (const { id: runId } of runs.rows) {
         const v = await this.engine.view(siteId, runId, views, false);
         const approved = await this.approvals(runId);
+        const funded = await fundedBuyers(this.db, runId);
         const preds = predecessors(v.stages);
         const byCode = new Map(v.stages.map((s) => [s.code, s]));
         for (const s of v.stages) {
@@ -836,7 +837,9 @@ export class Resources {
           // the machine of the stage before it buys ahead; a stage ready to start with nothing bought buys for itself
           const before = ps.find((p) => p.assetId && mine.has(p.assetId) && ACTIVE.includes(p.state));
           const ready = ps.every((p) => DONE.includes(p.state));
-          const own = ready ? (s.machine ? (mine.has(s.machine) ? s.machine : null) : ([...kinds].find(([, k]) => k === s.resourceKind)?.[0] ?? null)) : null;
+          // the machine the run's budget funded to run it, when it is one of these; else the first of its kind
+          const paid = funded.get(s.code);
+          const own = ready ? (s.machine ? (mine.has(s.machine) ? s.machine : null) : paid && kinds.get(paid) === s.resourceKind ? paid : ([...kinds].find(([, k]) => k === s.resourceKind)?.[0] ?? null)) : null;
           const buyer = before?.assetId ?? own;
           if (!buyer || (await this.waiver(runId, s.code))) continue;
           for (const r of s.resources) {
