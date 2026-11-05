@@ -123,6 +123,10 @@ export class Bodies implements BodyService {
   /** when a run last wanted each body (look-ahead or its stage running), for the idle stop */
   private readonly lastWanted = new Map<string, number>();
   private lastReplica = new Map<string, number>();
+  /** new machines get their own Hedera account (machine wallets are on) */
+  get hasWallets() {
+    return Boolean(this.machines.bank);
+  }
 
   constructor(
     private db: Db,

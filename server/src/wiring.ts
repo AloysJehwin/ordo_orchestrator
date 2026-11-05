@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { BodyRunner, BodyRuntime } from "./core/bodies.js";
 import { Bodies } from "./core/body-service.js";
+import { Fleet } from "./core/fleet.js";
 import { resolve } from "node:path";
 import { publicBase, type Config } from "./config.js";
 import { geminiProvider, OfflineLlm, openAiCompatProvider, type LlmProvider } from "./adapters/llm.js";
@@ -99,6 +100,8 @@ export interface System {
   outputs: MachineOutputs;
   /** machine bodies: virtual machines with their own agent. Always present; they start only when a runtime is configured (BODY_RUNTIME) */
   bodies: Bodies;
+  /** an org's machines for the library's templates, created on one manager signature */
+  fleet: Fleet;
   stageProofs: StageProofs;
   /** Proof of work through 0G Private Computer */
   contributions: Contributions;
@@ -670,6 +673,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     readings,
     outputs,
     bodies,
+    fleet: new Fleet(db, rec, sigs, bodies, cfg.SIGNATURE_CHAIN_ID),
     stageProofs,
     contributions,
     selection,

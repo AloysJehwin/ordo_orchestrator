@@ -1292,6 +1292,22 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     lvl(c, 2, "the floor");
     return c.json({ runtime: sys.bodies.runtime, brain: sys.contributions.router.network === "mock" ? "none" : "0g", trustMode: sys.contributions.router.trustMode, bodies: await sys.bodies.list(sid(c)) });
   });
+  // the machines the library's templates need, created on one manager signature (right after creating an org)
+  site.get("/machines/fleet", async (c) => {
+    lvl(c, 2, "the floor");
+    return c.json(await sys.fleet.view(sid(c)));
+  });
+  site.post("/machines/fleet/sign-request", async (c) => {
+    need(c, "manager");
+    const b = await body(c, z.object({ chainId: z.number().int().positive().optional() }));
+    return c.json(await sys.fleet.request(sid(c), me(c).user, c.get("roles"), b.chainId));
+  });
+  site.post("/machines/fleet", async (c) => {
+    need(c, "manager");
+    const r = await sys.fleet.create(sid(c), me(c).user, c.get("roles"), await body(c, SignedBody));
+    await sys.advance(true);
+    return c.json(r);
+  });
   site.post("/machines", async (c) => {
     need(c, "manager");
     const r = await sys.bodies.create(sid(c), me(c).user, c.get("roles"), await body(c, BodyCreate));
