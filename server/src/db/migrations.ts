@@ -465,6 +465,23 @@ CREATE INDEX stage_outputs_stage ON stage_outputs (run_id, stage_code, outcome_k
 `,
   },
   {
+    version: 28,
+    name: "machine bodies: virtual machines, the runtime they run on, and their episode logs",
+    sql: `
+CREATE TABLE machine_bodies (asset_id TEXT PRIMARY KEY REFERENCES assets(id), site_id TEXT NOT NULL REFERENCES sites(id),
+  runtime TEXT, profile TEXT NOT NULL, seed TEXT NOT NULL, key_enc TEXT NOT NULL, ask_token_enc TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'stopped', auto_start BOOLEAN NOT NULL DEFAULT true, sandbox_id TEXT, ask_url TEXT,
+  brain TEXT NOT NULL DEFAULT 'none', router_key_id TEXT, started_at TIMESTAMPTZ, stopped_at TIMESTAMPTZ, error TEXT,
+  episode_sha256 TEXT, episode_root TEXT, episode_at TIMESTAMPTZ, created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX machine_bodies_site ON machine_bodies (site_id);
+CREATE TABLE body_episodes (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), asset_id TEXT NOT NULL,
+  run_id TEXT, stage_code TEXT, sha256 TEXT NOT NULL, entries INTEGER NOT NULL, decisions INTEGER NOT NULL,
+  final BOOLEAN NOT NULL DEFAULT false, ledger_seq INTEGER, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX body_episodes_asset ON body_episodes (asset_id, created_at);
+`,
+  },
+  {
     version: 29,
     name: "stage resources: vendors' offers, purchases over x402 and waivers",
     sql: `

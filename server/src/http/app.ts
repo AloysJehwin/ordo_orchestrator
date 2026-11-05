@@ -15,6 +15,7 @@ import { lineInScope, needLevel, redactRun, redactRuns, stageInScope, type Acces
 import { FinishBody } from "../core/contributions.js";
 import { MAX_OUTPUT_BYTES, MAX_PREVIEW_BYTES, OutputMeta } from "../core/outputs.js";
 import { OfferBody, OfferPatch } from "../core/resources.js";
+import { BodyCreate, BodyHold, BodyReport, MAX_EPISODE_BYTES } from "../core/body-service.js";
 import { publicBase } from "../config.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
@@ -354,6 +355,18 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   app.post("/v1/edge/overbudget", async (c) => {
     const e = await edge(c);
     return c.json(await sys.budgets.overBudget(e.device, OverBudgetBody.parse(e.json())));
+  });
+
+  // a virtual machine's body: it holds its stage (a safe stop when 0G is unreachable, or its agent's decision), and reports
+  // its state with its episode log (every perception and decision, with its 0G request ID)
+  app.post("/v1/edge/hold", async (c) => {
+    const e = await edge(c);
+    return c.json(await sys.bodies.hold(e.device, BodyHold.parse(e.json())));
+  });
+  app.post("/v1/edge/episodes", async (c) => {
+    if (Number(c.req.header("content-length") ?? 0) > MAX_EPISODE_BYTES + 64 * 1024) throw new HttpError(400, "An episode log is at most 2 MB");
+    const e = await edge(c);
+    return c.json(await sys.bodies.report(e.device, BodyReport.parse(e.json())));
   });
 
   // ---------------- Running pipelines: public, no sign-in, so a newcomer can see what a site runs and apply for a role ----------------
@@ -1271,6 +1284,39 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     await runFor(c, c.req.param("runId"));
     const m = c.req.query("margin");
     return c.json(await sys.resources.budget(sid(c), c.req.param("runId"), m === undefined ? undefined : Math.min(100, Math.max(0, Number(m) || 0))));
+  });
+
+  // ---- Virtual machines: each an asset run by its own body and agent ----
+  site.get("/machines", async (c) => {
+    lvl(c, 2, "the floor");
+    return c.json({ runtime: sys.bodies.runtime, brain: sys.contributions.router.network === "mock" ? "none" : "0g", bodies: await sys.bodies.list(sid(c)) });
+  });
+  site.post("/machines", async (c) => {
+    need(c, "manager");
+    const r = await sys.bodies.create(sid(c), me(c).user, c.get("roles"), await body(c, BodyCreate));
+    await sys.advance(true);
+    return c.json(r);
+  });
+  site.post("/machines/:assetId/start", async (c) => {
+    need(c, "manager");
+    return c.json(await sys.bodies.start(sid(c), c.req.param("assetId"), actor(c)));
+  });
+  site.post("/machines/:assetId/stop", async (c) => {
+    need(c, "manager");
+    return c.json(await sys.bodies.stop(sid(c), c.req.param("assetId"), actor(c)));
+  });
+  site.get("/machines/:assetId/episodes", async (c) => {
+    lvl(c, 3, "machine logs");
+    return c.json({ episodes: await sys.bodies.episodes(sid(c), c.req.param("assetId")) });
+  });
+  site.get("/machines/:assetId/episode", async (c) => {
+    lvl(c, 3, "machine logs");
+    return c.json(await sys.bodies.episode(sid(c), c.req.param("assetId"), c.req.query("sha256")));
+  });
+  site.post("/machines/:assetId/ask", async (c) => {
+    lvl(c, 3, "machine logs");
+    const b = await body(c, z.object({ question: z.string().trim().min(2).max(500) }));
+    return c.json(await sys.bodies.ask(sid(c), c.req.param("assetId"), b.question));
   });
 
   app.route("/v1/sites/:siteId", site);

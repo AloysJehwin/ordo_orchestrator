@@ -2,9 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { recoverMessageAddress, recoverTypedDataAddress, type Address, type Hex } from "viem";
 import { MEASUREMENT_TYPES, PROOF_DOMAIN, READING_TYPES, type User } from "../auth/auth.js";
 import type { Db } from "../db/db.js";
-import type { Criterion, CriterionResult } from "../domain/types.js";
+import type { Criterion, CriterionResult, Outcome, StageResource } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
 import { kindOf } from "../pipelines/criteria.js";
+import { predecessors } from "../pipelines/graph.js";
 import type { RunEngine } from "../pipelines/engine.js";
 import type { PlantService } from "../plant/plant.js";
 import type { Recorder } from "./recorder.js";
@@ -78,6 +79,23 @@ export interface EdgeStage {
   /** the stage's measured parameters, one entry per bound, for the gateway to sign from its own readings */
   parameters: EdgeParameter[];
   measurementsSigned: boolean;
+  /** the stage's name, for the machine's log and its media */
+  name: string;
+  /** the run's quantity: the units the machine's counters must reach */
+  quantity: number;
+  /** a batch process closes when the machine reports this signal with this value, instead of on its counts */
+  completeOn: { signal: string; equals: string } | null;
+  /** what the machine captures for the stage, and what it has uploaded so far */
+  outcomes: EdgeOutcome[];
+  /** what the stage consumes */
+  resources: StageResource[];
+  /** the stages that follow this one in the run, with what they consume: the machine buys these ahead of them */
+  upcoming: { stage: string; name: string; resources: StageResource[] }[];
+}
+/** One outcome a machine captures for a stage: what to capture, and the newest version it has uploaded (0: none yet). */
+export interface EdgeOutcome extends Pick<Outcome, "key" | "label" | "media" | "instrument" | "metric" | "required"> {
+  captured: boolean;
+  version: number;
 }
 
 /** The bounds a stage's measured-signal criteria ask a gateway to sign: a range or envelope is two. */
@@ -167,10 +185,16 @@ export class Readings {
         [a.id, new Date(this.now() - RECENT_MS).toISOString()],
       );
       for (const r of rows.rows) {
-        const st = (await this.engine.view(a.site_id, r.run_id)).stages.find((s) => s.code === r.code);
+        const run = await this.engine.view(a.site_id, r.run_id);
+        const st = run.stages.find((s) => s.code === r.code);
         if (!st?.startedAt || st.assetId !== a.id) continue;
         const signed = (await this.db.query("SELECT 1 FROM stage_readings WHERE run_id = $1 AND stage_code = $2", [r.run_id, r.code])).rows.length > 0;
         const measurementsSigned = (await this.db.query("SELECT 1 FROM measurement_readings WHERE run_id = $1 AND stage_code = $2 LIMIT 1", [r.run_id, r.code])).rows.length > 0;
+        const versions = new Map(
+          (await this.db.query<{ outcome_key: string; v: number }>("SELECT outcome_key, MAX(version) AS v FROM stage_outputs WHERE run_id = $1 AND stage_code = $2 GROUP BY outcome_key", [r.run_id, r.code])).rows.map((x) => [x.outcome_key, Number(x.v)]),
+        );
+        const preds = predecessors(run.stages);
+        const upcoming = run.stages.filter((s) => preds.get(s.code)?.includes(r.code)).map((s) => ({ stage: s.code, name: s.name, resources: s.resources ?? [] }));
         out.push({
           site: a.site_id,
           runId: r.run_id,
@@ -184,6 +208,12 @@ export class Readings {
           signed,
           parameters: parametersOf(r.run_id, r.code, st.criteria),
           measurementsSigned,
+          name: st.name,
+          quantity: run.quantity,
+          completeOn: st.completeOn ?? null,
+          outcomes: (st.outcomes ?? []).map((o) => ({ key: o.key, label: o.label, media: o.media, instrument: o.instrument, metric: o.metric, required: o.required, captured: versions.has(o.key), version: versions.get(o.key) ?? 0 })),
+          resources: st.resources ?? [],
+          upcoming,
         });
       }
     }

@@ -24,7 +24,9 @@ export interface ProfileSignal {
 export type MachineSource =
   | { kind: "mtconnect"; agentUrl: string; device: string }
   | { kind: "simulate"; cycleS: number; scrapEvery: number }
-  | { kind: "profile"; stageS: number; batchUnits: number; signals: ProfileSignal[] };
+  | { kind: "profile"; stageS: number; batchUnits: number; signals: ProfileSignal[] }
+  /** a virtual machine: its body's process model gives every observation, counts included (body/) */
+  | { kind: "feed"; read: () => { signal: string; value: number | null; text: string | null }[] };
 export interface GatewayOptions {
   /** Ordo's base URL */
   url: string;
@@ -101,6 +103,8 @@ export class Gateway {
         { signal: "scrap", ts, value: 0, text: null },
         ...signals.map((p) => ({ signal: p.name, ts, value: round(p.base + (p.drift ?? 0) * phase + p.swing * Math.sin((2 * Math.PI * elapsedS) / (p.periodS ?? 600)) + (Math.random() - 0.5) * p.swing * 0.2), text: null })),
       ];
+    } else if (this.o.source.kind === "feed") {
+      obs = this.o.source.read().map((x) => ({ ...x, ts }));
     } else {
       // a machine making one good part every cycleS and one scrap part every scrapEvery parts
       const { cycleS, scrapEvery } = this.o.source;

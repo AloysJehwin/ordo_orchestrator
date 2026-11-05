@@ -176,6 +176,13 @@ const Env = z.object({
   TREASURY_SEED_TINYBARS: z.coerce.bigint().default(0n),
   /** The largest over-budget top-up a machine may ask for */
   TREASURY_TOPUP_MAX_TINYBARS: z.coerce.bigint().default(10_000_000_000n),
+  // ---- Machine bodies (BODY_RUNTIME above) ----
+  /** Where bodies reach Ordo. Unset: this host on PORT for local bodies, the public URL for sandboxes */
+  BODY_ORDO_URL: z.string().url().optional(),
+  /** The body bundle a local body runs (pnpm --filter @ordo/body build). Unset: body/dist/body.mjs in this checkout */
+  BODY_BUNDLE: z.string().optional(),
+  /** How long a body's simulated process takes over one stage, in seconds */
+  BODY_STAGE_S: z.coerce.number().int().min(10).max(24 * 3600).default(120),
 });
 
 export type Config = z.infer<typeof Env>;

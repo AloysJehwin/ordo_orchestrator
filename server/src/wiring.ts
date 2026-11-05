@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import type { BodyService } from "./core/bodies.js";
+import type { BodyRunner, BodyRuntime } from "./core/bodies.js";
+import { Bodies } from "./core/body-service.js";
 import { resolve } from "node:path";
 import { publicBase, type Config } from "./config.js";
 import { geminiProvider, OfflineLlm, openAiCompatProvider, type LlmProvider } from "./adapters/llm.js";
@@ -96,8 +97,8 @@ export interface System {
   readings: Readings;
   /** The media each stage's machine captures for its outcomes */
   outputs: MachineOutputs;
-  /** machine bodies (virtual machines with their own agent); null until a runtime is configured (BODY_RUNTIME) */
-  bodies: BodyService | null;
+  /** machine bodies: virtual machines with their own agent. Always present; they start only when a runtime is configured (BODY_RUNTIME) */
+  bodies: Bodies;
   stageProofs: StageProofs;
   /** Proof of work through 0G Private Computer */
   contributions: Contributions;
@@ -450,6 +451,38 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   passports.names = names;
   const openings = new Openings(db, engine);
 
+  // ---- Machine bodies: a runner per runtime, and BODY_RUNTIME picks the one new starts use ----
+  const bodyRunners = new Map<BodyRuntime, BodyRunner>();
+  const bodyRuntime = cfg.BODY_RUNTIME === "off" ? null : cfg.BODY_RUNTIME;
+  let bodies: Bodies;
+  if (cfg.BODY_RUNTIME === "local") {
+    const { LocalBodies } = await import("./core/bodies-local.js");
+    const { fileURLToPath } = await import("node:url");
+    const bundle = resolve(cfg.BODY_BUNDLE ?? fileURLToPath(new URL("../../body/dist/body.mjs", import.meta.url)));
+    bodyRunners.set("local", new LocalBodies({ bundle, report: (id, state, error) => void bodies.runnerReport(id, state, error).catch(() => undefined), log: (l) => console.log(l) }));
+  }
+  if (cfg.BODY_RUNTIME === "sandbox") {
+    // one Vercel Sandbox microVM per machine (server/src/core/bodies-sandbox.ts); null without a Vercel token
+    // @ts-ignore the sandbox runner is its own module, merged beside this one
+    const { sandboxBodies } = (await import("./core/bodies-sandbox.js")) as { sandboxBodies: (c: Config, warn: (w: string) => void) => BodyRunner | null };
+    const runner = sandboxBodies(cfg, (w) => warnings.push(w));
+    if (runner) bodyRunners.set("sandbox", runner);
+    else warnings.push("BODY_RUNTIME=sandbox but the Vercel Sandbox is not configured; virtual machines are created but do not run");
+  }
+  {
+    const { tmpdir } = await import("node:os");
+    const bodyDir = cfg.DATA_DIR === "memory" ? resolve(tmpdir(), "ordo-bodies") : resolve(cfg.DATA_DIR, "bodies");
+    bodies = new Bodies(db, rec, plant, engine, readings, machines, contributions.router, bodyRunners, bodyRuntime, {
+      ordoUrl: (rt) => cfg.BODY_ORDO_URL ?? (rt === "local" ? `http://127.0.0.1:${cfg.PORT}` : publicBase(cfg)),
+      secret: cfg.HEDERA_OPERATOR_KEY ?? cfg.LEDGER_SIGNING_KEY ?? "ordo-local",
+      dataDir: (assetId) => (bodyRuntime === "local" ? resolve(bodyDir, assetId) : null),
+      stageS: cfg.BODY_STAGE_S,
+      hederaNetwork: cfg.HEDERA_NETWORK,
+    }, now);
+    bodies.replicas = validation.replicas ?? null;
+    if (bodyRuntime) void bodies.resume().catch((e) => console.error("[ordo] bodies", e));
+  }
+
   // ---- The metered MCP server: assessments, forecasts and lot verdicts sold per tool call to any agent, over x402 ----
   let mcp: System["mcp"] = null;
   if (x402Net && payTo) {
@@ -542,6 +575,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     await contributions.reconcile().catch((e) => console.error("[ordo] proof-of-work sessions", e));
     await selection.reconcile().catch((e) => console.error("[ordo] reward settlement", e));
     await budgets.reconcile().catch((e) => console.error("[ordo] budgets", e));
+    await bodies.reconcile().catch((e) => console.error("[ordo] machine bodies", e));
     const head = await ledger.head();
     const last = (await proof.anchors(1))[0];
     if (head && (!last || head.seq - last.toSeq >= cfg.ANCHOR_EVERY || (head.seq > last.toSeq && now() - Date.parse(last.ts) > 30 * 60_000))) await proof.anchorHead(null, null).catch((e) => console.error("[ordo] anchor", e));
@@ -598,6 +632,11 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       mode: budgets.live ? `OrdoTreasury ${budgets.rail!.contract}: run budgets and top-ups as Hedera schedules a manager approves (HIP-755)${cfg.HEDERA_TOPIC_ID ? "" : " · no HCS topic, so no over-budget top-ups"}` : "off: machines spend only what their wallets hold",
       live: budgets.live,
     },
+    {
+      rail: "machine bodies",
+      mode: bodyRuntime ? `${bodyRuntime} runtime · ${contributions.router.network === "mock" ? "no 0G brain (bodies label their outputs so)" : `0G brain ${contributions.router.model}`}` : "off: virtual machines are created but their bodies do not run (BODY_RUNTIME)",
+      live: Boolean(bodyRuntime && bodyRunners.has(bodyRuntime)),
+    },
   ];
 
   return {
@@ -631,7 +670,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     lotNames,
     readings,
     outputs,
-    bodies: null,
+    bodies,
     stageProofs,
     contributions,
     selection,
@@ -647,6 +686,9 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     resources,
     budgets,
     advance,
-    close: () => db.close(),
+    close: async () => {
+      await bodies.shutdown();
+      await db.close();
+    },
   };
 }

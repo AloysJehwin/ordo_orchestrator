@@ -26,6 +26,12 @@ export interface BodyEnv {
   BODY_SEED: string;
   /** the port the body answers questions on (`GET /ask?q=`) */
   BODY_ASK_PORT?: string;
+  /** the bearer token Ordo sends with each question, so only Ordo can read the body's log through `/ask` */
+  BODY_ASK_TOKEN?: string;
+  /** where the body keeps its episode log on its own disk (replayable with `body replay`) */
+  BODY_DATA_DIR?: string;
+  /** how long the simulated process takes over one stage, in seconds */
+  BODY_STAGE_S?: string;
   /** the 0G Router, private mode: a per-start key Ordo mints and revokes on stop. Unset: the body runs without a brain, labelled so */
   ZG_ROUTER_URL?: string;
   ZG_ROUTER_KEY?: string;
