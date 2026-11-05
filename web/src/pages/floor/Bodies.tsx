@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, dateTime } from "../../lib/format";
-import type { AssetKind, BodyAnswer, BodyState, MachineBody, MachinesView } from "../../types";
+import { TRUST_TEXT, type AssetKind, type BodyAnswer, type BodyState, type MachineBody, type MachinesView } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
 import { Select } from "../../ui/Select";
 
@@ -167,7 +167,7 @@ export function BodyDrawerSection({ assetId }: { assetId: string }) {
       </div>
       <dl className="kv">
         <dt>Agent</dt>
-        <dd>{b.brain === "0g" ? "Reads each capture and decides through the 0G Router (private mode)" : "None: no 0G brain, so captures go up unread and the outputs say so"}</dd>
+        <dd>{b.brain === "0g" ? `Reads each capture and decides through the 0G Router, ${TRUST_TEXT[view.trustMode ?? "private"]}` : "None: no 0G brain, so captures go up unread and the outputs say so"}</dd>
         <dt>Heartbeat</dt>
         <dd>{b.heartbeatAt ? `${dateTime(b.heartbeatAt)} (${ago(b.heartbeatAt)})` : "none yet"}</dd>
         <dt>Device</dt>

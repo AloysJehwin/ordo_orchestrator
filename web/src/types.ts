@@ -601,8 +601,17 @@ export interface FinanceResponse {
 
 // ---------------- Proof of work through 0G Private Computer ----------------
 export type ContributionStatus = "unsigned" | "signed" | "selected" | "not_selected" | "withdrawn";
+export type TrustMode = "private" | "verified" | "standard";
+/** What each 0G trust mode means: only private is a TEE */
+export const TRUST_TEXT: Record<TrustMode, string> = {
+  private: "private mode (TEE providers only)",
+  verified: "verified mode (verifiable providers, not a TEE)",
+  standard: "standard routing (not a TEE)",
+};
 export interface TeeSummary {
   network: string;
+  /** absent on records from before trust modes, which were all private */
+  trustMode?: TrustMode;
   model: string;
   turns: number;
   verified: number;
@@ -642,7 +651,7 @@ export interface PowStart {
   expiresAt: string;
   token: string;
   command: string;
-  router: { network: string; model: string };
+  router: { network: string; model: string; trustMode?: TrustMode };
 }
 export interface PowSession {
   id: string;
@@ -988,6 +997,8 @@ export interface MachinesView {
   /** where bodies run; null when BODY_RUNTIME is off and virtual machines do not run */
   runtime: "local" | "sandbox" | null;
   brain: "0g" | "none";
+  /** the 0G Router's trust mode: only private is a TEE */
+  trustMode?: TrustMode;
   bodies: MachineBody[];
 }
 export interface BodyAnswer {

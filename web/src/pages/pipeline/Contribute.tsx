@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, shortAddr } from "../../lib/format";
 import { useSign } from "../../lib/sign";
-import type { ContributionView, PowStart, RunView, StageRunView, TeeSummary, TypedSignature } from "../../types";
+import { TRUST_TEXT, type ContributionView, type PowStart, type RunView, type StageRunView, type TeeSummary, type TypedSignature } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
 import { ContributionOutcomes, DisputeList } from "./PowOutcomes";
 
@@ -12,7 +12,7 @@ import { ContributionOutcomes, DisputeList } from "./PowOutcomes";
 const CLOSED = new Set(["queued", "skipped"]);
 
 export const teeLabel = (t: TeeSummary) =>
-  t.turns === 0 ? "No 0G turns recorded" : t.allVerified ? `All ${t.turns} turns TEE-verified` : t.verified > 0 ? `${t.verified} of ${t.turns} turns TEE-verified` : t.network === "mock" ? "Scripted interviewer (no TEE)" : `${t.turns} turns, not TEE-verified`;
+  t.turns === 0 ? "No 0G turns recorded" : t.allVerified ? `All ${t.turns} turns TEE-verified` : t.verified > 0 ? `${t.verified} of ${t.turns} turns TEE-verified` : t.network === "mock" ? "Scripted interviewer (no TEE)" : (t.trustMode ?? "private") !== "private" ? `${t.turns} turns on standard routing (no TEE)` : `${t.turns} turns, not TEE-verified`;
 
 export function TeeBadge({ t }: { t: TeeSummary }) {
   const ok = t.allVerified;
@@ -89,13 +89,17 @@ export function ContributeModal({ run, stage, onClose, onDone }: { run: RunView;
       }
     >
       {error && <p className="field-e">{error}</p>}
-      {!s && !error && <p className="muted">Starting a private session…</p>}
+      {!s && !error && <p className="muted">Starting a session…</p>}
       {s && (
         <div className="stack">
           <ol className="steps small">
             <li>Copy the command and run it in a terminal on the machine where your files are (Node 22 or later).</li>
             <li>
-              An agent on <b>0G Private Computer</b> interviews you about this stage: what you did, each measured value, your evidence files and anything unusual. It runs in a TEE: neither the provider nor Ordo's staff read the conversation in transit. Files stay on your machine and only their SHA-256 is recorded, unless you agree, file by file, to show a photo to the model or have a voice note transcribed on 0G.
+              An agent on <b>{(s.router.trustMode ?? "private") === "private" ? "0G Private Computer" : "the 0G Router"}</b> interviews you about this stage: what you did, each measured value, your evidence files and anything unusual.{" "}
+              {(s.router.trustMode ?? "private") === "private"
+                ? "It runs in a TEE: neither the provider nor Ordo's staff read the conversation in transit."
+                : `It runs on ${TRUST_TEXT[s.router.trustMode ?? "standard"]}: the provider serving the model can read the conversation.`}{" "}
+              Files stay on your machine and only their SHA-256 is recorded, unless you agree, file by file, to show a photo to the model or have a voice note transcribed on 0G.
             </li>
             {stage.outcomes.length > 0 && <li>It shows you what the stage's machine captured for each of its {stage.outcomes.length} outcomes, and you confirm or dispute each one; your record binds the hashes of the files you reviewed.</li>}
             <li>When you confirm, it opens a link here for you to sign the record with your wallet.</li>

@@ -3,7 +3,7 @@ import { api } from "../api";
 import { useApp } from "../lib/app";
 import { ago, dateTime, shortAddr } from "../lib/format";
 import { useSign } from "../lib/sign";
-import type { ContributionView, PowSession, PublicContribution, TypedSignature } from "../types";
+import { TRUST_TEXT, type ContributionView, type PowSession, type PublicContribution, type TypedSignature } from "../types";
 import { Empty, Loading } from "../ui/kit";
 import { CancelSession, ContributionRow, StatusTag, TeeBadge } from "./pipeline/Contribute";
 import { ContributionOutcomes } from "./pipeline/PowOutcomes";
@@ -320,9 +320,11 @@ export function PowProof({ id }: { id: string }) {
         </section>
       )}
       <section className="pp-card">
-        <h2>0G Private Computer receipts</h2>
+        <h2>{(p.tee.trustMode ?? "private") === "private" ? "0G Private Computer receipts" : "0G Router receipts"}</h2>
         <p className="small muted">
-          The interview ran on {p.tee.model} through the {p.tee.network} 0G Router in private mode. For each answer the Router checked the serving provider's TEE attestation; the response key lets anyone ask the provider for its signature over that answer.
+          {(p.tee.trustMode ?? "private") === "private"
+            ? `The interview ran on ${p.tee.model} through the ${p.tee.network} 0G Router in private mode. For each answer the Router checked the serving provider's TEE attestation; the response key lets anyone ask the provider for its signature over that answer.`
+            : `The interview ran on ${p.tee.model} through the ${p.tee.network} 0G Router on ${TRUST_TEXT[p.tee.trustMode ?? "standard"]}: no provider served it in a TEE, so no answer carries an attestation. Each answer's request id and hashes still bind what was asked and answered.`}
         </p>
         <table className="t">
           <thead>
