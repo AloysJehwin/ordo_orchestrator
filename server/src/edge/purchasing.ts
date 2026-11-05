@@ -3,13 +3,17 @@
  * its running stage still need, then buys each from the best vendor's offer over x402 with its own Hedera account:
  * the payment goes straight to the vendor, Ordo records it and answers with a delivery receipt it signs. What costs
  * more than the stage allows (maxPrice), or more than the machine holds, is not bought: it comes back as over budget,
- * for the treasury to fund (a scheduled top-up the manager approves) before the machine tries again.
+ * for the treasury to fund (a scheduled top-up the manager approves) before the machine tries again. Once a top-up for
+ * it has executed, Ordo counts the offer within budget up to the amount the manager approved (`offer.approvedTinybar`).
  */
 import type { DeliveryView, NeededResource, NeededView } from "../core/resources.js";
 
-/** Pays over x402 from the machine's own account (chain/x402.ts X402Buyer). */
+/**
+ * Pays over x402 from the machine's own account (chain/x402.ts X402Buyer). `maxTinybar` is what the plan says the
+ * purchase costs: a buyer that honours it never pays more than that, whatever the 402 asks.
+ */
 export interface ResourceBuyer {
-  post<T>(url: string, body: unknown): Promise<{ body: T; payment: { transaction: string; url: string; payer: string | null; network: string } | null }>;
+  post<T>(url: string, body: unknown, opts?: { maxTinybar?: bigint }): Promise<{ body: T; payment: { transaction: string; url: string; payer: string | null; network: string } | null }>;
 }
 /** Signs requests with the machine's device key (edge/gateway.ts Gateway). */
 export interface EdgeClient {
@@ -39,6 +43,8 @@ export interface Bought {
   txId: string | null;
   txUrl: string | null;
   receipt: DeliveryView["receipt"];
+  /** above the stage's maxPrice, within a top-up the manager approved */
+  approved: boolean;
 }
 export type OverBudgetReason = "price_above_max" | "balance_short";
 /** A purchase the machine did not make: the treasury turns it into a scheduled top-up (`POST /v1/edge/overbudget`). */
@@ -124,12 +130,14 @@ export async function purchaseAhead(gw: EdgeClient, buyer: ResourceBuyer, opts: 
       over("balance_short", `${n.remaining} ${n.unit} of ${n.label} costs ${fmt(amount)}; the machine holds ${fmt(balance)}`);
       continue;
     }
+    // above the stage's maxPrice, but within a top-up a manager approved for it
+    const approved = BigInt(n.offer.priceTinybar) > BigInt(n.maxPriceTinybar);
     if (opts.dryRun) {
       opts.log?.(`${tag}: would buy ${n.remaining} ${n.unit} from ${n.offer.vendor} for ${fmt(amount)}`);
       continue;
     }
     try {
-      const r = await buyer.post<DeliveryView>(`${base}${n.offer.path}`, {});
+      const r = await buyer.post<DeliveryView>(`${base}${n.offer.path}`, {}, { maxTinybar: amount });
       if (balance !== null) left.set(n.buyerAsset, balance - amount);
       out.bought.push({
         runId: n.runId,
@@ -143,8 +151,9 @@ export async function purchaseAhead(gw: EdgeClient, buyer: ResourceBuyer, opts: 
         txId: r.body.txId ?? r.payment?.transaction ?? null,
         txUrl: r.body.txUrl ?? r.payment?.url ?? null,
         receipt: r.body.receipt,
+        approved,
       });
-      opts.log?.(`${tag}: bought ${r.body.qty} ${n.unit} from ${n.offer.vendor} for ${fmt(BigInt(r.body.amountTinybar))}${r.body.txId ? ` (${r.body.txId})` : ""}`);
+      opts.log?.(`${tag}: bought ${r.body.qty} ${n.unit} from ${n.offer.vendor} for ${fmt(BigInt(r.body.amountTinybar))}${approved ? " (within the top-up a manager approved)" : ""}${r.body.txId ? ` (${r.body.txId})` : ""}`);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       out.skipped.push({ runId: n.runId, stage: n.stage, resource: n.resource, reason });

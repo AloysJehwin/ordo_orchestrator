@@ -150,7 +150,8 @@ export interface StageResourceView extends StageResource {
   pending: number;
   remaining: number;
   status: "delivered" | "partial" | "waiting" | "waived";
-  bestOffer: (OfferView & { withinMax: boolean; amountTinybar: string }) | null;
+  /** `approvedTinybar`: above the stage's maxPrice, the most an executed top-up approved for it (null when none has) */
+  bestOffer: (OfferView & { withinMax: boolean; amountTinybar: string; approvedTinybar: string | null }) | null;
   purchases: ResourcePurchaseView[];
 }
 export interface StageResourcesView {
@@ -194,7 +195,10 @@ export interface NeededResource {
     leadMin: number;
     /** price × remaining, what the storefront will ask */
     amountTinybar: string;
+    /** at or below the stage's maxPrice, or within a top-up a manager approved for it */
     withinMax: boolean;
+    /** the most an executed top-up approved for this purchase, in tinybars; null when none has */
+    approvedTinybar: string | null;
     /** the storefront path to buy exactly what is missing */
     path: string;
   } | null;
@@ -303,8 +307,9 @@ export const storefrontPath = (vendorId: string, sku: string, qty: number, b?: B
  * account marks the machine as the buyer), written to the HCS topic, and answered with a delivery receipt Ordo signs.
  *
  * A machine asks (device-signed) which resources the stages after its running stage still need, with the best offer
- * for each; it buys what is within the stage's maxPrice and its balance, and reports the rest as over budget. A stage
- * with resources starts only once each is delivered, unless a manager signs a waiver.
+ * for each; it buys what is within the stage's maxPrice and its balance, and reports the rest as over budget. Once a
+ * top-up for that purchase has executed (a manager approved it, budgets.ts), the offer counts as within budget up to
+ * the amount approved. A stage with resources starts only once each is delivered, unless a manager signs a waiver.
  */
 export class Resources {
   private receiptKey: PrivateKeyAccount;
@@ -632,6 +637,32 @@ export class Resources {
     return out;
   }
 
+  /**
+   * What managers approved above the stages' maxPrice: for each `<stage>/<resource>` of a run, the largest purchase an
+   * executed top-up was for (the treasury's scheduled transfer ran, budgets.ts), in tinybars.
+   */
+  private async approvals(runId: string): Promise<Map<string, bigint>> {
+    const out = new Map<string, bigint>();
+    const r = await this.db.query<{ stage_code: string | null; resource: string | null; lines_json: string }>(
+      "SELECT stage_code, resource, lines_json FROM budget_schedules WHERE run_id = $1 AND kind = 'topup' AND status = 'executed'",
+      [runId],
+    );
+    for (const t of r.rows) {
+      if (!t.stage_code || !t.resource) continue;
+      const lines = JSON.parse(t.lines_json) as { resource?: string; tinybars?: string }[];
+      for (const l of lines.filter((x) => x.resource === t.resource && /^\d+$/.test(x.tinybars ?? ""))) {
+        const k = `${t.stage_code}/${t.resource}`;
+        const v = BigInt(l.tinybars!);
+        if (v > (out.get(k) ?? 0n)) out.set(k, v);
+      }
+    }
+    return out;
+  }
+  /** An offer is within budget at or below the stage's maxPrice, or when what it costs is within an approved top-up. */
+  private within(priceTinybar: bigint, maxTinybar: bigint, amountTinybar: bigint, approved: bigint | undefined) {
+    return priceTinybar <= maxTinybar || (approved !== undefined && amountTinybar <= approved);
+  }
+
   /** The best offer for a resource kind: the cheapest from a vendor that can be paid. */
   private async bestOffer(siteId: string, kind: string): Promise<OfferRow | null> {
     const rows = (await this.offerRows(siteId, false)).filter((o) => o.kind === kind).sort((a, b) => (BigInt(a.price) < BigInt(b.price) ? -1 : BigInt(a.price) > BigInt(b.price) ? 1 : 0));
@@ -680,6 +711,7 @@ export class Resources {
     const waived = await this.waiver(run.id, stage.code);
     const finance = level >= 4;
     const all = finance ? await this.purchases(run.id, stage.code) : [];
+    const approved = finance ? await this.approvals(run.id) : new Map<string, bigint>();
     const resources: StageResourceView[] = [];
     for (const r of stage.resources) {
       const need = resourceNeed(r, run.quantity);
@@ -693,7 +725,13 @@ export class Resources {
         pending: c.pending,
         remaining,
         status: c.delivered + EPS >= need ? "delivered" : waived ? "waived" : c.delivered > 0 || c.pending > 0 ? "partial" : "waiting",
-        bestOffer: best ? { ...offerView(best), withinMax: BigInt(best.price) <= hbarToTinybar(r.maxPrice), amountTinybar: amountFor(BigInt(best.price), remaining || need).toString() } : null,
+        bestOffer: best
+          ? (() => {
+              const amount = amountFor(BigInt(best.price), remaining || need);
+              const [maxTb, ok] = [hbarToTinybar(r.maxPrice), approved.get(`${stage.code}/${r.key}`)];
+              return { ...offerView(best), withinMax: this.within(BigInt(best.price), maxTb, amount, ok), amountTinybar: amount.toString(), approvedTinybar: BigInt(best.price) > maxTb ? (ok?.toString() ?? null) : null };
+            })()
+          : null,
         purchases: all.filter((p) => p.resource === r.key),
       });
     }
@@ -762,6 +800,7 @@ export class Resources {
       const runs = await this.db.query<{ id: string }>("SELECT id FROM runs WHERE site_id = $1 AND status = 'running' ORDER BY started_at", [siteId]);
       for (const { id: runId } of runs.rows) {
         const v = await this.engine.view(siteId, runId, views, false);
+        const approved = await this.approvals(runId);
         const preds = predecessors(v.stages);
         const byCode = new Map(v.stages.map((s) => [s.code, s]));
         for (const s of v.stages) {
@@ -780,6 +819,8 @@ export class Resources {
             if (remaining <= EPS) continue;
             const best = await this.bestOffer(siteId, r.kind);
             const maxTb = hbarToTinybar(r.maxPrice);
+            const amount = best ? amountFor(BigInt(best.price), remaining) : 0n;
+            const ok = approved.get(`${s.code}/${r.key}`);
             needed.push({
               runId,
               stage: s.code,
@@ -806,8 +847,9 @@ export class Resources {
                     price: tinybarToHbar(best.price),
                     priceTinybar: best.price,
                     leadMin: Number(best.lead_min),
-                    amountTinybar: amountFor(BigInt(best.price), remaining).toString(),
-                    withinMax: BigInt(best.price) <= maxTb,
+                    amountTinybar: amount.toString(),
+                    withinMax: this.within(BigInt(best.price), maxTb, amount, ok),
+                    approvedTinybar: ok?.toString() ?? null,
                     path: storefrontPath(best.vendor_id, best.sku, remaining, { runId, stage: s.code, resource: r.key }),
                   }
                 : null,

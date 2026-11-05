@@ -99,8 +99,17 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
                 <div className="small res-offer">
                   Best offer: <b>{r.bestOffer.vendor}</b> · {r.bestOffer.label} · {r.bestOffer.price} HBAR per {r.bestOffer.unit || "unit"}
                   {r.bestOffer.leadMin ? ` · ${r.bestOffer.leadMin} min lead` : ""}{" "}
-                  <span className={`tag ${r.bestOffer.withinMax ? "ok" : "bad"}`} title={r.bestOffer.withinMax ? "The machine buys it on its own" : "Above the stage's max price: the machine asks the treasury for a top-up the manager approves"}>
-                    {r.bestOffer.withinMax ? "within max" : "above max"}
+                  <span
+                    className={`tag ${r.bestOffer.withinMax ? "ok" : "bad"}`}
+                    title={
+                      r.bestOffer.withinMax
+                        ? r.bestOffer.approvedTinybar
+                          ? "Above the stage's max price, within a top-up a manager approved: the machine buys it on its own"
+                          : "The machine buys it on its own"
+                        : "Above the stage's max price: the machine asks the treasury for a top-up the manager approves"
+                    }
+                  >
+                    {r.bestOffer.withinMax ? (r.bestOffer.approvedTinybar ? "top-up approved" : "within max") : "above max"}
                   </span>
                 </div>
               )}

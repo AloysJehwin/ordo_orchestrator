@@ -840,7 +840,8 @@ export interface StageResourceView extends StageResourceT {
   pending: number;
   remaining: number;
   status: "delivered" | "partial" | "waiting" | "waived";
-  bestOffer: (OfferView & { withinMax: boolean; amountTinybar: string }) | null;
+  /** approvedTinybar: above the stage's max price, the most an executed top-up approved for it */
+  bestOffer: (OfferView & { withinMax: boolean; amountTinybar: string; approvedTinybar?: string | null }) | null;
   purchases: ResourcePurchaseView[];
 }
 export interface StageResourcesView {
