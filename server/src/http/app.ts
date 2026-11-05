@@ -324,6 +324,37 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const asUpload = async (f: File) => ({ bytes: new Uint8Array(await f.arrayBuffer()), mime: f.type });
     return c.json(await sys.outputs.ingest(device, meta, await asUpload(file), preview instanceof File ? await asUpload(preview) : null));
   });
+  /**
+   * A machine whose purchase is over budget (the price above the stage's maxPrice, or above its balance) asks for a
+   * top-up: the purchasing helper's report (edge/purchasing.ts OverBudget) with its reasoning, the 0G request id of the
+   * decision and the value at risk. Ordo writes the reasoning to HCS first, then schedules a top-up from the org's
+   * treasury that a manager approves (OrdoTreasury); unapproved, it lapses on Hedera and the stage is held.
+   */
+  const tinybars = z.union([z.string().regex(/^\d{1,18}$/), z.number().int().nonnegative()]).transform(String);
+  const OverBudgetBody = z.object({
+    runId: z.string().min(1).max(64),
+    stage: z.string().min(1).max(32),
+    resource: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/),
+    amountTinybar: tinybars,
+    reasoning: z.string().trim().min(10).max(4000),
+    requestId: z.string().trim().min(1).max(200),
+    valueAtRisk: z.union([z.string().trim().min(1).max(120), z.number().finite()]).transform(String).optional(),
+    // the rest of the purchasing helper's report, all optional
+    reason: z.enum(["price_above_max", "balance_short"]).optional(),
+    assetId: z.string().min(1).max(64).optional(),
+    qty: z.number().nonnegative().max(1e12).optional(),
+    unit: z.string().max(16).optional(),
+    vendorId: z.string().max(64).optional(),
+    sku: z.string().max(120).optional(),
+    priceTinybar: tinybars.optional(),
+    maxPriceTinybar: tinybars.optional(),
+    balanceTinybar: tinybars.nullable().optional(),
+    detail: z.string().max(500).optional(),
+  });
+  app.post("/v1/edge/overbudget", async (c) => {
+    const e = await edge(c);
+    return c.json(await sys.budgets.overBudget(e.device, OverBudgetBody.parse(e.json())));
+  });
 
   // ---------------- Running pipelines: public, no sign-in, so a newcomer can see what a site runs and apply for a role ----------------
   app.get("/v1/public/pipelines", async (c) => {
@@ -599,6 +630,18 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   });
   site.put("/assets/:assetId/wallet", async (c) => c.json(await sys.machines.enable(sid(c), me(c).user, c.get("roles"), c.req.param("assetId"), await body(c, Budget))));
   site.post("/assets/:assetId/wallet/pause", async (c) => c.json(await sys.machines.pause(sid(c), me(c).user, c.get("roles"), c.req.param("assetId"), (await body(c, z.object({ stop: z.boolean() }))).stop)));
+  // ---- Org treasury: run budgets and machine top-ups as Hedera schedules a manager approves (OrdoTreasury) ----
+  site.get("/budgets", async (c) => {
+    lvl(c, 4, "budgets");
+    return c.json(await sys.budgets.view(sid(c)));
+  });
+  site.post("/treasury", async (c) => {
+    const b = await body(c, z.object({ accountId: z.string().regex(/^0\.0\.\d+$/, "a Hedera account id (0.0.x)").optional() }));
+    return c.json(await sys.budgets.open(sid(c), me(c).user, c.get("roles"), b.accountId));
+  });
+  site.post("/budgets/:id/approve/sign-request", async (c) => c.json(await sys.budgets.approveRequest(sid(c), me(c).user, c.get("roles"), c.req.param("id"))));
+  site.post("/budgets/:id/approve", async (c) => c.json(await sys.budgets.approve(sid(c), me(c).user, c.get("roles"), c.req.param("id"), await body(c, SignedBody))));
+  site.post("/budgets/:id/decline", async (c) => c.json(await sys.budgets.decline(sid(c), me(c).user, c.get("roles"), c.req.param("id"), (await body(c, z.object({ reason: z.string().trim().max(500).default("") }))).reason)));
   site.get("/assets/:assetId", async (c) => {
     lvl(c, 3, "machine data");
     const id = c.req.param("assetId");

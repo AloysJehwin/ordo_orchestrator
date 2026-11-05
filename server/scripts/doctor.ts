@@ -167,6 +167,38 @@ if (cfg.BODY_RUNTIME === "sandbox") {
   if (!base || /\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(base))
     warn("vercel sandbox", "no public address: bodies in a sandbox reach Ordo at PUBLIC_URL (or RENDER_EXTERNAL_URL on Render), not localhost");
 }
+// ---- Org treasury (OrdoTreasury): run budgets and top-ups as Hedera schedules a manager approves ----
+await check(
+  "org treasury",
+  Boolean(cfg.TREASURY_CONTRACT_ADDRESS),
+  async () => {
+    if (!cfg.TRUST_RPC_URL || !cfg.TRUST_CONTRACT_ADDRESS || !cfg.TRUST_RELAYER_KEY) throw new Error("OrdoTreasury needs the OrdoTrust settings (TRUST_RPC_URL, TRUST_CONTRACT_ADDRESS, TRUST_RELAYER_KEY)");
+    if (!cfg.HEDERA_OPERATOR_ID || !cfg.HEDERA_OPERATOR_KEY) throw new Error("The operator (HEDERA_OPERATOR_ID, HEDERA_OPERATOR_KEY) creates the budget schedules");
+    const { createPublicClient, http } = await import("viem");
+    const { ORDO_TREASURY_ABI } = await import("../src/chain/ordo-treasury-abi.js");
+    const pub = createPublicClient({ transport: http(cfg.TRUST_RPC_URL) });
+    const read = <T>(functionName: string) => pub.readContract({ address: cfg.TREASURY_CONTRACT_ADDRESS as `0x${string}`, abi: ORDO_TREASURY_ABI, functionName } as never) as Promise<T>;
+    const trust = await read<string>("trust").catch(() => {
+      throw new Error(`no OrdoTreasury at ${cfg.TREASURY_CONTRACT_ADDRESS}`);
+    });
+    if (trust.toLowerCase() !== cfg.TRUST_CONTRACT_ADDRESS.toLowerCase()) throw new Error(`OrdoTreasury checks admins in OrdoTrust ${trust}, not TRUST_CONTRACT_ADDRESS ${cfg.TRUST_CONTRACT_ADDRESS}: deploy it again (setup:hedera treasury)`);
+    // every org's treasury account must be keyed to its own key contract; any other key would be a custodial fallback
+    const { keyContractId } = await import("../src/chain/schedule-body.js");
+    const db = await openDb({ url: cfg.DATABASE_URL, dataDir: cfg.DATA_DIR });
+    const rows = (await db.query<{ site_id: string; account_id: string; key_contract_id: string }>("SELECT site_id, account_id, key_contract_id FROM treasuries").catch(() => ({ rows: [] }))).rows;
+    await db.close();
+    let total = 0;
+    for (const t of rows) {
+      const a = await json(`${mirror}/api/v1/accounts/${t.account_id}`);
+      const key = a.key?._type === "ProtobufEncoded" ? keyContractId(a.key.key) : null;
+      if (key !== t.key_contract_id) warn("org treasury", `custodial fallback: ${t.site_id}'s treasury ${t.account_id} is not keyed to its OrdoTreasuryKey ${t.key_contract_id} (key ${a.key?._type ?? "none"})`);
+      total += hbarOf(a);
+    }
+    if (!cfg.HEDERA_TOPIC_ID) warn("org treasury", "no HEDERA_TOPIC_ID: machines' over-budget reasoning has nowhere to go first, so top-ups are refused");
+    return `OrdoTreasury ${cfg.TREASURY_CONTRACT_ADDRESS} · admins from OrdoTrust · each treasury keyed to its org's contract, signed through HIP-755 · ${rows.length} org treasur${rows.length === 1 ? "y" : "ies"}${rows.length ? `, ${total.toFixed(1)} HBAR` : ""}`;
+  },
+  "no TREASURY_CONTRACT_ADDRESS: machines spend only what their wallets hold, with no run budgets",
+);
 
 const icon = { pass: "✔", warn: "!", fail: "✘", off: "·" } as const;
 const w = Math.max(...results.map((r) => r.rail.length));

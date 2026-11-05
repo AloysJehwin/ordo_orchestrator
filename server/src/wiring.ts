@@ -117,12 +117,14 @@ export interface System {
   ensNames: { lookup(addresses: string[]): Promise<Record<string, string | null>> } | null;
   /** Stage resources: vendors' offers, the x402 storefront, machines' look-ahead purchases and the resource gate */
   resources: Resources;
+  /** Org treasuries (OrdoTreasury): run budgets and machine top-ups as Hedera schedules a manager approves */
+  budgets: import("./core/budgets.js").Budgets;
   /** One engine cycle: pull data, advance runs, watch for anomalies, refund expired escrows, anchor. Throttled and lease-guarded. */
   advance(force?: boolean): Promise<void>;
   close(): Promise<void>;
 }
 
-export async function buildSystem(cfg: Config, opts: { now?: () => number; policyText?: string; llm?: LlmProvider; trustTransport?: Transport; x402Facilitator?: import("@x402/core/server").FacilitatorClient; x402Fetch?: typeof fetch; machineBank?: import("./chain/machine-bank.js").MachineBank; partyBank?: import("./chain/machine-bank.js").PartyBank; ensTransport?: Transport; blobStore?: import("./chain/zerog.js").BlobStore; inftTransport?: Transport; scheduler?: ScheduleRail } = {}): Promise<System> {
+export async function buildSystem(cfg: Config, opts: { now?: () => number; policyText?: string; llm?: LlmProvider; trustTransport?: Transport; x402Facilitator?: import("@x402/core/server").FacilitatorClient; x402Fetch?: typeof fetch; machineBank?: import("./chain/machine-bank.js").MachineBank; partyBank?: import("./chain/machine-bank.js").PartyBank; ensTransport?: Transport; blobStore?: import("./chain/zerog.js").BlobStore; inftTransport?: Transport; scheduler?: ScheduleRail; treasury?: import("./chain/treasury.js").TreasuryRail } = {}): Promise<System> {
   const warnings: string[] = [];
   if (cfg.VERCEL && !cfg.DATABASE_URL) throw new Error("On Vercel, DATABASE_URL is required (add Neon from the Vercel Marketplace)");
   const now = opts.now ?? Date.now;
@@ -490,6 +492,32 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       offers: { payTo: (id) => resources.payTo(id), price: (id, sku, qty) => resources.price(id, sku, qty), settled: (s) => resources.settled(s) },
     }).middleware;
   }
+  // ---- Org treasuries: each org's HBAR answers to its own key contract in OrdoTreasury, spent through schedules a manager approves ----
+  let treasuryRail = opts.treasury ?? null;
+  if (!treasuryRail && cfg.TREASURY_CONTRACT_ADDRESS) {
+    const onHedera = trustChain && [295, 296, 297].includes(trustChain.cfg.chainId);
+    if (onHedera && cfg.HEDERA_OPERATOR_ID && cfg.HEDERA_OPERATOR_KEY && cfg.TRUST_RPC_URL && cfg.TRUST_RELAYER_KEY) {
+      try {
+        const h = await import("./chain/hedera.js");
+        const client = (hedera ?? h.hederaFromConfig(cfg)).client;
+        treasuryRail = (await import("./chain/treasury.js")).hederaTreasury({
+          client,
+          operatorKey: h.parseHederaKey(cfg.HEDERA_OPERATOR_KEY),
+          network: cfg.HEDERA_NETWORK,
+          mirrorUrl: (cfg.HEDERA_MIRROR_URL ?? `https://${cfg.HEDERA_NETWORK}.mirrornode.hedera.com`).replace(/\/$/, ""),
+          topicId: cfg.HEDERA_TOPIC_ID ?? null,
+          contract: cfg.TREASURY_CONTRACT_ADDRESS as Hex,
+          rpcUrl: cfg.TRUST_RPC_URL,
+          chainId: trustChain!.cfg.chainId,
+          relayerKey: cfg.TRUST_RELAYER_KEY as Hex,
+        });
+      } catch (e) {
+        warnings.push(`Org treasuries unavailable (${e instanceof Error ? e.message : e})`);
+      }
+    } else warnings.push("TREASURY_CONTRACT_ADDRESS needs OrdoTrust on Hedera (TRUST_*) and the operator (HEDERA_OPERATOR_ID, HEDERA_OPERATOR_KEY); org treasuries are off");
+  }
+  const { Budgets } = await import("./core/budgets.js");
+  const budgets = new Budgets(db, rec, sigs, inbox, engine, templates, trust, trustChain ? treasuryRail : null, { marginPct: cfg.TREASURY_BUDGET_MARGIN_PCT, hours: cfg.TREASURY_BUDGET_HOURS, seed: cfg.TREASURY_SEED_TINYBARS, topUpMax: cfg.TREASURY_TOPUP_MAX_TINYBARS }, now);
 
   const advance = async (force = false) => {
     // throttle: one cycle per 4 s across all instances (the lease is left to expire, not released)
@@ -513,6 +541,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     await agentNfts.reconcile().catch((e) => console.error("[ordo] inft", e));
     await contributions.reconcile().catch((e) => console.error("[ordo] proof-of-work sessions", e));
     await selection.reconcile().catch((e) => console.error("[ordo] reward settlement", e));
+    await budgets.reconcile().catch((e) => console.error("[ordo] budgets", e));
     const head = await ledger.head();
     const last = (await proof.anchors(1))[0];
     if (head && (!last || head.seq - last.toSeq >= cfg.ANCHOR_EVERY || (head.seq > last.toSeq && now() - Date.parse(last.ts) > 30 * 60_000))) await proof.anchorHead(null, null).catch((e) => console.error("[ordo] anchor", e));
@@ -564,6 +593,11 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       mode: resources.store ? `vendors' offers sold over x402 (paid to each vendor) · machines buy ahead from their own accounts · receipts signed by ${resources.receiptSigner}` : "off: stages wait for resources until a manager waives them",
       live: Boolean(resources.store && machines.bank),
     },
+    {
+      rail: "org treasury",
+      mode: budgets.live ? `OrdoTreasury ${budgets.rail!.contract}: run budgets and top-ups as Hedera schedules a manager approves (HIP-755)${cfg.HEDERA_TOPIC_ID ? "" : " · no HCS topic, so no over-budget top-ups"}` : "off: machines spend only what their wallets hold",
+      live: budgets.live,
+    },
   ];
 
   return {
@@ -611,6 +645,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     payOnProof,
     ensNames,
     resources,
+    budgets,
     advance,
     close: () => db.close(),
   };

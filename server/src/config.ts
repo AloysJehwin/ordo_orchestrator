@@ -164,6 +164,18 @@ const Env = z.object({
   POW_PACKAGE: z.string().default("ordo-pow"),
   /** How long a proof-of-work session stays open */
   POW_SESSION_MINUTES: z.coerce.number().int().min(10).max(24 * 60).default(120),
+
+  // ---- Org treasuries (OrdoTreasury): run budgets and machine top-ups as Hedera schedules a manager approves ----
+  /** OrdoTreasury on the trust chain (Hedera), from `setup:hedera treasury`. Unset: no treasuries, no budgets. */
+  TREASURY_CONTRACT_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  /** Added to a run's budget on top of Σ qty × maxPrice of its stages' resources */
+  TREASURY_BUDGET_MARGIN_PCT: z.coerce.number().min(0).max(100).default(10),
+  /** How long a budget or top-up schedule waits for the manager before it lapses on the ledger (HIP-423) */
+  TREASURY_BUDGET_HOURS: z.coerce.number().int().min(1).max(24 * 62).default(24),
+  /** HBAR (in tinybars) the operator puts in an org's treasury when a manager opens one in the console */
+  TREASURY_SEED_TINYBARS: z.coerce.bigint().default(0n),
+  /** The largest over-budget top-up a machine may ask for */
+  TREASURY_TOPUP_MAX_TINYBARS: z.coerce.bigint().default(10_000_000_000n),
 });
 
 export type Config = z.infer<typeof Env>;

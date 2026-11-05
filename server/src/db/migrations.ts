@@ -485,6 +485,25 @@ CREATE TABLE resource_waivers (run_id TEXT NOT NULL, stage_code TEXT NOT NULL, s
 `,
   },
   {
+    version: 30,
+    name: "org treasuries: run budgets and machine top-ups as Hedera schedules a manager approves",
+    sql: `
+CREATE TABLE treasuries (site_id TEXT PRIMARY KEY REFERENCES sites(id), contract TEXT NOT NULL, key_address TEXT NOT NULL,
+  key_contract_id TEXT NOT NULL, account_id TEXT NOT NULL, open_tx TEXT, opened_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE budget_schedules (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), run_id TEXT NOT NULL, kind TEXT NOT NULL,
+  stage_code TEXT, resource TEXT, treasury_account TEXT NOT NULL, credits_json TEXT NOT NULL, lines_json TEXT NOT NULL DEFAULT '[]',
+  total TEXT NOT NULL, budget_hash TEXT NOT NULL, memo TEXT NOT NULL, schedule_id TEXT, tx_id TEXT, expires_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL, error TEXT, reasoning TEXT, request_id TEXT, value_at_risk TEXT, device TEXT, asset_id TEXT, hcs_json TEXT,
+  inbox_item_id TEXT, approved_by TEXT, signature_id TEXT, approve_tx TEXT, executed_at TIMESTAMPTZ, decided_by TEXT, decided_at TIMESTAMPTZ,
+  held_at TIMESTAMPTZ, next_check_at TIMESTAMPTZ NOT NULL DEFAULT now(), created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX budget_schedules_run ON budget_schedules (run_id) WHERE kind = 'run';
+CREATE UNIQUE INDEX budget_schedules_request ON budget_schedules (site_id, request_id) WHERE kind = 'topup';
+CREATE INDEX budget_schedules_site ON budget_schedules (site_id, created_at);
+CREATE INDEX budget_schedules_open ON budget_schedules (status, next_check_at);
+`,
+  },
+  {
     version: 31,
     name: "proof of work binds the machine's media: the contributor's verdicts, and the machine's answers",
     sql: `
