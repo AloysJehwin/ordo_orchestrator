@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shape of an MTConnect 1.4+ /current response (structure per ANSI/MTC1.4); values are illustrative for the parser test only. -->
+<MTConnectStreams xmlns="urn:mtconnect.org:MTConnectStreams:1.7">
+  <Header creationTime="2026-10-19T10:00:00Z" sender="agent" instanceId="1" version="1.7.0" bufferSize="131072" nextSequence="100" firstSequence="1" lastSequence="99"/>
+  <Streams>
+    <DeviceStream name="Mazak" uuid="mazak-1">
+      <ComponentStream component="Device" name="Mazak" componentId="d1">
+        <Events><Availability dataItemId="avail" timestamp="2026-10-19T09:59:00Z" sequence="1">AVAILABLE</Availability></Events>
+      </ComponentStream>
+      <ComponentStream component="Rotary" name="C" componentId="c1">
+        <Samples><RotaryVelocity dataItemId="Srpm" name="Srpm" timestamp="2026-10-19T09:59:58Z" sequence="90" subType="ACTUAL">1200</RotaryVelocity>
+          <Load dataItemId="Sload" name="Sload" timestamp="2026-10-19T09:59:58Z" sequence="91">37.5</Load>
+          <Temperature dataItemId="Stemp" name="Stemp" timestamp="2026-10-19T09:59:20Z" sequence="40">UNAVAILABLE</Temperature></Samples>
+        <Condition><Normal dataItemId="Scond" type="TEMPERATURE" timestamp="2026-10-19T09:00:00Z" sequence="5"/></Condition>
+      </ComponentStream>
+      <ComponentStream component="Path" name="path" componentId="p1">
+        <Events><Execution dataItemId="exec" timestamp="2026-10-19T09:58:00Z" sequence="70">ACTIVE</Execution>
+          <PartCount dataItemId="pc" name="PartCountAct" timestamp="2026-10-19T09:59:40Z" sequence="88">412</PartCount>
+          <Program dataItemId="pgm" timestamp="2026-10-19T08:00:00Z" sequence="20">O1234-BRACKET</Program></Events>
+        <Condition><Warning dataItemId="logic" type="LOGIC_PROGRAM" nativeCode="W11" timestamp="2026-10-19T09:50:00Z" sequence="60">Coolant low</Warning></Condition>
+      </ComponentStream>
+    </DeviceStream>
+    <DeviceStream name="OKUMA" uuid="okuma-1">
+      <ComponentStream component="Path" name="path" componentId="p2"><Events><Execution dataItemId="exec2" timestamp="2026-10-19T09:00:00Z" sequence="3">READY</Execution></Events></ComponentStream>
+    </DeviceStream>
+  </Streams>
+</MTConnectStreams>
