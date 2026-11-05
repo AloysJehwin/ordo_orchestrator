@@ -33,7 +33,14 @@ export class ZeroGStorage implements BlobStore {
     if (!cfg.ZG_PRIVATE_KEY) throw new Error("0G Storage needs ZG_PRIVATE_KEY");
     this.key = createHash("sha256").update(`ordo:evidence:${cfg.ZG_PRIVATE_KEY.replace(/^0x/, "")}`).digest();
   }
-  async put(bytes: Uint8Array) {
+  /** uploads one at a time: they all sign with the one 0G wallet, and two at once take the same nonce and one fails */
+  private queue: Promise<unknown> = Promise.resolve();
+  put(bytes: Uint8Array) {
+    const next = this.queue.then(() => this.upload(bytes));
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+  private async upload(bytes: Uint8Array) {
     const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
     const indexer = new Indexer(this.cfg.ZG_INDEXER_URL);
     const [r, err] = await indexer.upload(new MemData(bytes), this.cfg.ZG_RPC_URL, (await wallet(this.cfg)) as never, { encryption: { type: "aes256", key: this.key } } as never);

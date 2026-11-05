@@ -646,7 +646,9 @@ export class Budgets {
       // a schedule already gone from Hedera (lapsed or deleted) needs no deleting
       const gone = await this.rail!.cancel(r.schedule_id!).then(() => null, (e: unknown) => (e instanceof Error ? e.message : String(e)));
       const reason = `Withdrawn: ${r.stage_code} started, so its ${r.resource} is no longer needed`;
-      await this.db.query("UPDATE budget_schedules SET status = 'declined', decided_at = now(), held_at = now(), error = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", [reason, r.id]);
+      // a pass running alongside may have withdrawn it already: record it once
+      const done = await this.db.query("UPDATE budget_schedules SET status = 'declined', decided_at = now(), held_at = now(), error = $1, updated_at = now() WHERE id = $2 AND status = 'pending' RETURNING id", [reason, r.id]);
+      if (!done.rows.length) continue;
       await this.settleInbox(r, "rejected", reason, null);
       await this.rec.decide(r.site_id, {
         agent: AGENT,
