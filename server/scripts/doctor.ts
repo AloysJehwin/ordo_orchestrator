@@ -140,6 +140,34 @@ await check(
   "no ZG_ROUTER_MGMT_KEY: proof-of-work sessions use the terminal agent's scripted interviewer",
 );
 
+// ---- Vercel Sandbox (machine bodies, BODY_RUNTIME=sandbox) ----
+await check(
+  "vercel sandbox",
+  cfg.BODY_RUNTIME === "sandbox" || Boolean(cfg.VERCEL_SANDBOX_PROJECT),
+  async () => {
+    const { listBodySandboxes, sandboxCredentials } = await import("../src/core/bodies-sandbox.js");
+    const creds = sandboxCredentials(cfg);
+    if ("missing" in creds) throw new Error(`${creds.missing.join(", ")} missing`);
+    const auth = { headers: { authorization: `Bearer ${creds.token}` } };
+    const team = await json(`https://api.vercel.com/v2/teams/${encodeURIComponent(creds.teamId)}`, auth).catch((e) => {
+      throw new Error(`team ${creds.teamId} not reachable with VERCEL_TOKEN (${e.message}); the token must be scoped to the team`);
+    });
+    const project = await json(`https://api.vercel.com/v9/projects/${encodeURIComponent(creds.projectId)}?teamId=${encodeURIComponent(creds.teamId)}`, auth).catch((e) => {
+      throw new Error(`project ${creds.projectId} not found in ${team.slug} (${e.message}); create it, e.g. ordo-machines`);
+    });
+    const boxes = await listBodySandboxes(creds);
+    const running = boxes.filter((b) => b.status === "running");
+    return `${team.slug}/${project.name} · ${boxes.length} machine sandbox(es), ${running.length} running${running.length ? `: ${running.map((b) => b.name).join(", ")}` : ""}`;
+  },
+  "BODY_RUNTIME is not sandbox: machine bodies don't run on Vercel Sandbox",
+);
+if (cfg.BODY_RUNTIME === "sandbox") {
+  const { publicBase } = await import("../src/config.js");
+  const base = publicBase(cfg);
+  if (!base || /\/\/(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(base))
+    warn("vercel sandbox", "no public address: bodies in a sandbox reach Ordo at PUBLIC_URL (or RENDER_EXTERNAL_URL on Render), not localhost");
+}
+
 const icon = { pass: "✔", warn: "!", fail: "✘", off: "·" } as const;
 const w = Math.max(...results.map((r) => r.rail.length));
 console.log(`\nOrdo env doctor · ${cfg.VERCEL_ENV ?? "local"}\n`);

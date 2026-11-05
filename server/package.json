@@ -25,6 +25,7 @@
     "@hiero-ledger/sdk": "^2.90.1",
     "@hono/node-server": "^2.1.5",
     "@modelcontextprotocol/sdk": "1.32.1",
+    "@vercel/sandbox": "3.9.1",
     "@x402/core": "2.28.0",
     "@x402/fetch": "2.28.0",
     "@x402/hedera": "2.28.0",
