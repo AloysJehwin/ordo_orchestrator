@@ -168,3 +168,67 @@ pnpm vercel-build
 DATABASE_URL=postgres://... VERCEL=1 PORT=3000 pnpm vercel-local    # serves .vercel/output with Vercel's routing
 E2E_TARGET=vercel E2E_DATABASE_URL=postgres://... pnpm e2e          # full console flow in a browser, no background timer
 ```
+
+## Deploy on Render
+
+Production Ordo runs on [Render](https://render.com) as one long-lived Docker web service: the root `Dockerfile` builds the console, the server and the machine body bundle into one image that serves the API, the live stream, the engine timer and the console. Render Postgres holds the data. `render.yaml` is the Blueprint that describes all of it:
+
+| Resource | What | Settings |
+| --- | --- | --- |
+| `ordo-db` | Render Postgres 17, plan `0.1c-256mb`, region `virginia` | Private network only (`ipAllowList: []`). Ordo gets `DATABASE_URL` from it |
+| `ordo-runtime` | Environment group with the non-secret settings | `ENGINE_TIMER=on`, `TICK_MS=5000`, `BODY_RUNTIME=sandbox`, `STAGE_MACHINES=required` |
+| `ordo` | Docker web service, plan `1c-2g`, region `virginia` (next to Vercel Sandbox's default region `iad1`) | Health check `/health`, deploys on every commit to `main`, and every variable of `server/.env.example` as a secret (`sync: false`) |
+
+Idle, the service uses about 115 MB; the larger plan leaves room for proofs and machine media. `0.5c-512mb` works for light use. Don't use the free plan: it sleeps after 15 idle minutes, which stops the engine timer. Regions can't be changed after creation.
+
+### 1. Create the service
+
+**Blueprint (recommended).** In the Render dashboard: **New → Blueprint**, connect the GitHub repo `AloysJehwin/ordo_orchestrator`, branch `main`. Render reads `render.yaml`, lists the database, the environment group and the service, and asks for a value for each secret. Fill in the ones you use (next section), leave the rest empty (Ordo treats an empty value as unset), and **Apply**. The first build takes about 5 to 10 minutes.
+
+**Or connect the repo by hand.** **New → Postgres** (`ordo-db`, Postgres 17), then **New → Web Service** → the repo → runtime Docker (Render finds the `Dockerfile`), health check path `/health`, the same region as the database. Under **Environment** add `DATABASE_URL` (the database's *Internal Database URL*), `ENGINE_TIMER=on`, `BODY_RUNTIME=sandbox` and the secrets below.
+
+Render sets `PORT` and `RENDER_EXTERNAL_URL` itself. Ordo listens on `PORT`, marks its session cookie Secure behind Render's HTTPS, shows `render` and the commit (`RENDER_GIT_COMMIT`) on `/health` and **Settings**, and uses `RENDER_EXTERNAL_URL` as its public address unless `PUBLIC_URL` is set.
+
+### 2. Secrets to fill in
+
+Render asks for `sync: false` values only when the Blueprint is first created. After that, change them under **ordo → Environment** (secrets) or **Environment Groups → ordo-runtime** (settings); saving redeploys the service. Never put values in `render.yaml`.
+
+| Group | Variables | Notes |
+| --- | --- | --- |
+| Required | `LEDGER_SIGNING_KEY`, `BOOTSTRAP_ADMIN_ADDRESS` | The same `LEDGER_SIGNING_KEY` as before, so earlier anchors still verify |
+| Machine bodies | `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_SANDBOX_PROJECT` | Setup in [machines.md](machines.md#vercel-sandbox-runtime). Without them the service runs and warns that bodies don't start |
+| AI | `ANTHROPIC_API_KEY` (or `LLM_PROVIDER` + `GEMINI_API_KEY`) | Unset: the offline agents |
+| Hedera and contracts | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_TOPIC_ID`, `HEDERA_PASSPORT_TOKEN_ID`, `HEDERA_AGENT_ID`, `HEDERA_AGENT_KEY`, `ANCHOR=hedera`, `TRUST_*`, `PAY_ON_PROOF_ADDRESS`, `STABLECOIN_*` | The v3 addresses from [contracts/README.md](../contracts/README.md#live-on-hedera-testnet-v3) |
+| ENS | `IDENTITY=ens`, `ENS_*` | From the ENS setup workflow |
+| 0G | `EVIDENCE_STORE=0g`, `ZG_PRIVATE_KEY`, `ZG_INFT_ADDRESS`, `ZG_ROUTER_MGMT_KEY` | `ZG_ROUTER_AUDIO_MODEL` is left out of the Blueprint on purpose: unset means `whisper-large-v3`, an empty value turns voice notes off |
+| Public address | `PUBLIC_URL` | Only with a custom domain (step 4) |
+
+Every other variable has a working default; the [Variables](#variables) table says what each one does. When a variable is added to `server/.env.example`, add it to `render.yaml` too.
+
+### 3. Check it
+
+- `https://<service>.onrender.com/health` answers `{"status":"ok","db":"postgres","env":"render","commit":"…"}`.
+- Sign in with your wallet: **Settings** lists every rail and whether it is live.
+- The env doctor runs from your machine with the same values: put them in a git-ignored `server/.env.render` (with the database's *External Database URL*, and your IP added under **ordo-db → Networking** while you check), then `cd server && node --env-file=.env.render --import tsx scripts/doctor.ts`. The rail "vercel sandbox" checks the token, the team, the project and lists the machine sandboxes.
+
+### 4. Custom domain
+
+1. **ordo → Settings → Custom Domains → Add**, e.g. `ordo.example.com`.
+2. At your DNS provider:
+   - a subdomain: a `CNAME` from `ordo` to `<service>.onrender.com`;
+   - a root domain: an `ALIAS`/`ANAME` (or a flattened `CNAME`) to `<service>.onrender.com`, or else an `A` record to `216.24.57.1`;
+   - remove `AAAA` records for the name (Render serves IPv4);
+   - on Cloudflare use a `CNAME`, DNS only (grey cloud) until the certificate is issued;
+   - with `CAA` records, allow Let's Encrypt and Google Trust Services (`pki.goog`).
+3. **Verify** in Render. It issues and renews the TLS certificate itself and redirects HTTP to HTTPS.
+4. Set `PUBLIC_URL=https://ordo.example.com` under **Environment**, so lot passports, QR codes, proof-of-work commands and machine bodies use the domain.
+
+### Build the image locally
+
+```bash
+docker build -t ordo .
+docker run --rm -p 3000:8080 -e DATA_DIR=memory ordo                  # embedded database, nothing kept
+docker run --rm -p 3000:8080 -e DATABASE_URL=postgres://... -e ENGINE_TIMER=on ordo
+```
+
+The image contains `body/dist` (empty before the body package exists) at `/app/body`, which `BODY_RUNTIME=sandbox` uploads to each machine's sandbox.

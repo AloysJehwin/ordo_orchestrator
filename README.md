@@ -94,7 +94,9 @@ mockups/     design mockups (PNG) · *.dc.html: original clickable prototype
 
 ## Deploy
 
-**Vercel (primary).** `vercel.json` runs `pnpm vercel-build`, which writes the static console plus one Node function for `/v1/*`. All state is in Postgres (Neon from the Vercel Marketplace sets `DATABASE_URL`). Each console poll runs at most one engine cycle every 4 seconds across instances, under a database lease. Set `LEDGER_SIGNING_KEY`, and `BOOTSTRAP_ADMIN_ADDRESS` if only your wallet may create sites. The full workflow is in [docs/environments.md](docs/environments.md).
+**Render (primary).** `render.yaml` is a Blueprint: one Docker web service (the root `Dockerfile`: console, API, live stream, engine timer and the machine body bundle) with Render Postgres, the engine timer on, machine bodies on Vercel Sandbox (`BODY_RUNTIME=sandbox`), and every variable of `server/.env.example` as a secret entered in Render. Steps, secrets and a custom domain: [docs/environments.md](docs/environments.md#deploy-on-render); the sandbox runtime: [docs/machines.md](docs/machines.md#vercel-sandbox-runtime).
+
+**Vercel.** `vercel.json` runs `pnpm vercel-build`, which writes the static console plus one Node function for `/v1/*`. All state is in Postgres (Neon from the Vercel Marketplace sets `DATABASE_URL`). Each console poll runs at most one engine cycle every 4 seconds across instances, under a database lease. Set `LEDGER_SIGNING_KEY`, and `BOOTSTRAP_ADMIN_ADDRESS` if only your wallet may create sites. The full workflow is in [docs/environments.md](docs/environments.md).
 
 **Docker**: `docker build -t ordo . && docker run -p 8080:8080 ordo`. Use this on a plant network to reach MTConnect agents with private addresses, which the cloud deployment refuses.
 
