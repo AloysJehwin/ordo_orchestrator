@@ -1,4 +1,94 @@
-# Machines
+# Machines and their bodies
+
+Every stage runs on a machine. A real machine reaches Ordo through MTConnect, a dataset, manual readings, or a signing gateway next to it. A **virtual machine** is a machine Ordo simulates: an asset run by its own **body**, a small program with the machine's key that talks to Ordo only over the signed edge channel, exactly as a gateway beside a real machine would. Everything a virtual machine produces says it is simulated.
+
+## What a body does
+
+```mermaid
+sequenceDiagram
+  participant B as Body (machine key)
+  participant O as Ordo
+  participant R as 0G Router (private mode)
+  loop every tick (5 s)
+    B->>O: GET /v1/edge/stages
+    Note over B: run the process through the running stage
+    B->>B: capture an outcome when its point in the stage comes
+    B->>R: image of the capture (image_url), what it measures
+    R-->>B: value, summary, anomaly + request ID
+    B->>O: POST /v1/edge/outputs (file, preview, OrdoOutput signature, reading)
+    B->>R: the situation: decide continue / adjust / hold
+    R-->>B: decision + request ID
+    B->>O: POST /v1/edge/observations (counters, signals, outcome values)
+    B->>O: OrdoReading + OrdoMeasurements when a stage ends
+    B->>O: POST /v1/edge/episodes (every 30 s while a stage changes, and when it ends)
+  end
+```
+
+- **Process.** Each kind of machine has a process model (`server/src/edge/profiles.ts`): its signals with units and warn and alarm limits, the tone its vibration carries, and the agent that owns it. The body counts units through the stage over `BODY_STAGE_S` seconds and keeps its signals in band; now and then a stage brings a drift toward a signal's warn limit, which its agent can notice and adjust.
+- **Captures.** Each outcome of the stage is captured once, at a point spread through the stage, unless the agent asks for it again. The value is mostly in spec and occasionally out. The media is drawn so the value is the value on it: a thermal image in ironbow with a scale bar, a micrograph, CT slice or C-scan, a WAV recording with a spectrogram, an MP4 with its keyframe, a spectrum as CSV with its chart, a PDF report with a page preview. Video needs ffmpeg (the optional `ffmpeg-static` package, `BODY_FFMPEG`, or ffmpeg on PATH); without one, video outcomes are skipped with the reason in the log, never faked.
+- **Signing.** The file is signed as an OrdoOutput (its SHA-256, the lot, stage and outcome, the value × 10⁴, the capture time), and the upload is signed like every edge request. The value also goes into the body's telemetry, so when the stage ends the body signs the outcome's measurement with the stage's counts.
+- **The last unit waits.** A stage closes on its count, and its criteria are judged then, so the body holds back its last unit until the required outcomes are uploaded (and, with a brain, until its agent's closing decision).
+- **Buying ahead.** The stages after the running one come with the resources they consume. The body has a hook where it buys them ahead over x402 from the machine's own Hedera account; it does nothing until the purchasing module (`server/src/edge/purchasing.ts`) is wired in.
+
+## 0G in the loop
+
+When Ordo has a 0G Router management key, each start of a body mints it a private-mode inference key (TEE providers only, seven days, revoked when the body stops). The body's agent then:
+
+- **perceives** every capture: it sends the image the capture is (or its spectrogram, keyframe, chart or page) as an `image_url` and gets back the value it reads, a summary and any anomaly. That reading, with the 0G request ID, model, provider and whether the Router verified the TEE, is uploaded beside the output and shown at level 3. The instrument's value is the one signed; a reading that disagrees is noted as an anomaly.
+- **decides** every 30 seconds while a stage runs, after each perception, and once before the stage's last unit: carry on, adjust (bring a drifting signal back, capture an out-of-spec outcome again) or hold the stage for a person. A hold is taken only when a capture is out of spec or a signal is at its warn limit, at most once a stage.
+
+Without a Router configured the body runs without a brain: captures go up unread, the analysis says there is no 0G brain, and decisions are not made.
+
+## Safe stop
+
+A body with a brain never decides without it. After three 0G failures in a row (`BODY_FAIL_LIMIT`) it holds its running stage over `POST /v1/edge/hold` (`kind: safe_stop`; the engine records the hold by `machine:<device>`), stops its process (`FEED_HOLD`) and reports itself safe-stopped. It tries the Router every 30 seconds; when 0G answers it runs again, but the stage stays held until a person releases it from Approvals.
+
+## The episode log
+
+Every capture (with everything it was rendered from), perception, decision, hold and 0G failure is an entry in the body's episode log, with the 0G request ID where there is one. The body keeps it on its own disk (`BODY_DATA_DIR/episode.jsonl`) and posts each stage's episode to Ordo, which stores it, records `machine.episode_logged` on the ledger with the request IDs, and copies it to 0G Storage when that rail is on (at the end of a stage, and at most every five minutes otherwise). Level 3 opens it from the Floor.
+
+**Replay.** `ordo-body replay <episode> [dir]` (or `pnpm --filter @ordo/body replay <episode>`) renders every capture in a log again from the seed and what the log recorded, writes the files, and checks each against the SHA-256 the machine signed. Images, audio, spectra and documents come out byte for byte; video matches on the same ffmpeg build. It reads the body's `episode.jsonl` or an episode downloaded from Ordo.
+
+**Asking.** A body answers questions on `GET /ask?q=` (bearer token from Ordo): through its agent from the log, citing request IDs, or plainly from the log without a brain. Ordo asks it from the machine's drawer (`POST /v1/sites/:id/machines/:assetId/ask`), and the proof-of-work interviewer asks it about the stage it ran.
+
+## Runtimes
+
+`BODY_RUNTIME` picks where bodies run:
+
+| Value | Where | Notes |
+| --- | --- | --- |
+| `off` (default) | nowhere | Virtual machines can be created; their bodies do not run. |
+| `local` | a Node process per machine on the Ordo host | Spawns `body/dist/body.mjs` (`BODY_BUNDLE`), restarts it with backoff (1 s to 30 s), starts every running body again when Ordo restarts. The body reaches Ordo on loopback (`BODY_ORDO_URL` overrides) and keeps its log under `DATA_DIR/bodies/<asset>` (a temporary directory with `DATA_DIR=memory`). Build it first: `pnpm --filter @ordo/body build` (`pnpm dev` and `pnpm build` do). |
+| `sandbox` | a Vercel Sandbox microVM per machine | `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_SANDBOX_PROJECT`; the body reaches Ordo at its public URL. |
+
+Bodies start when a virtual machine is created, and again ahead of their stage: when a run reaches the stage before the machine's own (or its own stage is running and its body is not), Ordo starts the body. A body a person stopped stays stopped until started again; a failed body waits for a person.
+
+## Creating one
+
+On the Floor, **Create a virtual machine** (name, kind, zone). In the builder, a stage whose kind of machine the org does not have offers to create one and pins the stage to it. Over the API:
+
+```
+POST /v1/sites/:id/machines            { "name": "Inspection VM", "kind": "inspection", "zoneId": null }
+GET  /v1/sites/:id/machines            the virtual machines with their body status
+POST /v1/sites/:id/machines/:assetId/start | /stop
+GET  /v1/sites/:id/machines/:assetId/episodes      (level 3)
+GET  /v1/sites/:id/machines/:assetId/episode?sha256=
+POST /v1/sites/:id/machines/:assetId/ask         { "question": "…" }
+```
+
+The machine's key is generated by Ordo and kept sealed (`machine_bodies`); its address is the asset's gateway device. When machine wallets are on, the machine also gets its own Hedera account, which the body is given at start.
+
+## Body environment
+
+| Variable | What |
+| --- | --- |
+| `ORDO_URL`, `BODY_KEY`, `BODY_ASSET`, `BODY_PROFILE`, `BODY_SEED` | Where Ordo is, the machine's key, its asset, its kind and the seed its process and media come from |
+| `BODY_ASK_PORT`, `BODY_ASK_TOKEN`, `BODY_ASK_HOST` | Where it answers questions; loopback when Ordo is on loopback, every interface otherwise |
+| `BODY_DATA_DIR` | Its own disk: the episode log and its counters, so a restarted body carries on |
+| `BODY_STAGE_S`, `BODY_TICK_S`, `BODY_DECIDE_S`, `BODY_FAIL_LIMIT` | Seconds over a stage (120), between ticks (5) and decisions (30); 0G failures before a safe stop (3) |
+| `ZG_ROUTER_URL`, `ZG_ROUTER_KEY`, `ZG_ROUTER_MODEL` | The 0G Router and the key minted for this start; unset, the body has no brain |
+| `HEDERA_NETWORK`, `MACHINE_ACCOUNT_ID`, `MACHINE_ACCOUNT_KEY` | The machine's own account, which pays vendors over x402 |
+| `BODY_FFMPEG` | An ffmpeg binary for video |
 
 ## Vercel Sandbox runtime
 

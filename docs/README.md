@@ -24,6 +24,7 @@ Markdown versions of the Ordo product, architecture and validation documentation
 | [pipeline-templates.md](pipeline-templates.md) | All 16 templates with every stage, owning agent, resource, gate and parameters |
 | [data-sources.md](data-sources.md) | Real-time industrial data providers, demo endpoints and datasets |
 | [glossary.md](glossary.md) | Terms and abbreviations |
+| [machines.md](machines.md) | Virtual machines and their bodies: the local and sandbox runtimes, media capture, 0G in the loop, safe stop, the episode log and replay |
 
 The original designed versions are kept alongside: [`Ordo Documentation.dc.html`](../Ordo%20Documentation.dc.html) (printable) and [`Ordo Architecture.dc.html`](../Ordo%20Architecture.dc.html) (diagram). If you change behaviour here, update the prototype or note the difference.
 - [web3-roadmap.md](web3-roadmap.md): roles as on-chain credentials, onboarding, staking, and the ranked web3 build list
