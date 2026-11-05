@@ -9,8 +9,9 @@ for (const w of sys.warnings) console.warn(`[ordo] ${w}`);
 const app = createApp(sys, {
   webDist: cfg.WEB_DIST,
   corsOrigins: cfg.CORS_ORIGINS ? cfg.CORS_ORIGINS.split(",").map((s) => s.trim()) : [],
-  secureCookies: false,
-  build: { env: cfg.VERCEL_ENV ?? "local", commit: cfg.VERCEL_GIT_COMMIT_SHA ?? null },
+  // behind Render's HTTPS the session cookie is Secure; locally it stays plain so http://localhost works
+  secureCookies: Boolean(cfg.RENDER_EXTERNAL_URL?.startsWith("https://")),
+  build: { env: cfg.VERCEL_ENV ?? (cfg.RENDER_EXTERNAL_URL ? "render" : "local"), commit: cfg.VERCEL_GIT_COMMIT_SHA ?? cfg.RENDER_GIT_COMMIT ?? null },
 });
 
 // Long-running mode: keep pulling data and advancing runs even when nobody is watching.

@@ -33,6 +33,8 @@ const Env = z.object({
   VERCEL_URL: z.string().optional(),
   /** Render sets this to the service's public URL */
   RENDER_EXTERNAL_URL: z.string().url().optional(),
+  /** Render sets this to the deployed commit (shown on Settings and /health) */
+  RENDER_GIT_COMMIT: z.string().optional(),
   /** Base URL people and wallets reach this deployment at, e.g. https://aiwarriors.vercel.app */
   PUBLIC_URL: z.string().url().optional(),
 

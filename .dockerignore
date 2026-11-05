@@ -3,8 +3,16 @@
 .data
 **/.data
 .git
+.claude
+.vercel
+**/.env
+**/.env.*
+!**/.env.example
 mockups
 *.dc.html
+docs
+e2e
+coverage
 contracts/artifacts
 contracts/deployments
 test-results

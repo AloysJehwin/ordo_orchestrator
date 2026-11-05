@@ -1,19 +1,212 @@
-# One-click deploy on Render (Blueprint): https://render.com/docs/blueprint-spec
-# Long-running process + Server-Sent Events, so it runs as a web service, not serverless.
+# Render Blueprint (https://render.com/docs/blueprint-spec): Ordo as one Docker web service with managed Postgres.
+# Ordo is a long-running process (engine timer, Server-Sent Events), so it runs as a web service, not serverless.
+# New Blueprint in the Render dashboard -> this repo -> Render prompts once for every `sync: false` value below.
+# Leave the ones you don't use empty (Ordo treats an empty value as unset); later changes go in the dashboard
+# (Environment), because Render reads `sync: false` values only when the Blueprint is first created.
+# The variables mirror server/.env.example (docs/environments.md lists what each one does).
+
+databases:
+  - name: ordo-db
+    plan: 0.1c-256mb
+    region: virginia
+    postgresMajorVersion: "17"
+    databaseName: ordo
+    user: ordo
+    # private network only: Ordo reaches it inside Render; add your IP here (or in the dashboard) to connect from outside
+    ipAllowList: []
+
+envVarGroups:
+  # Non-secret settings of the long-running service. Edit them in the group; preview environments get them too.
+  - name: ordo-runtime
+    envVars:
+      # the background timer pulls data and advances runs even when nobody has the console open
+      - key: ENGINE_TIMER
+        value: "on"
+      - key: TICK_MS
+        value: "5000"
+      # every machine's body runs in its own Vercel Sandbox microVM (needs the three VERCEL_* values below)
+      - key: BODY_RUNTIME
+        value: sandbox
+      - key: STAGE_MACHINES
+        value: required
+
 services:
   - type: web
     name: ordo
     runtime: docker
-    plan: free
+    dockerfilePath: ./Dockerfile
+    plan: 1c-2g
+    region: virginia
     healthCheckPath: /health
+    autoDeployTrigger: commit
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ordo-db
+          property: connectionString
+      - fromGroup: ordo-runtime
+      # PORT and RENDER_EXTERNAL_URL come from Render: public links (passports, QR codes, proof-of-work commands, the
+      # address machine bodies call) use RENDER_EXTERNAL_URL unless PUBLIC_URL names your own domain.
+      # ZG_ROUTER_AUDIO_MODEL is left out on purpose: unset means whisper-large-v3, an empty value turns voice notes off.
+      # Machine bodies on Vercel Sandbox (docs/machines.md)
+      - key: VERCEL_TOKEN
+        sync: false
+      - key: VERCEL_TEAM_ID
+        sync: false
+      - key: VERCEL_SANDBOX_PROJECT
+        sync: false
+      # Core and accounts
+      - key: PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: BOOTSTRAP_ADMIN_ADDRESS
+        sync: false
+      - key: SESSION_TTL_HOURS
+        sync: false
+      - key: AUTH_RPC_URL
+        sync: false
+      - key: SIGNATURE_CHAIN_ID
+        sync: false
+      # OrdoTrust, OrdoWorkOrders, OrdoPolicies
+      - key: TRUST_RPC_URL
+        sync: false
+      - key: TRUST_CHAIN_ID
+        sync: false
+      - key: TRUST_CHAIN_NAME
+        sync: false
+      - key: TRUST_EXPLORER_URL
+        sync: false
+      - key: TRUST_CONTRACT_ADDRESS
+        sync: false
+      - key: TRUST_RELAYER_KEY
+        sync: false
+      - key: TRUST_SYMBOL
+        sync: false
+      - key: TRUST_DECIMALS
+        sync: false
+      - key: TRUST_WORKORDERS_ADDRESS
+        sync: false
+      - key: TRUST_POLICIES_ADDRESS
+        sync: false
+      # AI agents
       - key: LLM_PROVIDER
-        value: offline
-      - key: TICK_MS
-        value: "1000"
-      - key: DATA_DIR
-        value: memory
-      - key: LEDGER_SIGNING_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        sync: false
+      - key: ANTHROPIC_FEDERATION_RULE_ID
+        sync: false
+      - key: ANTHROPIC_ORGANIZATION_ID
+        sync: false
+      - key: ANTHROPIC_SERVICE_ACCOUNT_ID
+        sync: false
+      - key: ANTHROPIC_WORKSPACE_ID
+        sync: false
+      - key: ANTHROPIC_IDENTITY_TOKEN_FILE
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: OPENAI_COMPAT_BASE_URL
+        sync: false
+      - key: OPENAI_COMPAT_API_KEY
+        sync: false
+      - key: OPENAI_COMPAT_MODEL
+        sync: false
+      # Ledger anchoring
+      - key: ANCHOR
+        sync: false
+      - key: LEDGER_SIGNING_KEY
+        sync: false
+      - key: ANCHOR_EVERY
+        sync: false
+      # Hedera
+      - key: HEDERA_NETWORK
+        sync: false
+      - key: HEDERA_OPERATOR_ID
+        sync: false
+      - key: HEDERA_OPERATOR_KEY
+        sync: false
+      - key: HEDERA_TOPIC_ID
+        sync: false
+      - key: HEDERA_BUILD_TOPIC_ID
+        sync: false
+      - key: HEDERA_AGENT_ID
+        sync: false
+      - key: HEDERA_AGENT_KEY
+        sync: false
+      - key: HEDERA_PASSPORT_TOKEN_ID
+        sync: false
+      - key: HEDERA_SCHEDULES
+        sync: false
+      # x402 and pay on proof
+      - key: X402_PAY_TO
+        sync: false
+      - key: X402_PRICE_TINYBARS
+        sync: false
+      - key: X402_FACILITATOR_URL
+        sync: false
+      - key: X402_ASSESSMENT_URL
+        sync: false
+      - key: X402_MAX_TINYBARS
+        sync: false
+      - key: STABLECOIN_ADDRESS
+        sync: false
+      - key: STABLECOIN_TOKEN_ADDRESS
+        sync: false
+      - key: STABLECOIN_SYMBOL
+        sync: false
+      - key: STABLECOIN_DECIMALS
+        sync: false
+      - key: PAY_ON_PROOF_ADDRESS
+        sync: false
+      - key: PAY_ON_PROOF_PARTY_TINYBARS
+        sync: false
+      # ENS
+      - key: IDENTITY
+        sync: false
+      - key: ENS_RPC_URL
+        sync: false
+      - key: ENS_PARENT_NAME
+        sync: false
+      - key: ENS_REGISTRY_ADDRESS
+        sync: false
+      - key: ENS_RESOLVER_ADDRESS
+        sync: false
+      - key: ENS_OWNER_KEY
+        sync: false
+      - key: ENS_SEPOLIA_RPC_URL
+        sync: false
+      - key: ENS_ROLES_ADDRESS
+        sync: false
+      - key: ENS_LOT_RESOLVER_ADDRESS
+        sync: false
+      # 0G (Galileo testnet) and the 0G Private Computer Router (mainnet)
+      - key: EVIDENCE_STORE
+        sync: false
+      - key: ZG_RPC_URL
+        sync: false
+      - key: ZG_INDEXER_URL
+        sync: false
+      - key: ZG_PRIVATE_KEY
+        sync: false
+      - key: ZG_PROVIDER_ADDRESS
+        sync: false
+      - key: ZG_INFT_ADDRESS
+        sync: false
+      - key: ZG_ROUTER_NETWORK
+        sync: false
+      - key: ZG_ROUTER_MGMT_KEY
+        sync: false
+      - key: ZG_ROUTER_MODEL
+        sync: false
+      - key: ZG_ROUTER_CREDIT_LIMIT
+        sync: false
+      # Proof of work
+      - key: POW_PACKAGE
+        sync: false
+      - key: POW_SESSION_MINUTES
         sync: false
