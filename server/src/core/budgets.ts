@@ -9,7 +9,7 @@ import type { Role, TemplateSpec } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
 import type { RunEngine } from "../pipelines/engine.js";
 import { newId } from "../plant/plant.js";
-import { runBudget } from "./budget-calc.js";
+import { runBudget } from "./run-budget.js";
 import type { Inbox } from "./inbox.js";
 import { hbar } from "./machines.js";
 import type { Recorder } from "./recorder.js";
@@ -349,9 +349,11 @@ export class Budgets {
   }
 
   // ---------------------------------------------------------------- run budgets
-  /** The machine accounts a run's budget pays, from its stages' resources. */
+  /**
+   * The machine accounts a run's budget pays, from its stages' resources: run-budget.ts's budget (each resource's
+   * quantity at its maxPrice, plus the margin), one credit per buying machine with an account.
+   */
   private async plan(siteId: string, run: { id: string; quantity: number }, spec: TemplateSpec) {
-    const { lines, byBuyer } = runBudget(spec, run.quantity, this.opts.marginPct);
     const bound = new Map((await this.db.query<{ code: string; asset_id: string | null }>("SELECT code, asset_id FROM stage_runs WHERE run_id = $1", [run.id])).rows.map((r) => [r.code, r.asset_id]));
     const assets = (await this.db.query<{ id: string; name: string; kind: string; account_id: string | null }>(
       "SELECT a.id, a.name, a.kind, w.account_id FROM assets a LEFT JOIN machine_wallets w ON w.asset_id = a.id AND w.status = 'active' WHERE a.site_id = $1 AND a.archived_at IS NULL ORDER BY a.name",
@@ -363,25 +365,29 @@ export class Budgets {
     const machineOf = (code: string) => {
       const s = spec.stages.find((x) => x.code === code)!;
       const id = bound.get(code) ?? s.machine ?? assets.find((a) => a.kind === s.resourceKind && a.account_id)?.id ?? null;
-      return id ? byId.get(id) ?? null : null;
+      return id && byId.has(id) ? id : null;
     };
-    const credits = new Map<string, Credit>();
+    const budget = runBudget(spec.stages, run.quantity, { marginPct: this.opts.marginPct, machineOf });
+    // the stages (that consume the resources) whose buying machine gets no credit
     const unfunded = new Set<string>();
-    for (const [buyer, amount] of byBuyer) {
-      const m = machineOf(buyer);
-      if (!m?.account_id) {
-        unfunded.add(buyer);
+    const credits = new Map<string, Credit>();
+    for (const m of budget.machines) {
+      const a = m.assetId ? byId.get(m.assetId) : undefined;
+      if (!a?.account_id) {
+        for (const s of m.stages) unfunded.add(s);
         continue;
       }
-      const c = credits.get(m.account_id) ?? { accountId: m.account_id, amount: "0", assetId: m.id, assetName: m.name, stages: [] };
-      c.amount = (BigInt(c.amount) + amount).toString();
-      c.stages.push(buyer);
-      credits.set(m.account_id, c);
+      const c = credits.get(a.account_id) ?? { accountId: a.account_id, amount: "0", assetId: a.id, assetName: a.name, stages: [] };
+      c.amount = (BigInt(c.amount) + BigInt(m.totalTinybar)).toString();
+      c.stages.push(...m.stages);
+      credits.set(a.account_id, c);
     }
     const sorted = [...credits.values()].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1));
     for (const c of sorted.slice(MAX_CREDITS)) for (const s of c.stages) unfunded.add(s);
     const funded = sorted.slice(0, MAX_CREDITS);
-    const view: BudgetLineView[] = lines.map((l) => ({ ...l, tinybars: l.tinybars.toString(), funded: !unfunded.has(l.buyer) }));
+    const view: BudgetLineView[] = budget.stages.flatMap((s) =>
+      s.lines.map((l) => ({ stage: s.code, buyer: s.buyer.stage, resource: l.key, label: l.label, qty: l.qty, unit: l.unit, maxPrice: l.maxPrice, tinybars: l.maxTinybar, funded: !unfunded.has(s.code) })),
+    );
     return { credits: funded, lines: view };
   }
 
