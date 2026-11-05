@@ -4,7 +4,8 @@ import { useApp } from "../lib/app";
 import { ago, dateTime, shortAddr } from "../lib/format";
 import { fromUnits } from "../lib/wallet";
 import type { FinanceOrder, FinanceParty, FinanceResponse, PackageSummary } from "../types";
-import { Action, Empty, Field, Loading, Modal, useToast } from "../ui/kit";
+import { Action, Empty, Field, Loading, Modal, Tabs, useToast } from "../ui/kit";
+import { MachineBudgets } from "./MachineBudgets";
 import { Select } from "../ui/Select";
 
 const STATUS: Record<FinanceOrder["status"], [string, string]> = {
@@ -30,7 +31,7 @@ const link = (url: string | null | undefined, text: string) =>
  * Pay on proof: a customer's payment for a lot, in Ordo USD (a Stablecoin Studio stablecoin), held by OrdoPayOnProof
  * until OrdoTrust records the lot's three-signature release; until then the plant can sell the receivable for cash now.
  */
-export function Finance() {
+function PayOnProof() {
   const { path, can } = useApp();
   const [data, setData] = useState<FinanceResponse | null>(null);
   const [adding, setAdding] = useState<"customer" | "financier" | null>(null);
@@ -365,5 +366,26 @@ function NewOrder({ open, onClose, customers, symbol, onDone }: { open: boolean;
         </Field>
       </div>
     </Modal>
+  );
+}
+
+// ---- Finance: pay on proof, and machine budgets from the org's treasury (OrdoTreasury) ----
+type FinanceTab = "pay" | "budgets";
+export function Finance() {
+  const [tab, setTab] = useState<FinanceTab>("pay");
+  return (
+    <div>
+      <div className="eyebrow">Paid on proof, spent with approval</div>
+      <h1>Finance</h1>
+      <Tabs<FinanceTab>
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: "pay", label: "Pay on proof" },
+          { value: "budgets", label: "Machine budgets" },
+        ]}
+      />
+      {tab === "pay" ? <PayOnProof /> : <MachineBudgets />}
+    </div>
   );
 }

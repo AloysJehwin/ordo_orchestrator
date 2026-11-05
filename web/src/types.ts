@@ -877,3 +877,86 @@ export interface MachineAnswer {
   model: string | null;
   at: string;
 }
+// ---------------- Org treasury: machine budgets (OrdoTreasury on Hedera) ----------------
+export type BudgetStatus = "pending" | "approving" | "executed" | "expired" | "declined" | "failed" | "skipped";
+/** A machine account a budget pays, in tinybars */
+export interface BudgetCredit {
+  accountId: string;
+  amount: string;
+  assetId: string;
+  assetName: string;
+  stages: string[];
+}
+export interface BudgetLine {
+  stage: string;
+  buyer: string;
+  resource: string;
+  label: string;
+  qty: number;
+  unit: string;
+  maxPrice: number;
+  tinybars: string;
+  funded: boolean;
+  reason?: "price_above_max" | "balance_short";
+  detail?: string;
+  vendorId?: string;
+  sku?: string;
+  priceTinybar?: string;
+}
+/** A run's budget or a machine's top-up: one scheduled transfer from the org's treasury that a manager approves */
+export interface BudgetSchedule {
+  id: string;
+  kind: "run" | "topup";
+  runId: string;
+  orderRef: string | null;
+  templateName: string | null;
+  stageCode: string | null;
+  resource: string | null;
+  status: BudgetStatus;
+  treasuryAccount: string;
+  credits: BudgetCredit[];
+  lines: BudgetLine[];
+  total: string;
+  budgetHash: string;
+  entity: string | null;
+  memo: string;
+  scheduleId: string | null;
+  scheduleUrl: string | null;
+  txUrl: string | null;
+  expiresAt: string;
+  error: string | null;
+  reasoning: string | null;
+  requestId: string | null;
+  valueAtRisk: string | null;
+  device: string | null;
+  assetId: string | null;
+  hcs: { topicId: string; sequence: string; txId: string; url: string } | null;
+  inboxItemId: string | null;
+  approvedBy: string | null;
+  approveTxUrl: string | null;
+  executedAt: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  heldAt: string | null;
+  createdAt: string;
+}
+export interface TreasuryInfo {
+  contract: string;
+  contractUrl: string;
+  keyAddress: string;
+  keyContractId: string;
+  keyUrl: string;
+  accountId: string;
+  accountUrl: string;
+  balance: string | null;
+  openedAt: string;
+}
+export interface BudgetsResponse {
+  configured: boolean;
+  note: string | null;
+  contract: string | null;
+  registered: boolean;
+  treasury: TreasuryInfo | null;
+  budgets: BudgetSchedule[];
+  topups: BudgetSchedule[];
+}

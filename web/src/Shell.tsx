@@ -41,7 +41,7 @@ const NAV: NavItem[] = [
   { page: "floor", label: "Floor & fleet", short: "Floor", icon: "floor", level: 2 },
   { page: "approvals", label: "Approvals", icon: "approvals", count: "approvals", manager: true },
   { page: "work-orders", label: "Work orders", icon: "workorders", count: "workOrders", level: 4 },
-  { page: "finance", label: "Pay on proof", icon: "finance", level: 4 },
+  { page: "finance", label: "Finance", icon: "finance", level: 4 },
   { page: "builder", label: "Builder", icon: "builder", manager: true },
 ];
 const ADMIN_NAV: NavItem[] = [
