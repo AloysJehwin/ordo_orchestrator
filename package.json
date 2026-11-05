@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @ordo/server --filter @ordo/web dev",
-    "build": "pnpm --filter @ordo/web build && pnpm --filter @ordo/server build",
+    "dev": "pnpm --filter @ordo/body build && pnpm --parallel --filter @ordo/server --filter @ordo/web dev",
+    "build": "pnpm --filter @ordo/web build && pnpm --filter @ordo/body build && pnpm --filter @ordo/server build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "start": "pnpm --filter @ordo/server start",

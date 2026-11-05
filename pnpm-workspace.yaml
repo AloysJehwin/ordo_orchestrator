@@ -3,6 +3,7 @@ packages:
   - web
   - contracts
   - sdk
+  - body
 
 # @x402/hedera pins an older Hiero SDK; keep one copy (the server's) so its transactions and ours are the same classes.
 overrides:
