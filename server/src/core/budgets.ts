@@ -632,10 +632,38 @@ export class Budgets {
     }
   }
 
+  /**
+   * A top-up still waiting for a manager whose stage has started is no longer needed: the stage started because its
+   * resources arrived (another machine bought them) or a manager waived them. Its schedule is deleted, so nothing can
+   * move, and the stage is not held for it.
+   */
+  private async withdrawStale() {
+    const stale = await this.db.query<Row>(
+      `SELECT ${COLS.split(", ").map((c) => `b.${c}`).join(", ")} FROM budget_schedules b JOIN stage_runs sr ON sr.run_id = b.run_id AND sr.code = b.stage_code
+       WHERE b.kind = 'topup' AND b.status = 'pending' AND b.schedule_id IS NOT NULL AND sr.state <> 'queued'`,
+    );
+    for (const r of stale.rows) {
+      // a schedule already gone from Hedera (lapsed or deleted) needs no deleting
+      const gone = await this.rail!.cancel(r.schedule_id!).then(() => null, (e: unknown) => (e instanceof Error ? e.message : String(e)));
+      const reason = `Withdrawn: ${r.stage_code} started, so its ${r.resource} is no longer needed`;
+      await this.db.query("UPDATE budget_schedules SET status = 'declined', decided_at = now(), held_at = now(), error = $1, updated_at = now() WHERE id = $2 AND status = 'pending'", [reason, r.id]);
+      await this.settleInbox(r, "rejected", reason, null);
+      await this.rec.decide(r.site_id, {
+        agent: AGENT,
+        kind: "budget.withdrawn",
+        runId: r.run_id,
+        stageCode: r.stage_code,
+        summary: `Withdrew the top-up of ${hbar(r.total)} for ${r.resource}: stage ${r.stage_code} already started; ${gone ? `Hedera schedule ${r.schedule_id} was already gone` : `deleted Hedera schedule ${r.schedule_id}`}, nothing left the treasury`,
+        data: { budgetId: r.id, scheduleId: r.schedule_id, ...(gone ? { cancelError: gone } : {}) },
+      });
+    }
+  }
+
   /** One pass, from the engine cycle. */
   async reconcile() {
     if (!this.live) return;
     await this.runBudgets().catch((e) => console.error("[ordo] run budgets", e));
+    await this.withdrawStale().catch((e) => console.error("[ordo] stale top-ups", e));
     const open = await this.db.query<Row>(`SELECT ${COLS} FROM budget_schedules WHERE status IN ('pending','approving') AND schedule_id IS NOT NULL AND next_check_at <= $1 ORDER BY next_check_at LIMIT 20`, [
       new Date(this.now()).toISOString(),
     ]);
