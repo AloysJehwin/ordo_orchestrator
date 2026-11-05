@@ -99,6 +99,7 @@ export function isLoopback(url) {
  * @property {boolean} open
  * @property {ParsedToken | null} token
  * @property {"argument" | "env" | null} tokenSource
+ * @property {string | null} notes  An observations file to answer from (--notes)
  */
 
 /**
@@ -116,6 +117,7 @@ export function parseInvocation(argv, env) {
       strict: true,
       options: {
         api: { type: "string" },
+        notes: { type: "string" },
         "no-open": { type: "boolean" },
         help: { type: "boolean", short: "h" },
         version: { type: "boolean", short: "v" },
@@ -127,7 +129,7 @@ export function parseInvocation(argv, env) {
       throw new UsageError(`Unknown option. Run with --help to see the options.`);
     }
     if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
-      throw new UsageError(`An option has a missing or unexpected value (--api needs a URL, for example --api https://ordo.example.com).`);
+      throw new UsageError(`An option has a missing or unexpected value (--api needs a URL, for example --api https://ordo.example.com; --notes needs a file).`);
     }
     throw new UsageError(`Could not read the arguments. Run with --help to see the options.`);
   }
@@ -135,7 +137,8 @@ export function parseInvocation(argv, env) {
   const help = Boolean(values.help);
   const version = Boolean(values.version);
   const open = !values["no-open"] && !isTruthy(env.ORDO_POW_NO_OPEN);
-  if (help || version) return { help, version, open, token: null, tokenSource: null };
+  const notes = typeof values.notes === "string" && values.notes.trim() ? values.notes : null;
+  if (help || version) return { help, version, open, token: null, tokenSource: null, notes };
 
   if (positionals.length > 1) {
     throw new UsageError(`Expected one token, got ${positionals.length} arguments.`);
@@ -156,7 +159,7 @@ export function parseInvocation(argv, env) {
   }
   const token = parseToken(raw);
   if (values.api !== undefined) token.apiBaseUrl = normalizeBaseUrl(values.api, "--api");
-  return { help, version, open, token, tokenSource };
+  return { help, version, open, token, tokenSource, notes };
 }
 
 /** @param {string | undefined} value */

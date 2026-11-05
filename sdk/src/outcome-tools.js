@@ -204,15 +204,22 @@ export async function reviewOutcome(args, ctx, announce) {
  * @param {Record<string, unknown>} args
  * @param {ToolContext} ctx
  * @param {(line: string) => void} announce
- * @returns {ToolOutcome}
+ * @returns {Promise<ToolOutcome>}
  */
-export function confirmOutcome(args, ctx, announce) {
+export async function confirmOutcome(args, ctx, announce) {
   const o = findOutcome(ctx.stage, args.key);
   if (!o) return fail(`Unknown outcome. Use one of: ${(ctx.stage.outcomes ?? []).map((x) => x.key).join(", ") || "(this stage has none)"}.`);
   const verdict = typeof args.verdict === "string" ? args.verdict.trim().toLowerCase() : "";
   if (!VERDICTS.includes(/** @type {any} */ (verdict))) return fail(`verdict is one of: ${VERDICTS.join(", ")}.`);
+  // a model that skips review_outcome would otherwise be refused again and again: show the outcome here (its file is
+  // saved and its path printed, so the contributor can open what they are confirming), then record the verdict
+  let autoReviewed = false;
+  if (o.captured && o.output && !ctx.record.reviewed[o.key]) {
+    const shown = await reviewOutcome({ key: o.key }, ctx, announce);
+    if (!shown.result.ok) return shown;
+    autoReviewed = true;
+  }
   const reviewed = ctx.record.reviewed[o.key];
-  if (o.captured && o.output && !reviewed) return fail(`Show ${o.label} to the contributor first: call review_outcome with key "${o.key}".`);
   if (verdict === "confirm" && !reviewed) return fail(`Nothing was captured for ${o.label}, so there is nothing to confirm. Record dispute or unsure, with what the contributor said.`);
   const raw = typeof args.observed === "string" && args.observed.trim() !== "" ? Number(args.observed) : args.observed;
   if (raw !== undefined && raw !== null && (typeof raw !== "number" || !Number.isFinite(raw))) return fail("observed must be a number: the value the contributor observed, or leave it out.");
@@ -227,7 +234,7 @@ export function confirmOutcome(args, ctx, announce) {
   else ctx.record.confirmations.push(c);
   const word = verdict === "confirm" ? "confirmed" : verdict === "dispute" ? "disputed" : "unsure";
   announce(`${o.label}: ${word}${c.observed !== undefined ? `, observed ${c.observed}${o.metric.unit ? ` ${o.metric.unit}` : ""}` : ""}${note ? ` (${note.length > 70 ? `${note.slice(0, 69)}…` : note})` : ""}`);
-  return ok({ recorded: c, replacedEarlierVerdict: index >= 0, outcomesToReview: pendingOutcomes(ctx.stage, ctx.record).map((x) => x.key) });
+  return ok({ recorded: c, replacedEarlierVerdict: index >= 0, ...(autoReviewed ? { reviewedNow: true } : {}), outcomesToReview: pendingOutcomes(ctx.stage, ctx.record).map((x) => x.key) });
 }
 
 /**

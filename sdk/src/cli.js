@@ -14,7 +14,7 @@ import { createRouterClient, trustText } from "./router.js";
 import { isLoopback, isTruthy, normalizeBaseUrl, parseInvocation, TOKEN_ENV } from "./token.js";
 
 export function usage() {
-  return `Usage: npx ${PACKAGE_NAME}@latest <token> [--api <url>] [--no-open]
+  return `Usage: npx ${PACKAGE_NAME}@latest <token> [--notes <file>] [--api <url>] [--no-open]
        ${TOKEN_ENV}=<token> npx ${PACKAGE_NAME}@latest
 
 Record proof of work on an Ordo stage. Copy the command from the stage in the Ordo
@@ -25,6 +25,9 @@ hashed on this machine; Ordo gets only the hashes. A photo or voice note goes to
 0G model only if you say yes for that file.
 
 Options:
+  --notes <file>  A .txt or .md file of your observations: the interviewer records what it
+                  states (measurements, your verdict on each outcome) and asks only about the rest.
+                  Its text goes to the 0G model like your typed answers; its hash is your evidence.
   --api <url>     Use this Ordo API address instead of the one in the token
   --no-open       Do not open the signing link in a browser
   -h, --help      Show this help
@@ -37,7 +40,8 @@ Environment:
                            used anyway when the Ordo deployment has no Router)
   NO_COLOR=1               Plain output
 
-During the interview: /show prints what is recorded, /quit stops without sending.
+During the interview: /show prints what is recorded, /notes <file> answers from a file,
+/quit stops without sending.
 
 Exit codes: 0 signed, 1 failed or expired, 2 bad usage or token, 3 stopped by you, 130 interrupted.`;
 }
@@ -150,7 +154,7 @@ export async function main(options = {}) {
 
     printBanner(terminal, session, { mock: mock ? (forcedMock ? "forced" : "ordo") : false, model: router.model });
     phase = "interview";
-    const interview = await runInterview({ session, router, terminal, client, cwd });
+    const interview = await runInterview({ session, router, terminal, client, cwd, notes: invocation.notes });
     if (interview.outcome === "quit") {
       terminal.print("");
       terminal.print("Stopped. Nothing was submitted.");

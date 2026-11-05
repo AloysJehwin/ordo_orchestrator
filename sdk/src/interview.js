@@ -7,15 +7,18 @@
 /** @import { OrdoClient } from "./ordo-api.js" */
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { formatBytes } from "./evidence.js";
+import { readFile } from "node:fs/promises";
+import { EvidenceError, formatBytes, hashEvidence } from "./evidence.js";
 import { contentText, createMediaQueue, stripImages } from "./media.js";
 import { targetText } from "./outcome-tools.js";
-import { buildSystemPrompt, KICKOFF } from "./prompt.js";
+import { buildSystemPrompt, KICKOFF, notesMessage } from "./prompt.js";
 import { describeRouterError } from "./router.js";
 import { createRecord, measurables, runTool, settleVision, toolDefinitions, unsentVision } from "./tools.js";
 
 /** Tool rounds in a row without hearing from the contributor before we stop and ask them. */
 const MAX_TOOL_ROUNDS = 8;
+/** the largest observations file the interviewer reads */
+const MAX_NOTES_BYTES = 64 * 1024;
 
 /**
  * @typedef {object} InterviewResult
@@ -33,10 +36,11 @@ const MAX_TOOL_ROUNDS = 8;
  *   client?: Pick<OrdoClient, "output" | "askMachine" | "getSession">,
  *   cwd?: string,
  *   maxEvidenceBytes?: number,
+ *   notes?: string | null,
  * }} options
  * @returns {Promise<InterviewResult>}
  */
-export async function runInterview({ session, router, terminal, client, cwd = process.cwd(), maxEvidenceBytes }) {
+export async function runInterview({ session, router, terminal, client, cwd = process.cwd(), maxEvidenceBytes, notes = null }) {
   const { style } = terminal;
   const stage = session.stage;
   const record = createRecord();
@@ -55,6 +59,36 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
   ];
   let inputEnded = false;
   let quitRequested = false;
+
+  /**
+   * The contributor's observations file: hashed as evidence, and its text sent to the interviewer as their answers.
+   * @param {string} input
+   * @returns {Promise<string | null>} the message, or null when the file cannot be used (the reason is printed)
+   */
+  async function loadNotes(input) {
+    let file;
+    try {
+      file = await hashEvidence(input, { cwd, maxBytes: MAX_NOTES_BYTES });
+    } catch (err) {
+      if (err instanceof EvidenceError) {
+        terminal.error(`  Notes: ${err.message}`);
+        return null;
+      }
+      throw err;
+    }
+    const text = (await readFile(file.path, "utf8")).replace(/\r\n/g, "\n").trim();
+    if (!text) {
+      terminal.error(`  Notes: ${file.name} is empty.`);
+      return null;
+    }
+    if (/[\u0000-\u0008\u000e-\u001f]/.test(text.slice(0, 4096))) {
+      terminal.error(`  Notes: ${file.name} is not a text file. Use a .txt or .md file of your observations.`);
+      return null;
+    }
+    if (!record.evidence.some((e) => e.sha256 === file.sha256)) record.evidence.push({ name: file.name, sha256: file.sha256, size: file.size, mediaType: "text/plain" });
+    terminal.print(style.green(`  ✓ read your notes ${file.name} (${formatBytes(file.size)}), sha256 ${file.sha256.slice(0, 16)}…: its text goes to the interviewer as your answers, and its hash is your evidence`));
+    return notesMessage({ name: file.name, sha256: file.sha256, text });
+  }
   let warnedTee = false;
   let toolRounds = 0;
 
@@ -82,7 +116,17 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
         continue;
       }
       if (command === "/help" || command === "/?") {
-        terminal.print(style.dim("  /show  what is recorded so far\n  /quit  stop without sending anything"));
+        terminal.print(style.dim("  /show          what is recorded so far\n  /notes <file>  answer from a text file of your observations\n  /quit          stop without sending anything"));
+        continue;
+      }
+      if (command === "/notes" || command.startsWith("/notes ")) {
+        const file = text.slice("/notes".length).trim();
+        if (!file) {
+          terminal.print(style.dim("  /notes <file>: a .txt or .md file of your observations, for example /notes ~/stage-01.txt"));
+          continue;
+        }
+        const message = await loadNotes(file);
+        if (message) return message;
         continue;
       }
       // Anything else, including absolute paths that start with "/", is an answer.
@@ -146,6 +190,15 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
       const yes = text === "y" || text === "yes";
       if (!yes) terminal.print(style.dim("  Not sent. Tell the interviewer what to change."));
       return yes;
+    }
+  }
+
+  // an observations file given on the command line (--notes) is the contributor's first answer
+  if (notes) {
+    const message = await loadNotes(notes);
+    if (message) {
+      transcript.push({ role: "user", content: message, at: new Date().toISOString() });
+      messages.push({ role: "user", content: message });
     }
   }
 

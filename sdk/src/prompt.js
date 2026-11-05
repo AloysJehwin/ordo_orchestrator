@@ -105,3 +105,19 @@ export function buildSystemPrompt(session) {
 
 /** The first user turn, so models that need one have it. Not part of the transcript. */
 export const KICKOFF = "The contributor has opened the terminal and is ready. Start the interview.";
+
+/**
+ * The contributor's observations file, sent as their answer. The model records what it states and asks only about the rest.
+ * @param {{ name: string, sha256: string, text: string }} notes
+ */
+export function notesMessage(notes) {
+  return `My observations for this stage are in the file ${notes.name} (sha256 ${notes.sha256.slice(0, 16)}…, attached as evidence). Use them as my answers:
+- record every measurement it gives with record_measurement;
+- review each outcome the machine captured and record my verdict from the file with confirm_outcome (confirm, or dispute with the value I observed);
+- add what else it says as notes.
+Do not ask me again for anything the file answers. Ask only about what it leaves out or contradicts, then give me your summary and call finish.
+
+--- ${notes.name} ---
+${notes.text}
+--- end of ${notes.name} ---`;
+}
