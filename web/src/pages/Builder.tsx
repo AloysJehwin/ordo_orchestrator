@@ -149,7 +149,7 @@ export function Builder() {
     const crit = own ?? templates?.flatMap((t) => t.spec.stages).find((s) => s.agent === p.agent)?.criteria ?? [];
     // the machine's outcomes for this kind of stage, ready to edit; their metrics are criteria the server adds on publish
     const outcomes = (OUTCOME_PRESETS[p.resourceKind] ?? []).map((o) => ({ ...o, metric: { ...o.metric } }));
-    setStages([...stages, { ...rest, key, column: maxCol + 1, timeoutMin: 60, criteria: crit.filter((c) => !c.outcome), outcomes }]);
+    setStages([...stages, { ...rest, key, column: maxCol + 1, timeoutMin: 60, criteria: crit.filter((c) => !c.outcome), outcomes, resources: [] }]);
     setSelected(key);
   };
   // Move a stage one column left/right; "parallel" puts it in the same column as its neighbour.

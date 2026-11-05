@@ -22,6 +22,7 @@ export type {
   RunView,
   SignalAgg,
   SignalLimit,
+  StageResource,
   StageMode,
   StageRunView,
   StageSpec,

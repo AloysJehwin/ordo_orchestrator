@@ -242,6 +242,22 @@ export const Outcome = z
 export type Outcome = z.infer<typeof Outcome>;
 export const outcomeSignal = (key: string) => `outcome.${key}`;
 
+/**
+ * A consumable a stage needs, bought ahead of the stage by the machine of an earlier stage (over x402, from a vendor's
+ * offer). `qty` is per batch, or per unit of the run's quantity; `maxPrice` is the most the machine may pay per `unit`, in HBAR.
+ */
+export const StageResource = z.object({
+  key: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/, "a key is lowercase letters, digits and _, starting with a letter"),
+  label: z.string().trim().min(1).max(80),
+  /** what any vendor's offer of this resource is filed under, e.g. protein_a_resin, argon, ti64_powder */
+  kind: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
+  unit: z.string().trim().max(16).default(""),
+  qty: z.number().positive().max(1e9),
+  per: z.enum(["batch", "unit"]).default("batch"),
+  maxPrice: z.number().positive().max(1e9),
+});
+export type StageResource = z.infer<typeof StageResource>;
+
 export const StageSpec = z.object({
   code: z.string().regex(/^\d{2}[a-z]?$/),
   column: z.number().int().min(1),
@@ -266,6 +282,18 @@ export const StageSpec = z.object({
       for (const [i, o] of os.entries()) {
         if (seen.has(o.key)) ctx.addIssue({ code: "custom", message: `Two outcomes use the key ${o.key}`, path: [i, "key"] });
         seen.add(o.key);
+      }
+    }),
+  /** what the stage consumes; the machine of the stage before it buys these ahead of time */
+  resources: z
+    .array(StageResource)
+    .max(12)
+    .default([])
+    .superRefine((rs, ctx) => {
+      const seen = new Set<string>();
+      for (const [i, r] of rs.entries()) {
+        if (seen.has(r.key)) ctx.addIssue({ code: "custom", message: `Two resources use the key ${r.key}`, path: [i, "key"] });
+        seen.add(r.key);
       }
     }),
 });
