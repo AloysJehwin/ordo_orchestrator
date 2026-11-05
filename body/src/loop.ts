@@ -272,8 +272,8 @@ export class Body {
     const outcomesIn = required.every((o) => w.captures.get(o.key)?.done) && w.again.size === 0 && ![...w.captures.values()].some((c) => c.pending);
     if (brain && (w.decideSoon || now - w.lastDecision >= this.cfg.decideS * 1000)) await this.decide(w, false);
     if (brain && outcomesIn && progress >= 1 && !w.closed && this.mode === "running" && w.st.state === "running") {
-      await this.decide(w, true);
-      w.closed = true;
+      // only a decision the agent made closes the stage: a failed one is tried again next tick
+      w.closed = await this.decide(w, true);
       return;
     }
     if (this.mode !== "running" || w.st.state !== "running") return;
@@ -392,7 +392,7 @@ export class Body {
     };
   }
 
-  private async decide(w: Work, closing: boolean) {
+  private async decide(w: Work, closing: boolean): Promise<boolean> {
     const brain = this.cfg.brain!;
     const s = this.situation(w);
     let d;
@@ -401,7 +401,7 @@ export class Body {
       this.fails = 0;
     } catch (e) {
       await this.brainFailed(e as Error);
-      return;
+      return false;
     }
     w.lastDecision = Date.now();
     w.decideSoon = false;
@@ -430,6 +430,7 @@ export class Body {
     } else applied.push("carried on");
     this.add({ kind: "decision", runId: st.runId, stage: st.stage, action: d.action, reason: closing ? `closing: ${d.reason}` : d.reason, signal: d.signal, recapture: d.recapture, applied: applied.join("; "), requestId: d.reply.requestId, provider: d.reply.provider, teeVerified: d.reply.teeVerified, model: d.reply.model, ms: d.reply.ms });
     if (d.action !== "continue") console.log(`${w.key} agent ${d.action}: ${applied.join("; ")}`);
+    return true;
   }
 
   // ---------------------------------------------------------------- safe stop
