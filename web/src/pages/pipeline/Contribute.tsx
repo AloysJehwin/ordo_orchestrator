@@ -6,6 +6,7 @@ import { ago, shortAddr } from "../../lib/format";
 import { useSign } from "../../lib/sign";
 import type { ContributionView, PowStart, RunView, StageRunView, TeeSummary, TypedSignature } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
+import { ContributionOutcomes, DisputeList } from "./PowOutcomes";
 
 /** Stages that take no more proof of work */
 const CLOSED = new Set(["queued", "skipped"]);
@@ -94,8 +95,9 @@ export function ContributeModal({ run, stage, onClose, onDone }: { run: RunView;
           <ol className="steps small">
             <li>Copy the command and run it in a terminal on the machine where your files are (Node 22 or later).</li>
             <li>
-              An agent on <b>0G Private Computer</b> interviews you about this stage: what you did, each measured value, your evidence files and anything unusual. It runs in a TEE: neither the provider nor Ordo's staff read the conversation in transit. Files stay on your machine; only their SHA-256 is recorded.
+              An agent on <b>0G Private Computer</b> interviews you about this stage: what you did, each measured value, your evidence files and anything unusual. It runs in a TEE: neither the provider nor Ordo's staff read the conversation in transit. Files stay on your machine and only their SHA-256 is recorded, unless you agree, file by file, to show a photo to the model or have a voice note transcribed on 0G.
             </li>
+            {stage.outcomes.length > 0 && <li>It shows you what the stage's machine captured for each of its {stage.outcomes.length} outcomes, and you confirm or dispute each one; your record binds the hashes of the files you reviewed.</li>}
             <li>When you confirm, it opens a link here for you to sign the record with your wallet.</li>
           </ol>
           <div className="cmd">
@@ -178,9 +180,20 @@ export function ContributionRow({ c, mine, siteId, onSelect }: { c: Contribution
             <span className="num">{c.evidence.length}</span> evidence hash{c.evidence.length === 1 ? "" : "es"}
           </span>
         )}
+        {(c.outcomes?.length ?? 0) > 0 && (
+          <span className="tag">
+            <span className="num">{c.outcomes!.filter((o) => o.sha256).length}</span> machine output{c.outcomes!.filter((o) => o.sha256).length === 1 ? "" : "s"} bound
+          </span>
+        )}
+        {(c.disputes ?? 0) > 0 && (
+          <span className="tag bad">
+            <span className="num">{c.disputes}</span> disputed
+          </span>
+        )}
         {c.ledgerSeq !== null && <span className="tag">ledger #{c.ledgerSeq}</span>}
       </div>
       {c.summary && <p className="small">{c.summary}</p>}
+      <DisputeList c={c} />
       {c.measurements.some((m) => m.value !== undefined) && (
         <dl className="kv small">
           {c.measurements.map((m) => (
@@ -274,6 +287,12 @@ function SelectModal({ c, stage, onClose, onDone }: { c: ContributionView; stage
             ))}
           </dl>
         )}
+        {(c.disputes ?? 0) > 0 && (
+          <p className="small notice">
+            The contributor disputed {c.disputes} of the machine's outcome{c.disputes === 1 ? "" : "s"}. Check them against the media before you select this record.
+          </p>
+        )}
+        <ContributionOutcomes c={c} />
         <Field label="Why this one (optional)" hint="Kept in the ledger with your signature">
           <textarea className="input" rows={3} maxLength={500} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Matches the photos and the gauge readings" />
         </Field>

@@ -6,6 +6,7 @@ import { useSign } from "../lib/sign";
 import type { ContributionView, PowSession, PublicContribution, TypedSignature } from "../types";
 import { Empty, Loading } from "../ui/kit";
 import { CancelSession, ContributionRow, StatusTag, TeeBadge } from "./pipeline/Contribute";
+import { ContributionOutcomes } from "./pipeline/PowOutcomes";
 
 /** My proof of work in this org: open sessions (the command can be started again from the stage) and every contribution. */
 export function PowPage() {
@@ -135,13 +136,45 @@ export function PowSign({ id }: { id: string }) {
               ))}
             </tbody>
           </table>
+          <ContributionOutcomes c={c} />
           {c.evidence.length > 0 && (
             <div>
-              <div className="label">Evidence (only hashes left your machine)</div>
+              <div className="label">Evidence (the files stayed on your machine; Ordo has their hashes)</div>
               <ul className="small">
                 {c.evidence.map((e) => (
                   <li key={e.sha256}>
                     {e.name} <span className="faint mono">{e.sha256.slice(0, 18)}…</span>
+                    {e.analyzedBy && (
+                      <span className="tag" title={e.analyzedBy.requestId ?? undefined}>
+                        {e.analyzedBy.kind === "transcription" ? "transcribed by" : "shown to"} {e.analyzedBy.model}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {c.voiceNotes && c.voiceNotes.length > 0 && (
+            <div>
+              <div className="label">Voice notes (transcribed on 0G with your consent)</div>
+              <ul className="small">
+                {c.voiceNotes.map((v) => (
+                  <li key={v.sha256}>
+                    <b>{v.name}</b> <span className="faint">· {v.model}</span>
+                    <div className="muted">“{v.transcript}”</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {c.machineQa && c.machineQa.length > 0 && (
+            <div>
+              <div className="label">Questions the agent put to the machine</div>
+              <ul className="small">
+                {c.machineQa.map((q) => (
+                  <li key={q.at}>
+                    <b>{q.question}</b>
+                    <div className="muted">{q.answer}</div>
                   </li>
                 ))}
               </ul>
@@ -164,7 +197,7 @@ export function PowSign({ id }: { id: string }) {
             </span>
           </div>
           <p className="faint small">
-            Only you, the org's managers and (on a dispute) its testers can read the conversation and the values; validators with access see the values. The public proof shows the commitments, the evidence hashes and the TEE receipts.
+            Only you, the org's managers and (on a dispute) its testers can read the conversation and the values; validators with access see the values. The public proof shows the commitments, the evidence hashes, the hashes of the machine's media you reviewed, and the TEE receipts.
           </p>
         </div>
       </section>
@@ -261,11 +294,26 @@ export function PowProof({ id }: { id: string }) {
       {p.evidence.length > 0 && (
         <section className="pp-card">
           <h2>Evidence</h2>
-          <p className="small muted">Files stayed with the contributor; these are their SHA-256 hashes.</p>
+          <p className="small muted">Files stayed with the contributor; these are their SHA-256 hashes. A file marked 0G was shown to (or transcribed by) the private model, with the contributor's consent.</p>
           <ul className="small mono">
             {p.evidence.map((e) => (
               <li key={e.sha256}>
                 {e.name} · {e.sha256}
+                {e.analyzedBy && <span className="tag"> 0G {e.analyzedBy.kind === "transcription" ? "transcribed" : "vision"}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {p.outcomes && p.outcomes.length > 0 && (
+        <section className="pp-card">
+          <h2>Machine media bound to this record</h2>
+          <p className="small muted">What the stage's machine captured and signed, as the contributor reviewed it: the record binds each file's SHA-256. Their verdicts stay sealed with the org.</p>
+          <ul className="small">
+            {p.outcomes.map((o) => (
+              <li key={o.outcome}>
+                {o.label} · {o.sha256 ? <span className="mono">{o.sha256}</span> : <span className="faint">not captured</span>}
+                {o.version !== null && <span className="faint"> · version {o.version}</span>}
               </li>
             ))}
           </ul>
@@ -288,7 +336,10 @@ export function PowProof({ id }: { id: string }) {
           <tbody>
             {p.receipts.map((r, i) => (
               <tr key={i}>
-                <td className="num">{i + 1}</td>
+                <td className="num">
+                  {i + 1}
+                  {r.kind === "transcription" && <span className="faint small"> · voice note</span>}
+                </td>
                 <td className="mono small">{r.provider ? shortAddr(r.provider) : "—"}</td>
                 <td>{r.teeVerified === true ? <span className="tag ok">verified</span> : r.teeVerified === false ? <span className="tag bad">failed</span> : <span className="tag">not reported</span>}</td>
                 <td className="mono small">{r.resKey ? `${r.resKey.slice(0, 14)}…` : "—"}</td>

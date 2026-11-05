@@ -108,7 +108,7 @@ export function StageOutcomes({ run, stage }: { run: RunView; stage: StageRunVie
   );
 }
 
-function Media({ o, src, preview, onOpen }: { o: OutcomeView; src: string; preview: string | null; onOpen: (src: string) => void }) {
+export function Media({ o, src, preview, onOpen }: { o: OutcomeView; src: string; preview: string | null; onOpen: (src: string) => void }) {
   const out = o.output!;
   const isImage = out.mime.startsWith("image/");
   if (o.media === "audio")

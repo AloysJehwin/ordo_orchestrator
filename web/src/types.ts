@@ -622,7 +622,9 @@ export interface ContributionView {
   recordSha256: string;
   /** values only at level 3 and up, and to their author */
   measurements: { criterion: string; unit: string; commitment: string; subject: string; value?: number; note?: string }[];
-  evidence: { name: string; sha256: string; size: number }[];
+  evidence: { name: string; sha256: string; size: number; mediaType?: string; analyzedBy?: { model: string; requestId?: string | null; kind?: "vision" | "transcription" } | null }[];
+  /** the machine media the record binds, one per outcome; verdicts from level 3 (absent on records made before outcomes) */
+  outcomes?: ContributionOutcome[];
   tee: TeeSummary;
   ledgerSeq: number | null;
   signatureId: string | null;
@@ -630,6 +632,10 @@ export interface ContributionView {
   selection: { by: string; byName: string | null; at: string; comment: string | null } | null;
   summary?: string;
   notes?: { text: string; at: string }[];
+  /** level 3: how many outcomes the contributor disputed */
+  disputes?: number;
+  voiceNotes?: VoiceNote[];
+  machineQa?: MachineAnswer[];
 }
 export interface PowStart {
   sessionId: string;
@@ -650,7 +656,7 @@ export interface PowSession {
 export interface PublicContribution extends ContributionView {
   site: string;
   orderRef: string;
-  receipts: { at: string; provider: string | null; model: string | null; resKey: string | null; requestId: string | null; teeVerified: boolean | null; requestSha256: string; responseSha256: string }[];
+  receipts: { at: string; provider: string | null; model: string | null; resKey: string | null; requestId: string | null; teeVerified: boolean | null; requestSha256: string; responseSha256: string; kind?: "chat" | "transcription" }[];
   signature: { signature: string; typed: unknown } | null;
 }
 
@@ -839,3 +845,35 @@ export interface StageResourcesView {
   redacted: boolean;
 }
 type StageResourceT = import("../../server/src/domain/types").StageResource;
+
+/** One outcome as a proof of work binds it: the machine's file the contributor reviewed, and their verdict (level 3). */
+export interface ContributionOutcome {
+  outcome: string;
+  label: string;
+  media: OutcomeMedia;
+  sha256: string | null;
+  version: number | null;
+  verdict?: "confirm" | "dispute" | "unsure" | null;
+  observed?: number | null;
+  note?: string;
+  machineValue?: number | null;
+}
+/** A voice note the contributor let 0G transcribe (whisper), kept in the sealed record. */
+export interface VoiceNote {
+  name: string;
+  sha256: string;
+  size?: number;
+  mediaType?: string;
+  transcript: string;
+  model: string;
+  requestId: string | null;
+  at: string;
+}
+/** A question the interviewer asked the stage's machine, and its answer, as Ordo relayed it. */
+export interface MachineAnswer {
+  question: string;
+  answer: string;
+  requestId: string | null;
+  model: string | null;
+  at: string;
+}

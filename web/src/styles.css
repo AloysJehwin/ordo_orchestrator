@@ -939,3 +939,10 @@ svg.flow { display: block; margin: 0 auto; overflow: visible; }
 .offers-card { margin-top: 10px; padding: 12px 14px; }
 .offers-card .row-between { padding-top: 0; }
 .offers-act { white-space: nowrap; display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Proof of work: the machine's outcomes a record binds, with the contributor's verdicts */
+.oc-card.s-na { border-left-color: var(--faint); }
+.oc-said { margin: 4px 0 0; }
+.oc-disputes { margin: 4px 0; padding-left: 18px; color: var(--bad); }
+.oc-disputes li { margin: 2px 0; }
+.oc-disputes .muted { color: var(--muted); }
