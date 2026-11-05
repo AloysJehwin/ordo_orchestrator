@@ -161,7 +161,8 @@ export interface OverBudget {
   /** what the purchase costs */
   amountTinybar: string;
   reasoning: string;
-  requestId: string;
+  /** the 0G request behind the reasoning; absent when the machine runs without a 0G brain (its reasoning is then its own report) */
+  requestId?: string;
   valueAtRisk?: string;
   reason?: "price_above_max" | "balance_short";
   /** the buying machine, when the device feeds more than one */
@@ -616,7 +617,14 @@ export class Budgets {
     if (!run || run.status !== "running") throw new HttpError(404, "No running run with that id");
     const t = await this.treasuryRow(run.site_id);
     if (!t) throw new HttpError(409, "This org has no treasury to top machines up from");
-    const dup = (await this.db.query<Row>(`SELECT ${COLS} FROM budget_schedules WHERE site_id = $1 AND kind = 'topup' AND request_id = $2`, [run.site_id, b.requestId])).rows[0];
+    // one request is one top-up (its 0G request id), and one purchase has at most one top-up waiting for a manager
+    const dup = (
+      await this.db.query<Row>(
+        `SELECT ${COLS} FROM budget_schedules WHERE site_id = $1 AND kind = 'topup' AND (request_id = $2 OR run_id = $3 AND stage_code = $4 AND resource = $5 AND status IN ('pending','approving'))
+         ORDER BY created_at DESC LIMIT 1`,
+        [run.site_id, b.requestId ?? null, run.id, b.stage, b.resource],
+      )
+    ).rows[0];
     if (dup) return this.toView(dup);
     // the device is the data source of a machine of this run: bound to one of its stages, or pinned in its template
     const tpl = await this.templates.version(run.template_version_id);
@@ -661,7 +669,8 @@ export class Budgets {
         vendor: b.vendorId ?? null,
         sku: b.sku ?? null,
         reasoning: b.reasoning,
-        requestId: b.requestId,
+        // null: the machine runs without a 0G brain, and the reasoning is its own report of the facts
+        requestId: b.requestId ?? null,
         valueAtRisk: b.valueAtRisk ?? null,
         device,
         asset: asset.id,
@@ -696,7 +705,7 @@ export class Budgets {
       memo: `ordo:topup:${run.id}:${b.stage}:${b.resource}`,
       stageCode: b.stage,
       resource: b.resource,
-      extra: { reasoning: b.reasoning, request_id: b.requestId, ...(b.valueAtRisk ? { value_at_risk: b.valueAtRisk } : {}), device: device.toLowerCase(), asset_id: asset.id, hcs_json: JSON.stringify(hcs) },
+      extra: { reasoning: b.reasoning, ...(b.requestId ? { request_id: b.requestId } : {}), ...(b.valueAtRisk ? { value_at_risk: b.valueAtRisk } : {}), device: device.toLowerCase(), asset_id: asset.id, hcs_json: JSON.stringify(hcs) },
     });
     const v = await this.get(run.site_id, id);
     if (v.status === "pending") {
@@ -704,7 +713,7 @@ export class Budgets {
         kind: "approval",
         category: "Budget",
         title: `${asset.name} asks for ${hbar(shortfall)} more for ${resource.label}${b.reason === "price_above_max" ? " (above the stage's max price)" : ""}`,
-        body: `${b.reasoning.slice(0, 600)}${b.reasoning.length > 600 ? "…" : ""}\nIts reasoning is on HCS (${hcs.topicId} #${hcs.sequence}), 0G request ${b.requestId}. Approve or decline the scheduled top-up in Finance → Machine budgets; unapproved, it lapses on Hedera at ${v.expiresAt} and ${b.stage} is held.`,
+        body: `${b.reasoning.slice(0, 600)}${b.reasoning.length > 600 ? "…" : ""}\nIts reasoning is on HCS (${hcs.topicId} #${hcs.sequence}), ${b.requestId ? `0G request ${b.requestId}` : "with no 0G request behind it (the machine runs without a 0G brain: it reports the facts)"}. Approve or decline the scheduled top-up in Finance → Machine budgets; unapproved, it lapses on Hedera at ${v.expiresAt} and ${b.stage} is held.`,
         agent: `device:${device.toLowerCase()}`,
         severity: "warn",
         runId: run.id,

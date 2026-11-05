@@ -173,7 +173,13 @@ export function MachineBudgets() {
                       <td style={{ maxWidth: 420 }}>
                         <div className="small">{b.reasoning}</div>
                         <div className="faint small">
-                          0G request <span className="mono">{b.requestId}</span>
+                          {b.requestId ? (
+                            <>
+                              0G request <span className="mono">{b.requestId}</span>
+                            </>
+                          ) : (
+                            "no 0G brain: the machine's own report"
+                          )}
                           {b.valueAtRisk && <> · value at risk {b.valueAtRisk}</>}
                           {b.hcs && (
                             <>

@@ -328,7 +328,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   /**
    * A machine whose purchase is over budget (the price above the stage's maxPrice, or above its balance) asks for a
    * top-up: the purchasing helper's report (edge/purchasing.ts OverBudget) with its reasoning, the 0G request id of the
-   * decision and the value at risk. Ordo writes the reasoning to HCS first, then schedules a top-up from the org's
+   * decision and the value at risk. A machine without a 0G brain sends no request id: its reasoning is its report of the
+   * facts, and the top-up says so. Ordo writes the reasoning to HCS first, then schedules a top-up from the org's
    * treasury that a manager approves (OrdoTreasury); unapproved, it lapses on Hedera and the stage is held.
    */
   const tinybars = z.union([z.string().regex(/^\d{1,18}$/), z.number().int().nonnegative()]).transform(String);
@@ -338,7 +339,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     resource: z.string().regex(/^[a-z][a-z0-9_]{1,31}$/),
     amountTinybar: tinybars,
     reasoning: z.string().trim().min(10).max(4000),
-    requestId: z.string().trim().min(1).max(200),
+    requestId: z.string().trim().min(1).max(200).optional(),
     valueAtRisk: z.union([z.string().trim().min(1).max(120), z.number().finite()]).transform(String).optional(),
     // the rest of the purchasing helper's report, all optional
     reason: z.enum(["price_above_max", "balance_short"]).optional(),
