@@ -47,8 +47,8 @@ describe("machine outputs for a stage's outcomes", () => {
     });
     const form = new FormData();
     form.set("meta", JSON.stringify({ runId, stage: "01", outcome: o.outcome, capturedAt, value: o.value, sha256: sha, signature, analysis: o.analysis }));
-    form.set("file", new Blob([o.file], { type: o.mime }), "media");
-    if (o.preview) form.set("preview", new Blob([o.preview], { type: "image/png" }), "preview.png");
+    form.set("file", new Blob([new Uint8Array(o.file)], { type: o.mime }), "media");
+    if (o.preview) form.set("preview", new Blob([new Uint8Array(o.preview)], { type: "image/png" }), "preview.png");
     const req = new Request("http://localhost/v1/edge/outputs", { method: "POST", body: form });
     const body = new Uint8Array(await req.arrayBuffer());
     const ts = Math.floor(Date.now() / 1000);
@@ -63,7 +63,7 @@ describe("machine outputs for a stage's outcomes", () => {
   };
 
   beforeAll(async () => {
-    ({ sys, app } = await boot());
+    ({ sys, app } = await boot({ STAGE_MACHINES: "required" }));
     manager = await wallet(app);
     contributor = await wallet(app);
     validator = await wallet(app);

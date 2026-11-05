@@ -10,6 +10,7 @@ import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
+import { machineless } from "../lib/outcomes";
 import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline/StageParts";
 import { FlowView, GraphView, LedgerView } from "./pipeline/Views";
 
@@ -288,11 +289,11 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
               )}
               {s.state === "running" && can("manager") && (
                 <>
-                  <button type="button" className="btn accent" onClick={() => setRecord(s)}>
-                    Record units
-                  </button>
                   <button type="button" className="btn" onClick={() => setHold(s)}>
                     Hold
+                  </button>
+                  <button type="button" className="btn link" title="For a machine that cannot report: record units and readings by hand, signed" onClick={() => setRecord(s)}>
+                    Record manually
                   </button>
                 </>
               )}
@@ -408,8 +409,8 @@ function StartRun({ open, templateId, onClose, onStarted, path }: { open: boolea
     });
   }, [open, path, templateId]);
   const t = templates.find((x) => x.id === tpl);
-  const kinds = new Set((live?.assets ?? []).map((a) => a.kind));
-  const missing = t ? [...new Set(t.spec.stages.filter((s) => s.resourceKind !== "system" && !kinds.has(s.resourceKind)).map((s) => s.resourceKind))] : [];
+  const { meta } = useApp();
+  const missing = t && meta.machinesRequired !== false ? machineless(t.spec.stages, live?.assets ?? []) : [];
   return (
     <Modal
       open={open}
@@ -424,7 +425,8 @@ function StartRun({ open, templateId, onClose, onStarted, path }: { open: boolea
           </button>
           <Action
             className="btn accent"
-            disabled={!t || !order.trim() || !(Number(qty) > 0)}
+            disabled={!t || !order.trim() || !(Number(qty) > 0) || missing.length > 0}
+            title={missing.length ? "Every stage needs a machine to run on" : undefined}
             onClick={async () => {
               const r = await api.post<RunView>(path("/runs"), { templateVersionId: t!.versionId, orderRef: order.trim(), quantity: Number(qty), dueAt: due });
               onStarted(r.id);
@@ -457,7 +459,8 @@ function StartRun({ open, templateId, onClose, onStarted, path }: { open: boolea
       </Field>
       {missing.length > 0 && (
         <div className="notice warn">
-          No registered asset of kind: <b>{missing.join(", ").replaceAll("_", " ")}</b>. Those stages wait for a person to record them. <a href={href("floor")}>Register assets</a>
+          Every stage runs on a machine, and {missing.length === 1 ? "this stage has" : "these stages have"} none:{" "}
+          <b>{missing.map((s) => `${s.code} ${s.name} (${s.resourceKind.replaceAll("_", " ")}${s.machine ? ", its pinned machine is gone" : ""})`).join(", ")}</b>. <a href={href("floor")}>Add a machine on the Floor</a>
         </div>
       )}
     </Modal>

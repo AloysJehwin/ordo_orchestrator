@@ -72,6 +72,8 @@ export class RunEngine {
   timeouts: Pick<Schedules, "stageTimeout"> | null = null;
   /** Set when the signals a stage's criteria read are snapshotted with the run as its work finishes */
   series: StageSeries | null = null;
+  /** a run starts only when every stage has a machine (STAGE_MACHINES=required) */
+  requireMachines = true;
   constructor(
     private db: Db,
     private plant: PlantService,
@@ -84,6 +86,8 @@ export class RunEngine {
   async start(siteId: string, actor: string, input: { templateVersionId: string; orderRef: string; quantity: number; dueAt?: string | null; lineId?: string | null }): Promise<string> {
     const tpl = await this.templates.version(input.templateVersionId);
     const line = await this.line(siteId, input.lineId ?? null);
+    const missing = this.requireMachines ? machineless(tpl.spec.stages, await this.assetMap(siteId)) : [];
+    if (missing.length) throw new HttpError(409, `Every stage runs on a machine. Add one for ${missing.map((m) => `${m.code} ${m.name} (${m.need})`).join(", ")}`);
     // run ids are unique across every site (runs.id is the key, and passports and public pages use it), so number globally
     const id = await this.db.tx(async (q) => {
       if (this.db.kind === "postgres") await q.query("SELECT pg_advisory_xact_lock($1)", [RUN_ID_LOCK]);
@@ -340,7 +344,13 @@ export class RunEngine {
         started.push(row.code);
         continue;
       }
-      const candidates = [...ctx.assets.values()].filter((a) => a.kind === spec.resourceKind);
+      const pinned = spec.machine ? ctx.assets.get(spec.machine) ?? null : null;
+      const candidates = pinned ? [pinned] : [...ctx.assets.values()].filter((a) => a.kind === spec.resourceKind);
+      if (!candidates.length && this.requireMachines) {
+        // the run checked every stage had a machine when it started; one was removed since, so the stage waits for one
+        await this.patchData(ctx.run.id, row.code, { waitingReason: `No ${ASSET_KIND_LABEL[spec.resourceKind].toLowerCase()} to run on: add a machine for this stage` });
+        continue;
+      }
       const usable = candidates.filter((a) => !["offline", "alarm", "no_data"].includes(a.status));
       const pick = (usable.length ? usable : candidates).sort((a, b) => (busy.get(a.id) ?? 0) - (busy.get(b.id) ?? 0) || (a.status === "idle" ? -1 : 1))[0] ?? null;
       const baseline = pick?.latest.part_count?.value ?? null;
@@ -618,3 +628,14 @@ interface Ctx {
 
 export const stageAgentLabel = (a: AgentKey) => AGENT_INFO[a].label;
 export type { Role };
+
+/**
+ * The stages a run could not bind to a machine: a pinned machine that no longer exists, or no asset of the stage's kind.
+ * System stages (an ERP or MES step) complete at once and need none.
+ */
+export function machineless(stages: StageSpec[], assets: Map<string, AssetView>): { code: string; name: string; need: string }[] {
+  const kinds = new Set([...assets.values()].map((a) => a.kind));
+  return stages
+    .filter((s) => s.resourceKind !== "system" && !(s.machine ? assets.get(s.machine)?.kind === s.resourceKind : kinds.has(s.resourceKind)))
+    .map((s) => ({ code: s.code, name: s.name, need: s.machine ? `its machine ${s.machine} is gone` : `a ${ASSET_KIND_LABEL[s.resourceKind].toLowerCase()}` }));
+}

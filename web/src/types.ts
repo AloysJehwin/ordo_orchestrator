@@ -14,6 +14,8 @@ export type {
   InboxItemView,
   InboxOption,
   LedgerEntryDto,
+  Outcome,
+  OutcomeMedia,
   PackageType,
   Role,
   RunStatus,
@@ -27,7 +29,7 @@ export type {
   TemplateSpec,
   TemplateView,
 } from "../../server/src/domain/types";
-import type { AccessLevel, AccessScope, AgentKey, AutonomyLevel, CriterionResult, Role, StageMode } from "../../server/src/domain/types";
+import type { AccessLevel, AccessScope, AgentKey, AutonomyLevel, CriterionResult, Outcome, OutcomeMedia, Role, StageMode } from "../../server/src/domain/types";
 export type { AccessLevel, AccessScope };
 export interface MyAccess {
   level: AccessLevel;
@@ -58,6 +60,8 @@ export interface Meta {
   agents: { key: AgentKey; label: string; scope: string }[];
   assetKinds: { key: string; label: string }[];
   categories: string[];
+  /** a run needs a machine on every stage (the server's STAGE_MACHINES) */
+  machinesRequired?: boolean;
   packageTypes: string[];
 }
 export interface Status {
@@ -733,4 +737,33 @@ export interface SealedRecordView {
   notes: { text: string; at: string }[];
   evidence: { name: string; sha256: string; size: number }[];
   transcript: { role: string; content: string; at: string }[];
+}
+
+/** One outcome of a stage and what its machine captured for it: level 2 sees whether it met its target, level 3 the media. */
+export interface OutcomeView {
+  key: string;
+  label: string;
+  media: OutcomeMedia;
+  mediaLabel: string;
+  instrument: string;
+  required: boolean;
+  metric: Outcome["metric"];
+  ok: boolean | null;
+  captured: boolean;
+  capturedAt: string | null;
+  output: {
+    id: string;
+    version: number;
+    versions: number;
+    mime: string;
+    size: number;
+    sha256: string;
+    hasPreview: boolean;
+    value: number;
+    device: string;
+    signature: string;
+    ledgerSeq: number | null;
+    analysis: { summary: string; value?: number; anomaly?: string; requestId?: string; model?: string; provider?: string; teeVerified?: boolean } | null;
+    replica: { status: string; root: string | null; url: string | null } | null;
+  } | null;
 }

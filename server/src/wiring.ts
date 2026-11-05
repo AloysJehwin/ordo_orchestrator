@@ -196,6 +196,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const engine = new RunEngine(db, plant, templates, rec, now);
   const series = new StageSeries(db, plant, now);
   engine.series = series;
+  engine.requireMachines = cfg.STAGE_MACHINES === "required";
   const inbox = new Inbox(db, rec, sigs, engine, plant, templates, cfg.SIGNATURE_CHAIN_ID);
   engine.inbox = inbox;
   const agents = new Agents(llm);

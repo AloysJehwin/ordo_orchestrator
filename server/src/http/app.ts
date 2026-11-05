@@ -113,6 +113,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
       categories: CATEGORIES,
       packageTypes: PackageType.options,
       policy: sys.policy.policy,
+      /** whether a run needs a machine on every stage (STAGE_MACHINES) */
+      machinesRequired: sys.cfg.STAGE_MACHINES === "required",
     }),
   );
 

@@ -105,6 +105,15 @@ export class Templates {
     }
     const errors = validateSpec(spec.stages, spec.rework);
     if (errors.length) throw new HttpError(400, errors.join("; "));
+    // a pinned machine is one of this org's assets, of the stage's kind
+    const pins = spec.stages.filter((s) => s.machine);
+    if (pins.length) {
+      const found = new Map(
+        (await this.db.query<{ id: string; kind: string }>("SELECT id, kind FROM assets WHERE site_id = $1 AND archived_at IS NULL AND id = ANY($2)", [siteId, pins.map((s) => s.machine!)])).rows.map((r) => [r.id, r.kind]),
+      );
+      const bad = pins.filter((s) => found.get(s.machine!) !== s.resourceKind);
+      if (bad.length) throw new HttpError(400, `Stage ${bad.map((s) => s.code).join(", ")}: the machine is not one of this org's ${bad.length === 1 ? "machines of the stage's kind" : "machines of those stages' kinds"}`);
+    }
     let templateId = input.templateId ?? null;
     let basedOn: string | null = null;
     if (templateId) {

@@ -254,6 +254,8 @@ export const StageSpec = z.object({
   criteria: z.array(Criterion).default([]),
   /** work is done when the asset reports this signal with this value (a batch process's phase, e.g. execution = COMPLETE) instead of when the counts reach the quantity */
   completeOn: z.object({ signal: z.string().regex(/^[\w.:-]{1,40}$/), equals: z.string().trim().min(1).max(40) }).optional(),
+  /** the machine that runs this stage (an asset of `resourceKind`); unset, the run binds any free machine of that kind */
+  machine: z.string().min(1).max(64).optional(),
   /** what the stage's machine captures; each metric is also one of `criteria` (see `withOutcomeCriteria`) */
   outcomes: z
     .array(Outcome)

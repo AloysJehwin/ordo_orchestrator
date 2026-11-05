@@ -9,6 +9,7 @@ import { kindOf, signalsOf, targetText } from "../../lib/criteria";
 import type { DecisionView, InboxItemView, ReadingTyped, RunView, StageRunView } from "../../types";
 import { Action, Drawer, Field, Modal, useToast } from "../../ui/kit";
 import { StageContributions } from "./Contribute";
+import { StageOutcomes } from "./Outcomes";
 import { ParamCard, useStageSeries } from "./ParamCard";
 
 export function useStageActions(run: RunView, inbox: InboxItemView[], reload: () => Promise<void>) {
@@ -239,14 +240,15 @@ export function StageDrawer(props: {
       )}
       {s.state === "running" && can("manager") && (
         <div className="btns">
-          <button type="button" className="btn" onClick={() => props.onRecord(s)}>
-            Record units
-          </button>
           <button type="button" className="btn" onClick={() => props.onHold(s)}>
             Hold
           </button>
+          <button type="button" className="btn link" title="For a machine that cannot report: a manager records units and readings by hand, signed" onClick={() => props.onRecord(s)}>
+            Record manually
+          </button>
         </div>
       )}
+      <StageOutcomes run={props.run} stage={s} />
       <section className="dsec">
         <div className="metrics4">
           <div>

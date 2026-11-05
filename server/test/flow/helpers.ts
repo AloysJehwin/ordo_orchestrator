@@ -6,7 +6,8 @@ import { createApp } from "../../src/http/app.js";
 import { buildSystem, type System } from "../../src/wiring.js";
 
 export async function boot(env: Record<string, string> = {}, opts: Parameters<typeof buildSystem>[1] = {}) {
-  const cfg = loadConfig({ DATA_DIR: "memory", POLICY_FILE: resolve(__dirname, "../../../policies/default.yaml"), ...env } as NodeJS.ProcessEnv);
+  // most flows here run stages a person records, without a machine; a test that needs machines passes STAGE_MACHINES=required
+  const cfg = loadConfig({ DATA_DIR: "memory", POLICY_FILE: resolve(__dirname, "../../../policies/default.yaml"), STAGE_MACHINES: "optional", ...env } as NodeJS.ProcessEnv);
   const sys = await buildSystem(cfg, opts);
   const app = createApp(sys);
   return { sys, app };

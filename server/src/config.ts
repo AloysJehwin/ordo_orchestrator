@@ -14,6 +14,8 @@ const Env = z.object({
   CORS_ORIGINS: z.string().default(""),
   /** Run a background timer that advances ingestion and runs. Off on serverless (requests drive it). */
   ENGINE_TIMER: z.enum(["auto", "on", "off"]).default("auto"),
+  /** required: a run starts only when every stage has a machine to run on. optional: a stage with none waits for a person to record it (the earlier manual mode). */
+  STAGE_MACHINES: z.enum(["required", "optional"]).default("required"),
   TICK_MS: z.coerce.number().int().min(1000).default(5000),
   VERCEL: z.string().optional(),
   VERCEL_ENV: z.string().optional(),
