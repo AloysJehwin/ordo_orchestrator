@@ -463,8 +463,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   }
   if (cfg.BODY_RUNTIME === "sandbox") {
     // one Vercel Sandbox microVM per machine (server/src/core/bodies-sandbox.ts); null without a Vercel token
-    // @ts-ignore the sandbox runner is its own module, merged beside this one
-    const { sandboxBodies } = (await import("./core/bodies-sandbox.js")) as { sandboxBodies: (c: Config, warn: (w: string) => void) => BodyRunner | null };
+    const { sandboxBodies } = await import("./core/bodies-sandbox.js");
     const runner = sandboxBodies(cfg, (w) => warnings.push(w));
     if (runner) bodyRunners.set("sandbox", runner);
     else warnings.push("BODY_RUNTIME=sandbox but the Vercel Sandbox is not configured; virtual machines are created but do not run");

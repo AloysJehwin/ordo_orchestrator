@@ -120,6 +120,8 @@ export class Bodies implements BodyService {
   private keys: KeyBox;
   private wallets: KeyBox;
   private lastReconcile = 0;
+  /** when a run last wanted each body (look-ahead or its stage running), for the idle stop */
+  private readonly lastWanted = new Map<string, number>();
   private lastReplica = new Map<string, number>();
 
   constructor(
@@ -494,6 +496,16 @@ export class Bodies implements BodyService {
       // a failed body waits for a person to look at it and start it again
       if (!why || b.archived || !b.auto_start || b.state !== "stopped") continue;
       await this.start(b.site_id, b.asset_id, "system:bodies", `Look-ahead: ${why}`).catch((e: Error) => console.error(`[ordo] body ${b.asset_id}`, e.message));
+    }
+    // idle stop (a Vercel Sandbox runner): a body no run has wanted for its idle time is stopped, which snapshots its
+    // microVM, and marked stopped so look-ahead starts it again; the others' sessions are kept alive
+    for (const id of wanted.keys()) this.lastWanted.set(id, this.now());
+    for (const runner of this.runners.values()) {
+      const r = runner as BodyRunner & { sweep?: (lastActive: (assetId: string) => number | null) => Promise<{ stopped: string[] }> };
+      if (!r.sweep) continue;
+      const swept = await r.sweep((id) => this.lastWanted.get(id) ?? null).catch((e: Error) => (console.error("[ordo] body sweep", e.message), null));
+      for (const id of swept?.stopped ?? [])
+        await this.db.query("UPDATE machine_bodies SET state = 'stopped', stopped_at = now(), updated_at = now() WHERE asset_id = $1 AND state <> 'stopped'", [id]);
     }
   }
 
