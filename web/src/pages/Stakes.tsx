@@ -6,6 +6,7 @@ import { useSign } from "../lib/sign";
 import { fromUnits, trustTx } from "../lib/wallet";
 import type { ChainStatus, Role, StakersView, TypedSignature, VendorRow } from "../types";
 import { Action, Empty, Field, Loading, Modal, useToast } from "../ui/kit";
+import { VendorOffers } from "./VendorOffers";
 
 /** Signs and sends the org's registration in OrdoTrust. Returns true when it went through. */
 export function useRegisterOrg() {
@@ -334,6 +335,7 @@ export function Vendors() {
           </table>
         </div>
       )}
+      <VendorOffers />
       <Modal
         open={adding}
         onClose={() => setAdding(false)}

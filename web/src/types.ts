@@ -768,3 +768,74 @@ export interface OutcomeView {
     replica: { status: string; root: string | null; url: string | null } | null;
   } | null;
 }
+
+// ---------- Stage resources: vendors' offers, purchases over x402 (server core/resources.ts) ----------
+/** A vendor's offer of a stage resource: a kind, a SKU and a price in HBAR per unit */
+export interface OfferView {
+  id: string;
+  vendorId: string;
+  vendor: string;
+  kind: string;
+  sku: string;
+  label: string;
+  unit: string;
+  price: string;
+  priceTinybar: string;
+  leadMin: number;
+  createdAt: string;
+  archivedAt: string | null;
+}
+export interface SupplierView {
+  id: string;
+  company: string;
+  status: string;
+  demo: boolean;
+  /** the Hedera account sales are paid to; null: its offers cannot be bought */
+  payTo: string | null;
+  offers: OfferView[];
+}
+export interface ResourcePurchaseView {
+  id: string;
+  runId: string | null;
+  stage: string | null;
+  resource: string | null;
+  kind: string;
+  qty: number;
+  unit: string;
+  amount: string;
+  amountTinybar: string;
+  vendorId: string;
+  vendor: string;
+  sku: string;
+  buyer: string | null;
+  byAsset: string | null;
+  byAssetName: string | null;
+  status: "pending" | "delivered" | "expired";
+  arrived: boolean;
+  txId: string | null;
+  txUrl: string | null;
+  auditTx: string | null;
+  auditUrl: string | null;
+  at: string;
+  deliveredAt: string | null;
+}
+export interface StageResourceView extends StageResourceT {
+  need: number;
+  delivered: number;
+  pending: number;
+  remaining: number;
+  status: "delivered" | "partial" | "waiting" | "waived";
+  bestOffer: (OfferView & { withinMax: boolean; amountTinybar: string }) | null;
+  purchases: ResourcePurchaseView[];
+}
+export interface StageResourcesView {
+  runId: string;
+  stage: string;
+  quantity: number;
+  state: string;
+  waived: { by: string; reason: string; at: string; signatureId: string } | null;
+  resources: StageResourceView[];
+  /** below level 4 the offers and purchases are left out */
+  redacted: boolean;
+}
+type StageResourceT = import("../../server/src/domain/types").StageResource;

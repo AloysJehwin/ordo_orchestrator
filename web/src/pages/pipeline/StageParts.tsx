@@ -10,6 +10,7 @@ import type { DecisionView, InboxItemView, ReadingTyped, RunView, StageRunView }
 import { Action, Drawer, Field, Modal, useToast } from "../../ui/kit";
 import { StageContributions } from "./Contribute";
 import { StageOutcomes } from "./Outcomes";
+import { StageResources } from "./Resources";
 import { ParamCard, useStageSeries } from "./ParamCard";
 
 export function useStageActions(run: RunView, inbox: InboxItemView[], reload: () => Promise<void>) {
@@ -249,6 +250,7 @@ export function StageDrawer(props: {
         </div>
       )}
       <StageOutcomes run={props.run} stage={s} />
+      <StageResources run={props.run} stage={s} />
       <section className="dsec">
         <div className="metrics4">
           <div>

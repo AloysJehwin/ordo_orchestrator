@@ -9,6 +9,7 @@ import type { AgentKey, AssetKind, AssetView, Criterion, CriterionKind, Outcome,
 import { Action, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
+import { ResourcesEditor, resourceErrors } from "./ResourcesEditor";
 
 interface Draft extends Omit<StageSpec, "code"> {
   key: number;
@@ -191,6 +192,7 @@ export function Builder() {
   const noMachine = meta.machinesRequired === false ? [] : machineless(coded, assets);
   if (noMachine.length) errors.push(`Every stage runs on a machine: add ${noMachine.map((s) => `a ${KIND_LABEL[s.resourceKind].toLowerCase()} for ${s.code}`).join(", ")} on the Floor, or pick another`);
   for (const s of coded) for (const e of outcomeErrors(s.outcomes, s.criteria.filter((c) => !c.outcome).map((c) => c.label))) errors.push(`Stage ${s.code}: ${e}`);
+  for (const s of coded) for (const e of resourceErrors(s.resources)) errors.push(`Stage ${s.code}: ${e}`);
   if (rework) {
     const f = coded.find((c) => c.key === rework.from);
     const t = coded.find((c) => c.key === rework.to);
@@ -417,6 +419,7 @@ function StageInspector(props: {
           />
         </Field>
         {s.resourceKind !== "system" && <OutcomesEditor outcomes={s.outcomes} editable={editable} onChange={(outcomes) => props.onChange({ outcomes })} />}
+        {s.resourceKind !== "system" && <ResourcesEditor resources={s.resources} editable={editable} onChange={(resources) => props.onChange({ resources })} />}
         <div className="section-h spread">
           <span className="field-l">Parameters (success criteria)</span>
           {editable && (
