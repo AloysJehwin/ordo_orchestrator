@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, dateTime } from "../../lib/format";
-import { TRUST_TEXT, type AssetKind, type BodyAnswer, type BodyState, type MachineBody, type MachinesView } from "../../types";
+import { useSign } from "../../lib/sign";
+import { TRUST_TEXT, type AssetKind, type BodyAnswer, type BodyState, type FleetView, type MachineBody, type MachinesView, type TypedSignature } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
 import { Select } from "../../ui/Select";
 
@@ -300,6 +301,97 @@ export function CreateMachineModal(props: { kind?: Exclude<AssetKind, "system">;
         </Field>
       )}
       {err && <p className="field-e">{err}</p>}
+    </Modal>
+  );
+}
+
+/** What an org still lacks of the machines its templates need; null until loaded or when it cannot be read. */
+export function useFleet() {
+  const { path } = useApp();
+  const [fleet, setFleet] = useState<FleetView | null>(null);
+  const load = useCallback(() => api.get<FleetView>(path("/machines/fleet")).then(setFleet, () => setFleet(null)), [path]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  return { fleet, load };
+}
+
+/**
+ * The org's machines for the library's templates, created on one signature: right after an org is created, and from the
+ * Floor while any are missing. Each gets its own device key and, when machine wallets are on, its own Hedera account.
+ */
+export function FleetModal(props: { onClose: () => void; first?: boolean; onDone?: () => void }) {
+  const { site, path, refresh } = useApp();
+  const sign = useSign();
+  const toast = useToast();
+  const { fleet } = useFleet();
+  const create = async () => {
+    if (!fleet?.missing) return;
+    const r = await sign({
+      title: `Create ${fleet.missing} machines for ${site.name}`,
+      request: (chainId) => api.post<TypedSignature>(path("/machines/fleet/sign-request"), { chainId }),
+      submit: (proof) => api.post<{ created: { assetId: string; name: string }[]; warnings: string[] }>(path("/machines/fleet"), proof),
+      done: `${fleet.missing} machines created`,
+    });
+    if (!r) return;
+    for (const w of r.warnings.slice(0, 3)) toast(w, "info");
+    await refresh();
+    props.onDone?.();
+    props.onClose();
+  };
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      eyebrow={props.first ? "Set up · machines" : "Floor"}
+      title={fleet && !fleet.missing ? "Your machines are ready" : "Set up your machines"}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={props.onClose}>
+            {fleet && !fleet.missing ? "Close" : "Later"}
+          </button>
+          {fleet && fleet.missing > 0 && (
+            <Action className="btn accent" onClick={create}>
+              Sign and create {fleet.missing} machines
+            </Action>
+          )}
+        </>
+      }
+    >
+      {!fleet ? (
+        <p className="muted">Loading…</p>
+      ) : (
+        <>
+          <p>
+            Every stage of a pipeline runs on a machine. These are the machines the templates {fleet.templates.map((t) => t.name).join(", ")} need, so a run of any of them never waits for one.
+            {fleet.missing > 0 ? " One signature from your wallet creates them all." : ""}
+          </p>
+          <table className="t">
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th className="r">Needed</th>
+                <th className="r">You have</th>
+                <th>Will create</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fleet.kinds.map((k) => (
+                <tr key={k.kind}>
+                  <td>{k.label}</td>
+                  <td className="r">{k.need}</td>
+                  <td className="r">{k.have}</td>
+                  <td className="small">{k.add.length ? `${k.add.join(", ")}${k.zone ? ` · in ${k.zone}` : ""}` : <span className="faint">nothing</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="muted small">
+            Each is a virtual machine run by its own body and agent, with its own signing key and its own Hedera testnet account for buying what its stages consume. Its body starts when a
+            run reaches its stage. Everything it produces is labelled simulated.
+          </p>
+        </>
+      )}
     </Modal>
   );
 }

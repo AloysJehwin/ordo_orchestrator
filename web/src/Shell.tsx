@@ -11,6 +11,7 @@ import { Approvals } from "./pages/Approvals";
 import { Builder } from "./pages/Builder";
 import { Finance } from "./pages/Finance";
 import { Floor } from "./pages/Floor";
+import { FleetModal } from "./pages/floor/Bodies";
 import { History } from "./pages/History";
 import { Pipelines } from "./pages/Pipelines";
 import { Proof } from "./pages/Proof";
@@ -271,6 +272,7 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
         </button>
       </nav>
       {route.query.get("register") === "1" && can("manager") && <RegisterPrompt />}
+      {route.query.get("machines") === "1" && route.query.get("register") !== "1" && can("manager") && <MachinesPrompt />}
       <Modal
         open={rename !== null}
         onClose={() => setRename(null)}
@@ -307,12 +309,24 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
   );
 }
 
+/** Right after a manager creates an org (after its registration): one signature creates the machines its templates need. */
+function MachinesPrompt() {
+  const route = useRoute();
+  const close = () => {
+    const q = new URLSearchParams(route.query);
+    q.delete("machines");
+    window.location.hash = `#/${route.page}${q.size ? `?${q}` : ""}`;
+  };
+  return <FleetModal first onClose={close} />;
+}
+
 /** Right after a manager creates an org: sign its registration in OrdoTrust, so credentials and stakes can follow. Settings keeps a retry. */
 function RegisterPrompt() {
   const { path, site, status } = useApp();
   const route = useRoute();
   const register = useRegisterOrg();
-  const [chain, setChain] = useState<ChainStatus | null>(null);
+  // undefined while loading; null when the chain status cannot be read
+  const [chain, setChain] = useState<ChainStatus | null | undefined>(undefined);
   useEffect(() => {
     void api.get<ChainStatus>(path("/chain")).then(setChain).catch(() => setChain(null));
   }, [path]);
@@ -321,7 +335,13 @@ function RegisterPrompt() {
     q.delete("register");
     window.location.hash = `#/${route.page}${q.size ? `?${q}` : ""}`;
   };
-  if (!chain?.configured || chain.registered) return null;
+  const needed = Boolean(chain?.configured && !chain.registered);
+  // nothing to register: move on (to the machines step, when it is next)
+  useEffect(() => {
+    if (chain !== undefined && !needed) close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chain, needed]);
+  if (!needed) return null;
   return (
     <Modal
       open

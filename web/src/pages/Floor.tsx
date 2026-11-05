@@ -8,7 +8,7 @@ import type { MachineWallet, AgentKey, AgentLicense, AgentRow, AssetKind, AssetV
 import { Action, Drawer, Empty, Field, Loading, Menu, Modal, Segmented, Tabs, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { Spark } from "../ui/Spark";
-import { BodiesSection, BodyDrawerSection, CreateMachineModal } from "./floor/Bodies";
+import { BodiesSection, BodyDrawerSection, CreateMachineModal, FleetModal, useFleet } from "./floor/Bodies";
 
 type Tab = "assets" | "agents" | "incidents";
 const SIGNALS = ["temperature", "load_pct", "spindle_speed", "vibration", "feed_override", "part_count", "execution", "good", "scrap"];
@@ -21,6 +21,8 @@ export function Floor() {
   const [edit, setEdit] = useState<AssetView | "new" | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [vm, setVm] = useState(false);
+  const [fleetOpen, setFleetOpen] = useState(false);
+  const { fleet, load: loadFleet } = useFleet();
   if (!live) return <Loading />;
   const zones = [...site.zones.map((z) => ({ id: z.id as string | null, name: z.name })), { id: null, name: "No zone" }];
   return (
@@ -54,6 +56,19 @@ export function Floor() {
           { value: "incidents", label: "Incidents" },
         ]}
       />
+      {tab === "assets" && can("manager") && fleet && fleet.missing > 0 && (
+        <div className="notice warn">
+          <b>
+            Your templates need {fleet.missing} more machine{fleet.missing === 1 ? "" : "s"}.
+          </b>{" "}
+          A pipeline cannot start until every stage has one. One signature creates them all, each with its own key and Hedera account.
+          <div className="btns" style={{ marginTop: 10 }}>
+            <button type="button" className="btn sm accent" onClick={() => setFleetOpen(true)}>
+              Set up machines
+            </button>
+          </div>
+        </div>
+      )}
       {tab === "assets" && <BodiesSection onOpen={setOpen} />}
       {tab === "assets" &&
         (live.assets.length === 0 ? (
@@ -118,6 +133,7 @@ export function Floor() {
       {edit && <AssetForm asset={edit === "new" ? null : edit} onClose={() => setEdit(null)} />}
       {open && <AssetDrawer id={open} onClose={() => setOpen(null)} onEdit={(a) => (setOpen(null), setEdit(a))} />}
       {vm && <CreateMachineModal onClose={() => setVm(false)} onCreated={(id) => setOpen(id)} />}
+      {fleetOpen && <FleetModal onClose={() => setFleetOpen(false)} onDone={() => void loadFleet()} />}
     </div>
   );
 }

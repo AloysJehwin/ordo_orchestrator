@@ -1002,6 +1002,21 @@ export interface MachinesView {
   trustMode?: TrustMode;
   bodies: MachineBody[];
 }
+/** The machines the library's high-value templates need, and what an org still lacks of them (created on one manager signature). */
+export interface FleetKind {
+  kind: Exclude<VmKind, "system">;
+  label: string;
+  need: number;
+  have: number;
+  /** the names the missing ones get */
+  add: string[];
+  zone: string | null;
+}
+export interface FleetView {
+  templates: { key: string; name: string }[];
+  kinds: FleetKind[];
+  missing: number;
+}
 export interface BodyAnswer {
   answer: string;
   requestId: string | null;

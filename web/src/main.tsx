@@ -102,8 +102,8 @@ function Root() {
           saveSite(id);
           setMe(await api.get<Me>("/v1/me"));
           setSiteId(id);
-          // the shell asks the new manager to sign the org's on-chain registration
-          window.location.hash = "#/pipelines?register=1";
+          // the shell asks the new manager to sign the org's on-chain registration, then its machines
+          window.location.hash = "#/pipelines?register=1&machines=1";
         }}
         onJoined={async (id) => {
           saveSite(id);
