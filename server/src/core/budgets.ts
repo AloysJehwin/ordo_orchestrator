@@ -457,16 +457,41 @@ export class Budgets {
     return id;
   }
 
-  /** Each running run of an org with a treasury gets one budget schedule, including runs that were running when it opened. */
+  /**
+   * Each running run of an org with a treasury gets one budget schedule, including runs that were running when it opened.
+   * A budget that executed unfunded (the treasury could not pay) is scheduled again once the treasury covers it.
+   */
+  private runBudgetsBusy = false;
   private async runBudgets() {
-    const runs = await this.db.query<{ id: string; site_id: string; quantity: number; template_version_id: string; account_id: string }>(
-      `SELECT r.id, r.site_id, r.quantity, r.template_version_id, t.account_id FROM runs r JOIN treasuries t ON t.site_id = r.site_id
-       WHERE r.status = 'running' AND NOT EXISTS (SELECT 1 FROM budget_schedules b WHERE b.run_id = r.id AND b.kind = 'run')
+    // one pass at a time: two overlapping ticks would both schedule the same run on Hedera before one could record it
+    if (this.runBudgetsBusy) return;
+    this.runBudgetsBusy = true;
+    try {
+      await this.runBudgetsPass();
+    } finally {
+      this.runBudgetsBusy = false;
+    }
+  }
+  private async runBudgetsPass() {
+    const runs = await this.db.query<{ id: string; site_id: string; quantity: number; template_version_id: string; account_id: string; unfunded: boolean }>(
+      `SELECT r.id, r.site_id, r.quantity, r.template_version_id, t.account_id,
+              EXISTS (SELECT 1 FROM budget_schedules b WHERE b.run_id = r.id AND b.kind = 'run') AS unfunded
+       FROM runs r JOIN treasuries t ON t.site_id = r.site_id
+       WHERE r.status = 'running' AND NOT EXISTS (
+         SELECT 1 FROM budget_schedules b WHERE b.run_id = r.id AND b.kind = 'run' AND NOT (b.status = 'failed' AND b.executed_at IS NOT NULL))
        ORDER BY r.started_at LIMIT 5`,
     );
     for (const r of runs.rows) {
       const tpl = await this.templates.version(r.template_version_id);
       const p = await this.plan(r.site_id, { id: r.id, quantity: Number(r.quantity) }, tpl.spec);
+      if (r.unfunded) {
+        const need = p.credits.reduce((a, c) => a + BigInt(c.amount), 0n);
+        const has = (await this.rail!.account(r.account_id).catch(() => null))?.balance ?? 0n;
+        if (has < need) continue;
+      }
+      // another Ordo may have scheduled it meanwhile
+      const live = await this.db.query("SELECT 1 FROM budget_schedules WHERE run_id = $1 AND kind = 'run' AND NOT (status = 'failed' AND executed_at IS NOT NULL)", [r.id]);
+      if (live.rows.length) continue;
       await this.schedule(r.site_id, { runId: r.id, kind: "run", treasury: r.account_id, credits: p.credits, lines: p.lines, memo: `ordo:budget:${r.id}` });
     }
   }
@@ -546,7 +571,19 @@ export class Budgets {
   private async check(r: Row) {
     const s = await this.rail!.read(r.schedule_id!).catch(() => null);
     const now = this.now();
-    if (s?.executedAt) {
+    if (s?.executedAt && s.result && s.result !== "SUCCESS") {
+      // approved and executed, but the treasury could not pay: nothing moved
+      const why = s.result === "INSUFFICIENT_ACCOUNT_BALANCE" || s.result === "INSUFFICIENT_PAYER_BALANCE" ? `the treasury ${r.treasury_account} held less than ${hbar(r.total)}` : s.result;
+      await this.db.query("UPDATE budget_schedules SET status = 'failed', executed_at = $1, error = $2, updated_at = now() WHERE id = $3", [s.executedAt, `Executed on Hedera, but the transfer failed: ${why}`, r.id]);
+      await this.rec.decide(r.site_id, {
+        agent: AGENT,
+        kind: "budget.unfunded",
+        runId: r.run_id,
+        stageCode: r.stage_code,
+        summary: `Hedera schedule ${r.schedule_id} executed at ${s.executedAt}, but its transfer failed (${s.result}): ${why}, so nothing moved.${r.kind === "run" ? " Fund the treasury and the run's budget is scheduled again." : ""}`,
+        data: { budgetId: r.id, scheduleId: r.schedule_id, result: s.result },
+      });
+    } else if (s?.executedAt) {
       await this.db.query("UPDATE budget_schedules SET status = 'executed', executed_at = $1, updated_at = now() WHERE id = $2", [s.executedAt, r.id]);
       await this.settleInbox(r, "approved", `Executed on Hedera at ${s.executedAt}`, r.approved_by);
       await this.rec.decide(r.site_id, {

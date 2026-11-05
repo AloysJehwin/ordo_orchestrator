@@ -536,4 +536,12 @@ ALTER TABLE contribution_sessions ADD COLUMN machine_qa_json TEXT;
 ALTER TABLE contribution_sessions ADD COLUMN router_trust_mode TEXT NOT NULL DEFAULT 'private';
 `,
   },
+  {
+    version: 33,
+    name: "Run budgets: one live budget per run; one that executed unfunded may be scheduled again",
+    sql: `
+DROP INDEX budget_schedules_run;
+CREATE UNIQUE INDEX budget_schedules_run ON budget_schedules (run_id) WHERE kind = 'run' AND NOT (status = 'failed' AND executed_at IS NOT NULL);
+`,
+  },
 ];

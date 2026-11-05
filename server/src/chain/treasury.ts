@@ -35,6 +35,8 @@ export interface ScheduleOnLedger {
   expiresAt: string | null;
   /** the HBAR transfer it carries, as the network will execute it */
   transfer: ScheduledTransfer | null;
+  /** once executed, the scheduled transfer's own result: SUCCESS, or why it failed (INSUFFICIENT_ACCOUNT_BALANCE) */
+  result?: string | null;
 }
 
 /** What Budgets needs from Hedera (hederaTreasury in production). Amounts in tinybars. */
@@ -151,7 +153,13 @@ export function hederaTreasury(o: {
     async read(scheduleId) {
       const s = await mirror<{ memo: string; executed_timestamp: string | null; deleted: boolean; expiration_time: string | null; transaction_body: string }>(`schedules/${scheduleId}`);
       if (!s) return null;
-      return { scheduleId, memo: s.memo, executedAt: iso(s.executed_timestamp), deleted: s.deleted, expiresAt: iso(s.expiration_time), transfer: scheduledTransfer(s.transaction_body) };
+      // a schedule executes when the org's key signs even if the treasury cannot pay: its transfer then fails on its own
+      let result: string | null = null;
+      if (s.executed_timestamp) {
+        const t = await mirror<{ transactions: { scheduled: boolean; result: string }[] }>(`transactions?timestamp=${s.executed_timestamp}`).catch(() => null);
+        result = t?.transactions.find((x) => x.scheduled)?.result ?? null;
+      }
+      return { scheduleId, memo: s.memo, executedAt: iso(s.executed_timestamp), deleted: s.deleted, expiresAt: iso(s.expiration_time), transfer: scheduledTransfer(s.transaction_body), result };
     },
     async approve(siteId, scheduleId, entity, sig) {
       const evm = `0x${ScheduleId.fromString(scheduleId).toSolidityAddress()}` as Address;
