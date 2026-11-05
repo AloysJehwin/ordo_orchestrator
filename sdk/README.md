@@ -15,7 +15,7 @@ Requires Node.js 22 or newer. No dependencies.
 ## Usage
 
 ```sh
-npx ordo-pow@latest <token> [--api <url>] [--no-open]
+npx ordo-pow@latest <token> [--notes <file>] [--api <url>] [--no-open]
 ```
 
 To keep the token out of your shell history, pass it in the environment instead:
@@ -26,12 +26,13 @@ ORDO_POW_TOKEN='opw1.…' npx ordo-pow@latest
 
 | Option | |
 |---|---|
+| `--notes <file>` | A `.txt` or `.md` file of your observations. The interviewer records what it states (measurements, your verdict on each outcome) and asks only about the rest. Its text goes to the model like a typed answer; its hash becomes evidence. |
 | `--api <url>` | Talk to this Ordo API instead of the address in the token |
 | `--no-open` | Print the signing link but do not open a browser |
 | `-h`, `--help` | Help |
 | `-v`, `--version` | Version |
 
-During the interview, type your answers. `/show` prints what has been recorded so far, `/quit` stops without sending anything. Before anything is sent you see the full record and confirm with `y`.
+During the interview, type your answers. `/show` prints what has been recorded so far, `/notes <file>` reads an observations file as your answer, `/quit` stops without sending anything. Before anything is sent you see the full record and confirm with `y`.
 
 When the agent wants to show a file of yours to the model (a photo) or transcribe one (a voice note), it asks first, file by file: `? Show bench.jpg (2.1 MB) to the interviewer model …? [y/N]`. Anything but `y` keeps the file hash-only.
 
