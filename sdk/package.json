@@ -1,6 +1,6 @@
 {
   "name": "ordo-pow",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Record proof of work on an Ordo stage: a short terminal interview through the 0G Private Computer Router (TEE providers only), signed in the Ordo console.",
   "license": "MIT",
   "type": "module",

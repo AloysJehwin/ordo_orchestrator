@@ -85,7 +85,7 @@ describe("parseInvocation", () => {
     rejects(() => parseInvocation([], {}), /Missing token/);
     rejects(() => parseInvocation([token, token], {}), /Expected one token/);
     rejects(() => parseInvocation([token, "--frobnicate"], {}), /Unknown option/);
-    rejects(() => parseInvocation([token, "--api"], {}), /missing or unexpected value/);
+    rejects(() => parseInvocation([token, "--api"], {}), /--api needs a URL/);
     rejects(() => parseInvocation([token, "--api", "ftp://x"], {}), /--api must be an http or https URL/);
   });
 });

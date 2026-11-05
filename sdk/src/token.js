@@ -129,7 +129,11 @@ export function parseInvocation(argv, env) {
       throw new UsageError(`Unknown option. Run with --help to see the options.`);
     }
     if (code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
-      throw new UsageError(`An option has a missing or unexpected value (--api needs a URL, for example --api https://ordo.example.com; --notes needs a file).`);
+      // name only the option at fault: node's message says which ("Option '--notes <value>' argument missing")
+      const which = /--(api|notes)\b/.exec(String(/** @type {{ message?: string }} */ (err).message ?? ""))?.[1];
+      if (which === "notes") throw new UsageError(`--notes needs the path to your observations file, for example --notes ./01-wax-pattern-injection.txt`);
+      if (which === "api") throw new UsageError(`--api needs a URL, for example --api https://ordo.example.com`);
+      throw new UsageError(`An option has a missing or unexpected value. Run with --help to see the options.`);
     }
     throw new UsageError(`Could not read the arguments. Run with --help to see the options.`);
   }
