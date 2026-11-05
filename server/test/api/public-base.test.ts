@@ -18,4 +18,9 @@ describe("publicBase", () => {
     expect(base({ VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "ordo.app", VERCEL_URL: "ordo-abc.vercel.app" })).toBe("https://ordo.app");
     expect(base({})).toBeNull();
   });
+  it("treats an empty variable as unset, so a copied .env.example loads", () => {
+    const c = loadConfig({ PUBLIC_URL: "", TRUST_CONTRACT_ADDRESS: "", ZG_ROUTER_AUDIO_MODEL: "" } as NodeJS.ProcessEnv);
+    expect(c.PUBLIC_URL).toBeUndefined();
+    expect(c.ZG_ROUTER_AUDIO_MODEL).toBe("");
+  });
 });

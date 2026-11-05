@@ -104,12 +104,12 @@ await check("chain: relayer", Boolean(cfg.TRUST_RELAYER_KEY && cfg.TRUST_RPC_URL
   return `${address} · ${balance.toFixed(2)} ${cfg.TRUST_SYMBOL}`;
 });
 if (cfg.TRUST_CONTRACT_ADDRESS && !cfg.TRUST_RELAYER_KEY) warn("chain: relayer", "TRUST_RELAYER_KEY not set: the contracts are configured but nothing can relay to them");
-// testers, cases and rewards need the v3 OrdoTrust: an older deployment keeps them in Ordo's ledger only
+// testers, cases and rewards need the v3 OrdoTrust: on an older one selections stay in Ordo's ledger and cases are refused
 if (cfg.TRUST_CONTRACT_ADDRESS && cfg.TRUST_RPC_URL) {
   const { toFunctionSelector } = await import("viem");
   const code = await rpc(cfg.TRUST_RPC_URL, "eth_getCode", [cfg.TRUST_CONTRACT_ADDRESS, "latest"]).catch(() => "");
   if (code && code !== "0x" && !code.includes(toFunctionSelector("isActiveTester(string,address)").slice(2)))
-    warn("chain: OrdoTrust v3", "the deployed OrdoTrust predates testers, cases and rewards: selections and cases stay in Ordo's ledger until the v3 contracts are deployed");
+    warn("chain: OrdoTrust v3", "the deployed OrdoTrust predates testers, cases and rewards: selections stay in Ordo's ledger, cases are refused and nothing is paid until the v3 contracts are deployed (contracts/README.md#redeploying)");
 }
 
 // ---- ENS ----

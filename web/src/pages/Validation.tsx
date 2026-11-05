@@ -11,7 +11,7 @@ import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
 
 type Filter = "all" | "mine" | "review" | "closed";
-const STEPS = ["Draft", "Agent pre-check", "Submitted", "QE review", "Approval", "Released"];
+const STEPS = ["Draft", "Agent pre-check", "Submitted", "Review", "Approval", "Released"];
 const STATUS_TAG: Record<PackageSummary["status"], [string, string]> = {
   draft: ["Draft", ""],
   in_review: ["In review", "accent"],

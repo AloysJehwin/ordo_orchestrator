@@ -164,4 +164,7 @@ export const publicBase = (c: Config): string | null => {
 };
 
 export const timerEnabled = (c: Config) => (c.ENGINE_TIMER === "auto" ? !c.VERCEL : c.ENGINE_TIMER === "on");
-export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => Env.parse(env);
+/** An empty variable (`KEY=` in an env file) counts as unset, except where empty has its own meaning. */
+const EMPTY_MEANS_NONE = new Set(["ZG_ROUTER_AUDIO_MODEL"]);
+export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config =>
+  Env.parse(Object.fromEntries(Object.entries(env).filter(([k, v]) => v !== "" || EMPTY_MEANS_NONE.has(k))));
