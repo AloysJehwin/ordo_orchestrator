@@ -1,0 +1,52 @@
+{
+  "name": "@ordo/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke:hedera": "node --env-file=.env --import tsx scripts/smoke-hedera.ts",
+    "anchor:build": "node --env-file=.env --import tsx scripts/anchor-build.ts",
+    "doctor": "node --env-file-if-exists=.env --import tsx scripts/doctor.ts",
+    "zerog:ledger": "node --import tsx scripts/zerog-ledger.ts",
+    "gateway": "node --env-file-if-exists=.env --import tsx scripts/gateway.ts",
+    "mcp:buyer": "node --env-file-if-exists=.env --import tsx scripts/mcp-buyer.ts"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-compute-ts-sdk": "0.9.0",
+    "@0gfoundation/0g-storage-ts-sdk": "1.2.12",
+    "@anthropic-ai/sdk": "^1.1.0",
+    "@electric-sql/pglite": "^0.5.10",
+    "@google/genai": "^2.30.0",
+    "@hashgraph/hedera-agent-kit": "4.1.0",
+    "@hiero-ledger/sdk": "^2.90.1",
+    "@hono/node-server": "^2.1.5",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@x402/core": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "@x402/hedera": "2.28.0",
+    "@x402/mcp": "2.28.0",
+    "circomlibjs": "0.1.7",
+    "crypto-js": "4.2.0",
+    "ethers": "6.13.1",
+    "fast-xml-parser": "^5.11.2",
+    "hono": "^4.13.13",
+    "long": "5.3.2",
+    "pg": "^8.23.1",
+    "snarkjs": "0.7.6",
+    "viem": "^2.57.7",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/pg": "^8.23.1",
+    "ganache": "^7.9.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

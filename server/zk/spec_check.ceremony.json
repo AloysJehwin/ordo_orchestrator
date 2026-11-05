@@ -1,0 +1,18 @@
+{
+  "circuit": "spec_check",
+  "phase1": {
+    "url": "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_13.ptau",
+    "sha256": "ccee28086e4b81d81a6e16fdee054d1dbd5276362e2662d4205d31de45cb930f",
+    "note": "PSE Perpetual Powers of Tau, 80 contributions"
+  },
+  "steps": [
+    {
+      "kind": "contribution",
+      "name": "Ordo build",
+      "at": "2026-10-24T10:52:56.210Z",
+      "zkeySha256": "ca3e450197503aa9230a5b9aa16b677c05230189f8c80f82aecb6b1bd2a35fad"
+    }
+  ],
+  "verificationKeySha256": "838ee30dd6a57b7b2f47be5c6ff89ce82e017f2ffe14ef4d18ebed30d7eb7296",
+  "final": false
+}
