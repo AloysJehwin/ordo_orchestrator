@@ -65,7 +65,9 @@ Bodies start when a virtual machine is created, and again ahead of their stage: 
 
 ## Creating one
 
-On the Floor, **Create a virtual machine** (name, kind, zone). In the builder, a stage whose kind of machine the org does not have offers to create one and pins the stage to it. Over the API:
+**All at once, when an org is created.** Right after creating an org (and signing its OrdoTrust registration), the manager is shown the machines the high-value templates need: per kind, the most stages any one of them has of it, so a run of any template never waits for a machine (today 2 robot cells, 5 process vessels, 2 CNC machines, 5 inspection stations, 2 manual stations, 1 packing line). One `machines.fleet` signature, which names exactly the machines it creates, creates them all, each with its own device key and Hedera account; their bodies start when a run reaches their stages. The Floor offers the same while any are missing (`GET /v1/sites/:id/machines/fleet`, `POST …/machines/fleet/sign-request`, `POST …/machines/fleet {nonce, signature}`).
+
+One at a time: on the Floor, **Create a virtual machine** (name, kind, zone). In the builder, a stage whose kind of machine the org does not have offers to create one and pins the stage to it. Over the API:
 
 ```
 POST /v1/sites/:id/machines            { "name": "Inspection VM", "kind": "inspection", "zoneId": null }
