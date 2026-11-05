@@ -479,6 +479,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       secret: cfg.HEDERA_OPERATOR_KEY ?? cfg.LEDGER_SIGNING_KEY ?? "ordo-local",
       dataDir: (assetId) => (bodyRuntime === "local" ? resolve(bodyDir, assetId) : null),
       stageS: cfg.BODY_STAGE_S,
+      tickS: cfg.BODY_TICK_S,
       decideS: cfg.BODY_DECIDE_S,
       buyS: cfg.BODY_BUY_S,
       hederaNetwork: cfg.HEDERA_NETWORK,

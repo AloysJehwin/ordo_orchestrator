@@ -147,6 +147,7 @@ export class Bodies implements BodyService {
       /** where local bodies keep their episode logs */
       dataDir: (assetId: string) => string | null;
       stageS: number;
+      tickS: number;
       decideS: number;
       buyS: number;
       hederaNetwork: string;
@@ -252,6 +253,7 @@ export class Bodies implements BodyService {
       BODY_SEED: row.seed,
       BODY_ASK_TOKEN: this.keys.unseal(row.ask_token_enc),
       BODY_STAGE_S: String(this.o.stageS),
+      BODY_TICK_S: String(this.o.tickS),
       BODY_DECIDE_S: String(this.o.decideS),
       BODY_BUY_S: String(this.o.buyS),
       ...(this.o.dataDir(assetId) ? { BODY_DATA_DIR: this.o.dataDir(assetId)! } : {}),

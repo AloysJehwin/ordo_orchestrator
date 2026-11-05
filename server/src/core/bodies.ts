@@ -32,6 +32,8 @@ export interface BodyEnv {
   BODY_DATA_DIR?: string;
   /** how long the simulated process takes over one stage, in seconds */
   BODY_STAGE_S?: string;
+  /** seconds between the body's ticks */
+  BODY_TICK_S?: string;
   /** seconds between the agent's decisions while a stage runs */
   BODY_DECIDE_S?: string;
   /** seconds between buying-ahead cycles */
