@@ -1,0 +1,29 @@
+{
+  "name": "@ordo/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "lucide-react": "^1.69.0",
+    "qrcode-generator": "2.0.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "snarkjs": "0.7.6",
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "zod": "^4.6.7"
+  }
+}
