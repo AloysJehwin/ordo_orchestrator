@@ -28,9 +28,9 @@ export function StageOutcomes({ run, stage }: { run: RunView; stage: StageRunVie
     [path, run.id, stage.code],
   );
   useEffect(() => {
-    if (sees(2) && stage.outcomes.length) void load();
-  }, [load, sees, stage.outcomes.length, head]);
-  if (!stage.outcomes.length || !sees(2)) return null;
+    if (sees(2) && (stage.outcomes ?? []).length) void load();
+  }, [load, sees, stage.outcomes, head]);
+  if (!(stage.outcomes ?? []).length || !sees(2)) return null;
   const captured = list?.filter((o) => o.captured).length ?? 0;
   const file = (o: OutcomeView, which: "file" | "preview") => api.url(path(`/runs/${run.id}/stages/${stage.code}/outputs/${o.key}/${which}?version=${o.output?.version ?? ""}`));
   return (

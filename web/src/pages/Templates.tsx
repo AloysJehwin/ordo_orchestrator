@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
+import { outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { go } from "../lib/router";
 import type { TemplateView } from "../types";
 import { Loading, Segmented } from "../ui/kit";
@@ -18,7 +19,7 @@ export function Templates() {
   const [cat, setCat] = useState("All");
   const [origin, setOrigin] = useState<"all" | "library" | "custom">("all");
   useEffect(() => {
-    void api.get<TemplateView[]>(path("/templates")).then(setList);
+    void api.get<TemplateView[]>(path("/templates")).then((l) => setList(outcomesFirst(l)));
   }, [path]);
   if (!list) return <Loading />;
   const cats = ["All", ...new Set(list.map((t) => t.category))];
@@ -53,6 +54,13 @@ export function Templates() {
                 </span>
               </div>
               <h3>{t.name}</h3>
+              {outcomeCount(t) > 0 && (
+                <p className="small">
+                  <span className="tag ok">
+                    {outcomeCount(t)} multimedia outcomes · {t.spec.stages.reduce((n, s) => n + (s.resources ?? []).length, 0)} resources
+                  </span>
+                </p>
+              )}
               <p className="muted small">{t.description}</p>
               <ol className="tchain">
                 {chain(t).map((c, i) => (

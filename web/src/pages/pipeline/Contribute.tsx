@@ -101,7 +101,7 @@ export function ContributeModal({ run, stage, onClose, onDone }: { run: RunView;
                 : `It runs on ${TRUST_TEXT[s.router.trustMode ?? "standard"]}: the provider serving the model can read the conversation.`}{" "}
               Files stay on your machine and only their SHA-256 is recorded, unless you agree, file by file, to show a photo to the model or have a voice note transcribed on 0G.
             </li>
-            {stage.outcomes.length > 0 && <li>It shows you what the stage's machine captured for each of its {stage.outcomes.length} outcomes, and you confirm or dispute each one; your record binds the hashes of the files you reviewed.</li>}
+            {(stage.outcomes ?? []).length > 0 && <li>It shows you what the stage's machine captured for each of its {(stage.outcomes ?? []).length} outcomes, and you confirm or dispute each one; your record binds the hashes of the files you reviewed.</li>}
             <li>When you confirm, it opens a link here for you to sign the record with your wallet.</li>
           </ol>
           <div className="cmd">

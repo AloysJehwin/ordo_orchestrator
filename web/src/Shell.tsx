@@ -4,6 +4,7 @@ import { api } from "./api";
 import { useApp } from "./lib/app";
 import { LEVEL_LABEL, shortAddr } from "./lib/format";
 import { href, useRoute } from "./lib/router";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Action, Field, Icon, Menu, Modal, useToast } from "./ui/kit";
 import { useDismiss } from "./ui/hooks";
 import { Approvals } from "./pages/Approvals";
@@ -239,7 +240,9 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
         />
       </header>
       <main className="main">
-        <div className="content">{page}</div>
+        <div className="content">
+          <ErrorBoundary key={`${route.page}/${route.id ?? ""}/${route.sub ?? ""}`}>{page}</ErrorBoundary>
+        </div>
       </main>
       {more && (
         <div className="more-panel" ref={moreRef} role="dialog" aria-label="More pages">

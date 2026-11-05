@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { api } from "./api";
 import { AppProvider } from "./lib/app";
 import { useRoute } from "./lib/router";
@@ -133,7 +134,9 @@ labelTables();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ToastProvider>
-      <Root />
+      <ErrorBoundary where="app">
+        <Root />
+      </ErrorBoundary>
     </ToastProvider>
   </StrictMode>,
 );

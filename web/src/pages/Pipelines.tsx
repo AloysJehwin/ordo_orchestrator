@@ -10,7 +10,7 @@ import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
-import { machineless } from "../lib/outcomes";
+import { machineless, outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline/StageParts";
 import { FlowView, GraphView, LedgerView } from "./pipeline/Views";
 
@@ -441,7 +441,7 @@ function StartRun({ open, templateId, onClose, onStarted, path }: { open: boolea
         <Select
           value={tpl}
           onChange={setTpl}
-          options={templates.map((x) => ({ value: x.id, label: x.name, hint: `${x.origin === "custom" ? "Custom" : "Library"} · v${x.version} · ${x.spec.stages.length} stages`, group: x.category }))}
+          options={outcomesFirst(templates).map((x) => ({ value: x.id, label: x.name, hint: `${x.origin === "custom" ? "Custom" : "Library"} · v${x.version} · ${x.spec.stages.length} stages${outcomeCount(x) ? ` · ${outcomeCount(x)} outcomes` : ""}`, group: x.category }))}
           searchable
         />
       </Field>

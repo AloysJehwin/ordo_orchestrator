@@ -28,6 +28,12 @@ interface Row {
   published_at: string;
   published_by: string | null;
 }
+/** A stored spec as the current shape: versions published before outcomes and resources existed have neither. */
+const storedSpec = (json: string): TemplateSpec => {
+  const spec = JSON.parse(json) as TemplateSpec;
+  return { ...spec, stages: spec.stages.map((s) => ({ ...s, outcomes: s.outcomes ?? [], resources: s.resources ?? [] })) };
+};
+
 const toView = (r: Row): TemplateView => ({
   id: r.id,
   key: r.key,
@@ -38,7 +44,7 @@ const toView = (r: Row): TemplateView => ({
   basedOn: r.based_on,
   version: Number(r.version),
   versionId: r.version_id,
-  spec: JSON.parse(r.spec_json) as TemplateSpec,
+  spec: storedSpec(r.spec_json),
   publishedAt: new Date(r.published_at).toISOString(),
   publishedBy: r.published_by,
 });

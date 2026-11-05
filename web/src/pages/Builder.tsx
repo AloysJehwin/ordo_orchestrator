@@ -3,7 +3,7 @@ import { api } from "../api";
 import { useApp } from "../lib/app";
 import { AGENT_LABEL } from "../lib/format";
 import { AGG_LABEL, AGGS, bandOf, KIND_LABEL as CRIT_KIND_LABEL, KINDS, kindOf, targetText } from "../lib/criteria";
-import { MEDIA, MEDIA_ICON, MEDIA_LABEL, MIN_OUTCOMES, OUTCOME_PRESETS, machineless, metricText, outcomeErrors, outcomeKey } from "../lib/outcomes";
+import { MEDIA, MEDIA_ICON, MEDIA_LABEL, MIN_OUTCOMES, OUTCOME_PRESETS, machineless, metricText, outcomeCount, outcomeErrors, outcomeKey, outcomesFirst } from "../lib/outcomes";
 import { go, href, useRoute } from "../lib/router";
 import type { AgentKey, AssetKind, AssetView, Criterion, CriterionKind, Outcome, OutcomeMedia, Role, SignalAgg, StageSpec, TemplateView } from "../types";
 import { Action, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
@@ -87,7 +87,7 @@ function withCodes(stages: Draft[]): (Draft & { code: string })[] {
   });
   return out;
 }
-const fromSpec = (t: TemplateView): Draft[] => t.spec.stages.map((s) => ({ ...s, key: seq++ }));
+const fromSpec = (t: TemplateView): Draft[] => t.spec.stages.map((s) => ({ ...s, outcomes: s.outcomes ?? [], resources: s.resources ?? [], key: seq++ }));
 
 export function Builder() {
   const { path, can, meta, live } = useApp();
@@ -213,7 +213,7 @@ export function Builder() {
             width={280}
             value={base?.id ?? "__new"}
             onChange={(id) => go(id === "__new" ? "builder" : `builder/${id}`)}
-            options={[{ value: "__new", label: "Blank pipeline", group: "New" }, ...templates.map((t) => ({ value: t.id, label: t.name, hint: t.origin === "custom" ? `v${t.version}` : "Library", group: t.category }))]}
+            options={[{ value: "__new", label: "Blank pipeline", group: "New" }, ...outcomesFirst(templates).map((t) => ({ value: t.id, label: t.name, hint: `${t.origin === "custom" ? `v${t.version}` : "Library"}${outcomeCount(t) ? ` · ${outcomeCount(t)} outcomes` : ""}`, group: t.category }))]}
             searchable
           />
           <button type="button" className="btn" onClick={() => load(base)}>

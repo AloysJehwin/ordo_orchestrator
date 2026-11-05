@@ -1,4 +1,4 @@
-import type { AssetKind, AssetView, Outcome, OutcomeMedia, StageSpec } from "../types";
+import type { AssetKind, AssetView, Outcome, OutcomeMedia, StageSpec, TemplateView } from "../types";
 
 export const MEDIA: OutcomeMedia[] = ["thermal", "image", "audio", "video", "spectrum", "document"];
 export const MEDIA_LABEL: Record<OutcomeMedia, string> = {
@@ -123,3 +123,8 @@ export function outcomeErrors(outcomes: Outcome[], ownLabels: string[] = []): st
   }
   return out;
 }
+
+/** How many multimedia outcomes a template's stages capture (versions from before outcomes have none). */
+export const outcomeCount = (t: TemplateView) => t.spec.stages.reduce((n, s) => n + (s.outcomes ?? []).length, 0);
+/** Templates whose machines capture multimedia outcomes first, the rest in the server's order. */
+export const outcomesFirst = (list: TemplateView[]) => [...list].sort((a, b) => Number(outcomeCount(b) > 0) - Number(outcomeCount(a) > 0));
