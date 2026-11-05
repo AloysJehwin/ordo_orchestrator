@@ -200,6 +200,20 @@ await check(
   "no TREASURY_CONTRACT_ADDRESS: machines spend only what their wallets hold, with no run budgets",
 );
 
+// ---- Machine bodies (local runtime) ----
+await check(
+  "machine bodies",
+  cfg.BODY_RUNTIME === "local",
+  async () => {
+    const { existsSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const bundle = cfg.BODY_BUNDLE ?? fileURLToPath(new URL("../../body/dist/body.mjs", import.meta.url));
+    if (!existsSync(bundle)) throw new Error(`no body at ${bundle}: run pnpm --filter @ordo/body build`);
+    return `local runtime, body at ${bundle}${cfg.ZG_ROUTER_MGMT_KEY ? "" : " (no 0G Router: bodies run without an agent)"}`;
+  },
+  cfg.BODY_RUNTIME === "sandbox" ? "sandbox runtime" : "BODY_RUNTIME=off: virtual machines do not run",
+);
+
 const icon = { pass: "✔", warn: "!", fail: "✘", off: "·" } as const;
 const w = Math.max(...results.map((r) => r.rail.length));
 console.log(`\nOrdo env doctor · ${cfg.VERCEL_ENV ?? "local"}\n`);
