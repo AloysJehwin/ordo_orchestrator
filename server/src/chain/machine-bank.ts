@@ -1,4 +1,4 @@
-import { AccountBalanceQuery, AccountCreateTransaction, AccountId, Hbar, PrivateKey, TopicId, TopicMessageSubmitTransaction, TransferTransaction, type Client } from "@hiero-ledger/sdk";
+import { AccountCreateTransaction, AccountId, Hbar, PrivateKey, TopicId, TopicMessageSubmitTransaction, TransferTransaction, type Client } from "@hiero-ledger/sdk";
 
 /** What Machines needs from Hedera (HederaMachineBank in production). Amounts in tinybars. */
 export interface MachineBank {
@@ -26,9 +26,14 @@ export function hederaMachineBank(client: Client, network: string, mirrorUrl: st
       const receipt = await tx.getReceipt(client);
       return { accountId: receipt.accountId!.toString(), evmAddress: `0x${key.publicKey.toEvmAddress()}`, key: key.toStringRaw(), tx: tx.transactionId.toString() };
     },
+    // from the mirror node: the network no longer answers AccountBalanceQuery (it throws "no longer supported"), and a
+    // balance unknown to the machine let it try purchases it could not pay for instead of asking for a top-up
     async balance(accountId) {
-      const b = await new AccountBalanceQuery().setAccountId(AccountId.fromString(accountId)).execute(client);
-      return BigInt(b.hbars.toTinybars().toString());
+      const res = await fetch(`${mirrorUrl}/api/v1/accounts/${encodeURIComponent(accountId)}`);
+      if (!res.ok) throw new Error(`The mirror node answered ${res.status} for ${accountId}`);
+      const a = (await res.json()) as { balance?: { balance?: number } };
+      if (typeof a.balance?.balance !== "number") throw new Error(`The mirror node has no balance for ${accountId}`);
+      return BigInt(a.balance.balance);
     },
     async topUp(accountId, amount) {
       const operator = client.operatorAccountId!;

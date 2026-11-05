@@ -193,6 +193,8 @@ const iso = (s: string | null) => (s ? new Date(s).toISOString() : null);
  * that waited on a top-up is held as not approved. With no treasury contract configured this does nothing.
  */
 export class Budgets {
+  /** today's cheapest offer per resource kind (tinybars per unit), so a run budget counts what machines will pay */
+  offerPrices: ((siteId: string) => Promise<Map<string, bigint>>) | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -368,7 +370,7 @@ export class Budgets {
       const id = bound.get(code) ?? s.machine ?? assets.find((a) => a.kind === s.resourceKind && a.account_id)?.id ?? null;
       return id && byId.has(id) ? id : null;
     };
-    const budget = runBudget(spec.stages, run.quantity, { marginPct: this.opts.marginPct, machineOf });
+    const budget = runBudget(spec.stages, run.quantity, { marginPct: this.opts.marginPct, machineOf, offerPrices: this.offerPrices ? await this.offerPrices(siteId) : undefined });
     // the stages (that consume the resources) whose buying machine gets no credit
     const unfunded = new Set<string>();
     const credits = new Map<string, Credit>();
@@ -387,7 +389,7 @@ export class Budgets {
     for (const c of sorted.slice(MAX_CREDITS)) for (const s of c.stages) unfunded.add(s);
     const funded = sorted.slice(0, MAX_CREDITS);
     const view: BudgetLineView[] = budget.stages.flatMap((s) =>
-      s.lines.map((l) => ({ stage: s.code, buyer: s.buyer.stage, resource: l.key, label: l.label, qty: l.qty, unit: l.unit, maxPrice: l.maxPrice, tinybars: l.maxTinybar, funded: !unfunded.has(s.code) })),
+      s.lines.map((l) => ({ stage: s.code, buyer: s.buyer.stage, resource: l.key, label: l.label, qty: l.qty, unit: l.unit, maxPrice: l.maxPrice, tinybars: l.tinybar, funded: !unfunded.has(s.code) })),
     );
     return { credits: funded, lines: view };
   }
@@ -455,11 +457,11 @@ export class Budgets {
     return id;
   }
 
-  /** Each run that started after its org opened a treasury gets one budget schedule. */
+  /** Each running run of an org with a treasury gets one budget schedule, including runs that were running when it opened. */
   private async runBudgets() {
     const runs = await this.db.query<{ id: string; site_id: string; quantity: number; template_version_id: string; account_id: string }>(
       `SELECT r.id, r.site_id, r.quantity, r.template_version_id, t.account_id FROM runs r JOIN treasuries t ON t.site_id = r.site_id
-       WHERE r.status = 'running' AND r.started_at >= t.created_at AND NOT EXISTS (SELECT 1 FROM budget_schedules b WHERE b.run_id = r.id AND b.kind = 'run')
+       WHERE r.status = 'running' AND NOT EXISTS (SELECT 1 FROM budget_schedules b WHERE b.run_id = r.id AND b.kind = 'run')
        ORDER BY r.started_at LIMIT 5`,
     );
     for (const r of runs.rows) {
@@ -616,7 +618,6 @@ export class Budgets {
     const run = (await this.db.query<{ id: string; site_id: string; status: string; template_version_id: string }>("SELECT id, site_id, status, template_version_id FROM runs WHERE id = $1", [b.runId])).rows[0];
     if (!run || run.status !== "running") throw new HttpError(404, "No running run with that id");
     const t = await this.treasuryRow(run.site_id);
-    if (!t) throw new HttpError(409, "This org has no treasury to top machines up from");
     // one request is one top-up (its 0G request id), and one purchase has at most one top-up waiting for a manager
     const dup = (
       await this.db.query<Row>(
@@ -643,6 +644,11 @@ export class Budgets {
     const asset = b.assetId ? mine.find((a) => a.id === b.assetId) : (mine.find((a) => a.account_id) ?? mine[0]);
     if (!asset) throw new HttpError(403, b.assetId ? `${b.assetId} is not a machine of that run that this device feeds` : "This device is not the data source of a machine in that run");
     if (!asset.account_id) throw new HttpError(409, `${asset.name} has no Hedera account to top up`);
+    if (!t) {
+      // nothing to top it up from: tell the managers once, instead of the machine asking into the void
+      await this.noTreasury(run, device, b, asset, resource.label).catch((e: Error) => console.error("[ordo] no-treasury notice", e.message));
+      throw new HttpError(409, "This org has no treasury to top machines up from");
+    }
     const amount = BigInt(b.amountTinybar);
     if (amount <= 0n) throw new HttpError(400, "The amount must be above zero");
     // the ledger's balance, not the machine's word for it
@@ -735,5 +741,36 @@ export class Budgets {
       await this.db.query("UPDATE budget_schedules SET inbox_item_id = $1 WHERE id = $2", [item.id, id]);
     }
     return this.get(run.site_id, id);
+  }
+  /** A machine cannot pay for its stage's resources and the org has no treasury: one manager inbox item per purchase, saying how to fund it. */
+  private async noTreasury(run: { id: string; site_id: string }, device: Address, b: OverBudget, asset: { id: string; name: string }, label: string) {
+    const open = await this.db.query(
+      "SELECT 1 FROM inbox_items WHERE site_id = $1 AND run_id = $2 AND stage_code = $3 AND asset_id = $4 AND category = 'Budget' AND kind = 'exception' AND status = 'pending' AND title LIKE $5 LIMIT 1",
+      [run.site_id, run.id, b.stage, asset.id, `%${label}%`],
+    );
+    if (open.rows.length) return;
+    const registered = await this.trust.siteRegistered(run.site_id);
+    const amount = BigInt(b.amountTinybar);
+    const balance = b.balanceTinybar ? BigInt(b.balanceTinybar) : null;
+    await this.inbox.raise(run.site_id, {
+      kind: "exception",
+      category: "Budget",
+      title: `${asset.name} cannot pay for ${label}: this org has no treasury`,
+      body: `${asset.name} needs ${hbar(amount)} for ${label} at stage ${b.stage} of ${run.id}${balance === null ? "" : ` and holds ${hbar(balance)}`}. Machines are funded from the org's treasury, which a manager's run budget pays out of: ${registered ? "open the treasury" : "register the org on-chain (Settings → On-chain), then open its treasury"} in Finance → Machine budgets, fund it, and approve ${run.id}'s budget. Until then stage ${b.stage} waits for its resources, unless a manager waives them in the stage's Resources.`,
+      agent: `device:${device.toLowerCase()}`,
+      severity: "warn",
+      runId: run.id,
+      stageCode: b.stage,
+      assetId: asset.id,
+      metrics: [
+        { label: "Needs", value: hbar(amount) },
+        ...(balance === null ? [] : [{ label: "Holds", value: hbar(balance) }]),
+        { label: "Org on-chain", value: registered ? "registered" : "not registered" },
+      ],
+      options: [{ label: registered ? "Open the treasury in Finance → Machine budgets" : "Register the org in Settings → On-chain", detail: "Then fund the treasury and approve the run's budget", action: { tool: "none", args: {} } }],
+      recommended: null,
+      confidence: null,
+      requiredRole: "manager",
+    });
   }
 }

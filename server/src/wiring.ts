@@ -553,6 +553,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   }
   const { Budgets } = await import("./core/budgets.js");
   const budgets = new Budgets(db, rec, sigs, inbox, engine, templates, trust, trustChain ? treasuryRail : null, { marginPct: cfg.TREASURY_BUDGET_MARGIN_PCT, hours: cfg.TREASURY_BUDGET_HOURS, seed: cfg.TREASURY_SEED_TINYBARS, topUpMax: cfg.TREASURY_TOPUP_MAX_TINYBARS }, now);
+  budgets.offerPrices = (siteId) => resources.offerPrices(siteId);
 
   const advance = async (force = false) => {
     // throttle: one cycle per 4 s across all instances (the lease is left to expire, not released)

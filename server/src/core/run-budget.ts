@@ -3,7 +3,8 @@ import { predecessors } from "../pipelines/graph.js";
 
 /**
  * What a run may spend on the resources its stages consume, before anyone buys anything: for each resource its
- * quantity (per batch, or per unit of the run's quantity) at the most a machine may pay for it, plus a margin.
+ * quantity (per batch, or per unit of the run's quantity) at what the cheapest vendor asks today (never above the most a
+ * machine may pay for it; at that most when nobody sells it yet), plus a margin. A price that rises later is a top-up.
  * Pure arithmetic in tinybars, so the treasury can fund it (one transfer per machine) and anyone can recompute it.
  *
  * A stage's resources are bought ahead by the machine of the stage before it (its first predecessor that runs on a
@@ -51,6 +52,10 @@ export interface BudgetLine {
   maxPrice: number;
   /** qty × maxPrice, in tinybars */
   maxTinybar: string;
+  /** what the budget counts per unit, HBAR: the cheapest offer, at most maxPrice */
+  price: string;
+  /** qty × price, in tinybars: what the budget counts for this line */
+  tinybar: string;
 }
 export interface BudgetBuyer {
   /** the machine that buys: the bound or pinned asset, null when the run has not bound one yet */
@@ -90,10 +95,10 @@ export interface RunBudget {
 }
 
 /**
- * A run's resource budget: Σ qty × (per unit ? quantity : 1) × maxPrice, plus `marginPct` (default 10 %), per stage
- * and per buying machine. `machineOf` names the asset a stage runs on (bound by the run, or pinned in the template).
+ * A run's resource budget: Σ qty × (per unit ? quantity : 1) × price, plus `marginPct` (default 10 %), per stage
+ * and per buying machine. The price is the kind's cheapest offer (`offerPrices`, tinybars per unit) capped at maxPrice. `machineOf` names the asset a stage runs on (bound by the run, or pinned in the template).
  */
-export function runBudget(stages: StageSpec[], quantity: number, opts: { marginPct?: number; machineOf?: (code: string) => string | null } = {}): RunBudget {
+export function runBudget(stages: StageSpec[], quantity: number, opts: { marginPct?: number; machineOf?: (code: string) => string | null; offerPrices?: Map<string, bigint> } = {}): RunBudget {
   const marginPct = Math.max(0, opts.marginPct ?? DEFAULT_MARGIN_PCT);
   const machineOf = opts.machineOf ?? ((code: string) => stages.find((s) => s.code === code)?.machine ?? null);
   const preds = predecessors(stages);
@@ -107,9 +112,12 @@ export function runBudget(stages: StageSpec[], quantity: number, opts: { marginP
     const buyer: BudgetBuyer = { assetId: machineOf(by.code), stage: by.code, kind: by.resourceKind };
     const lines = s.resources.map((r) => {
       const qty = resourceNeed(r, quantity);
-      return { key: r.key, label: r.label, kind: r.kind, unit: r.unit, qty, maxPrice: r.maxPrice, maxTinybar: amountFor(hbarToTinybar(r.maxPrice), qty).toString() };
+      const max = hbarToTinybar(r.maxPrice);
+      const offer = opts.offerPrices?.get(r.kind);
+      const perUnit = offer !== undefined && offer < max ? offer : max;
+      return { key: r.key, label: r.label, kind: r.kind, unit: r.unit, qty, maxPrice: r.maxPrice, maxTinybar: amountFor(max, qty).toString(), price: tinybarToHbar(perUnit), tinybar: amountFor(perUnit, qty).toString() };
     });
-    const sub = lines.reduce((a, l) => a + BigInt(l.maxTinybar), 0n);
+    const sub = lines.reduce((a, l) => a + BigInt(l.tinybar), 0n);
     out.push({ code: s.code, name: s.name, buyer, lines, subtotalTinybar: sub.toString() });
     const key = buyer.assetId ?? `stage:${buyer.stage}`;
     const m = machines.get(key) ?? { assetId: buyer.assetId, kind: buyer.kind, stages: [], sub: 0n };

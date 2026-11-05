@@ -57,6 +57,22 @@ export const DEMO_OFFERS: { kind: string; sku: string; label: string; unit: stri
   { kind: "furnace_hours", sku: "FURNACE-H", label: "Vacuum furnace time", unit: "h", price: "0.3", leadMin: 0 },
   { kind: "autoclave_hours", sku: "AUTOCLAVE-H", label: "Autoclave time", unit: "h", price: "0.4", leadMin: 0 },
   { kind: "shaker_hours", sku: "SHAKER-H", label: "Electrodynamic shaker time", unit: "h", price: "0.4", leadMin: 0 },
+  { kind: "stucco_sand", sku: "STUCCO-AL2O3-KG", label: "Fused alumina stucco", unit: "kg", price: "0.008", leadMin: 0 },
+  { kind: "natural_gas", sku: "NG-M3", label: "Natural gas, kiln supply", unit: "m³", price: "0.004", leadMin: 0 },
+  { kind: "cutting_tools", sku: "TOOL-CUT", label: "Cutting tools (grinding wheels, cutters, drills, end mills)", unit: "pcs", price: "0.05", leadMin: 0 },
+  { kind: "edm_dielectric", sku: "EDM-DI-L", label: "Deionised EDM dielectric water", unit: "L", price: "0.005", leadMin: 0 },
+  { kind: "oxygen", sku: "O2-45-M3", label: "Oxygen 4.5 (99.995 %)", unit: "m³", price: "0.005", leadMin: 0 },
+  { kind: "developer", sku: "FPI-DEV-KG", label: "Dry powder developer", unit: "kg", price: "0.02", leadMin: 0 },
+  { kind: "desiccant", sku: "DESICCANT", label: "Desiccant, packs and bulk", unit: "unit", price: "0.001", leadMin: 0 },
+  { kind: "peel_ply", sku: "PEEL-PLY-M2", label: "Nylon peel ply", unit: "m²", price: "0.008", leadMin: 0 },
+  { kind: "breather", sku: "BREATHER-M2", label: "Polyester breather", unit: "m²", price: "0.004", leadMin: 0 },
+  { kind: "couplant", sku: "COUPLANT-L", label: "Ultrasonic couplant water treatment", unit: "L", price: "0.0005", leadMin: 0 },
+  { kind: "sealant", sku: "PS-SEALANT-KG", label: "Polysulfide fastener sealant", unit: "kg", price: "0.05", leadMin: 0 },
+  { kind: "ipa_wipes", sku: "IPA-WIPE", label: "Cleanroom IPA wipes", unit: "pcs", price: "0.0003", leadMin: 0 },
+  { kind: "lacing_tape", sku: "LACING-TAPE-M", label: "Polyester lacing tape", unit: "m", price: "0.0005", leadMin: 0 },
+  { kind: "staking_compound", sku: "STAKING-G", label: "Connector staking compound", unit: "g", price: "0.0005", leadMin: 0 },
+  { kind: "recoater_blades", sku: "RECOATER-BLADE", label: "LPBF recoater blade", unit: "pcs", price: "0.03", leadMin: 0 },
+  { kind: "finishing_media", sku: "VIB-MEDIA-KG", label: "Ceramic vibratory finishing media", unit: "kg", price: "0.008", leadMin: 0 },
 ];
 
 const Hbar = z.union([z.number().positive().max(1e9), z.string().regex(/^\d{1,10}(\.\d{1,8})?$/, "a price in HBAR, at most 8 decimals")]);
@@ -738,10 +754,21 @@ export class Resources {
     return { runId: run.id, stage: stage.code, quantity: run.quantity, state: stage.state, waived, resources, redacted: !finance };
   }
 
-  /** A run's resource budget (run-budget.ts), with the machines the run has bound or the template pins. */
+  /** A run's resource budget (run-budget.ts), with the machines the run has bound or the template pins, at today's offers. */
   async budget(siteId: string, runId: string, marginPct?: number): Promise<RunBudget> {
     const v = await this.engine.view(siteId, runId, undefined, false);
-    return runBudget(v.stages, v.quantity, { marginPct, machineOf: (code) => { const s = v.stages.find((x) => x.code === code); return s?.assetId ?? s?.machine ?? null; } });
+    return runBudget(v.stages, v.quantity, { marginPct, offerPrices: await this.offerPrices(siteId), machineOf: (code) => { const s = v.stages.find((x) => x.code === code); return s?.assetId ?? s?.machine ?? null; } });
+  }
+
+  /** Per resource kind, the price of its cheapest offer from a vendor that can be paid (tinybars per unit). */
+  async offerPrices(siteId: string): Promise<Map<string, bigint>> {
+    await this.ensureDemo(siteId);
+    const out = new Map<string, bigint>();
+    for (const o of await this.offerRows(siteId, false)) {
+      const p = BigInt(o.price);
+      if ((out.get(o.kind) ?? p + 1n) > p && (await this.payTo(o.vendor_id))) out.set(o.kind, p);
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------- a manager waives the wait (signed)
