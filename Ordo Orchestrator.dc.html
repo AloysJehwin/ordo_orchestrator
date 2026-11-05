@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/styles.css">
+<script src="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/_ds_bundle.js"></script>
+<style>:root{--font-heading:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}h1,h2,h3,h4{letter-spacing:-0.01em}body{margin:0;background:#f3f2f2;font-size:14px}a{color:#7d5411}a:hover{color:#5a3b0a}button{font:inherit}.dtable{display:table;border-collapse:collapse}.dthead{display:table-header-group}.dtbody{display:table-row-group}.dtr{display:table-row}.dth,.dtd{display:table-cell;padding:var(--space-2);border-bottom:1px solid var(--color-divider);vertical-align:middle}.dth{text-align:left;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent)}.dtbody>.dtr:hover{background:color-mix(in srgb, var(--color-text) 4%, transparent)}</style>
+</helmet>
+<div id="ordo-app" style="display:flex;min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+
+<aside style="width:228px;flex:none;border-right:1px solid var(--color-divider);display:flex;flex-direction:column;gap:28px;padding:26px 14px 20px;height:100vh;position:sticky;top:0;box-sizing:border-box">
+  <div style="padding:0 10px;display:flex;flex-direction:column;gap:4px">
+    <div style="font-family:var(--font-heading);font-size:22px;font-weight:500;line-height:1;letter-spacing:-0.01em">Ordo</div>
+    <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--color-accent-700)">Autonomous orchestration</div>
+  </div>
+  <nav style="display:flex;flex-direction:column;gap:2px">
+    <sc-for list="{{ navItems }}" as="it" hint-placeholder-count="6">
+      <button onClick="{{ it.onClick }}" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border:0;border-radius:var(--radius-md);background:{{ it.bg }};color:{{ it.color }};font-size:14px;cursor:pointer;text-align:left" style-hover="background:color-mix(in srgb, var(--color-accent) 10%, transparent)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ it.icon }}"></path></svg>
+        <span style="flex:1">{{ it.label }}</span>
+        <sc-if value="{{ it.count }}"><span style="font-size:11px;font-variant-numeric:tabular-nums;padding:1px 7px;border:1px solid var(--color-accent);color:var(--color-accent-700);border-radius:10px">{{ it.count }}</span></sc-if>
+      </button>
+    </sc-for>
+  </nav>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:14px;padding:16px 10px 0;border-top:1px solid var(--color-divider)">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Site</div>
+      <div style="font-family:var(--font-heading);font-size:15px;font-weight:600">Plant 03 · Line A</div>
+      <div style="font-size:12px;color:var(--color-neutral-700)">Shift B · 13:05 local</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Autonomy</div>
+      <div style="font-size:13px;color:var(--color-accent-700)">{{ autonomyName }}</div>
+      <div style="font-size:12px;color:var(--color-neutral-700)">8 agents online · 41 assets</div>
+    </div>
+  </div>
+</aside>
+
+<main style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+<sc-if value="{{ isPipes }}" hint-placeholder-val="{{ true }}">
+  <header style="padding:28px 36px 22px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:20px 32px;align-items:flex-end;justify-content:space-between">
+    <div style="display:flex;flex-direction:column;gap:6px;max-width:680px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700);font-variant-numeric:tabular-nums">Run {{ runId }} · {{ tpl.cat }} · started 08:00</div>
+      <h1 style="font-size:28px;font-weight:600;margin:0">{{ tpl.name }}</h1>
+      <p style="margin:0;font-size:14px;color:var(--color-neutral-700);text-wrap:pretty">{{ tpl.desc }}</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <select class="input" value="{{ tplId }}" onChange="{{ onTplSelect }}" style="width:auto;min-width:210px">
+        <sc-for list="{{ templates }}" as="t"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+      </select>
+      <div style="display:flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+        <sc-for list="{{ viewItems }}" as="v" hint-placeholder-count="3">
+          <button onClick="{{ v.onClick }}" style="border:0;padding:8px 14px;font-size:13px;cursor:pointer;background:transparent;color:{{ v.color }};box-shadow:{{ v.shadow }}">{{ v.label }}</button>
+        </sc-for>
+      </div>
+      <button class="btn btn-secondary" onClick="{{ stepRun }}">Step run</button>
+      <button class="btn btn-primary" onClick="{{ openBuilder }}">Edit in builder</button>
+    </div>
+  </header>
+
+  <section style="display:flex;flex-wrap:wrap;border-bottom:1px solid var(--color-divider)">
+    <div style="flex:1 1 320px;padding:18px 36px;border-right:1px solid var(--color-divider);display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Autonomy level</div>
+        <div style="font-size:12px;color:var(--color-accent-700)">{{ autonomyName }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+        <sc-for list="{{ autonomyItems }}" as="a" hint-placeholder-count="4">
+          <button onClick="{{ a.onClick }}" title="{{ a.name }}" style="height:8px;border-radius:2px;border:1px solid var(--color-accent);background:{{ a.bg }};cursor:pointer;padding:0"></button>
+        </sc-for>
+      </div>
+      <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--color-neutral-800);text-wrap:pretty">{{ autonomyDesc }}</p>
+    </div>
+    <div style="flex:999 1 560px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      <sc-for list="{{ stats }}" as="s" hint-placeholder-count="6">
+        <div style="padding:18px 18px;border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);margin-bottom:-1px;display:flex;flex-direction:column;gap:4px;min-width:0">
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ s.label }}</div>
+          <div style="font-family:var(--font-heading);font-size:22px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums;color:{{ s.color }}">{{ s.value }}</div>
+          <div style="font-size:11px;color:var(--color-neutral-700)">{{ s.sub }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding:28px 36px 12px">
+    <sc-if value="{{ isFlow }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;font-size:11.5px;color:var(--color-neutral-700)">
+        <sc-for list="{{ legend }}" as="l"><span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;box-sizing:border-box;border:1.5px solid {{ l.ring }};border-style:{{ l.bs }};background:{{ l.fill }};border-radius:{{ l.r }}"></span>{{ l.label }}</span></sc-for>
+        <span style="margin-left:auto">Click a node to open its block</span>
+      </div>
+      <div style="overflow:auto;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+        <div onClick="{{ closeCard }}" style="position:relative;width:{{ flow.w }}px;height:{{ flow.h }}px">
+          <svg width="{{ flow.w }}" height="{{ flow.h }}" style="position:absolute;inset:0;pointer-events:none">
+            <sc-for list="{{ flow.edges }}" as="e"><path d="{{ e.d }}" fill="none" stroke="{{ e.stroke }}" stroke-width="{{ e.sw }}" stroke-dasharray="{{ e.dash }}" stroke-linecap="round"></path></sc-for>
+            <sc-if value="{{ flow.loop }}"><path d="{{ flow.loop.d }}" fill="none" stroke="#7d5411" stroke-width="1.3" stroke-dasharray="3 4"></path></sc-if>
+          </svg>
+          <sc-if value="{{ flow.loop }}">
+            <div style="position:absolute;left:{{ flow.loop.lx }}px;top:{{ flow.loop.ly }}px;transform:translate(-50%,-50%);font-size:11px;color:var(--color-accent-700);background:var(--color-bg);padding:1px 8px;white-space:nowrap">{{ flow.loop.label }}</div>
+          </sc-if>
+          <sc-for list="{{ flow.nodes }}" as="n">
+            <button onClick="{{ n.onToggle }}" title="{{ n.name }}" style="position:absolute;left:{{ n.left }}px;top:{{ n.top }}px;width:44px;height:44px;box-sizing:border-box;padding:0;border:2px solid {{ n.ring }};border-style:{{ n.bs }};background:{{ n.cfill }};color:{{ n.cink }};border-radius:{{ n.cr }};box-shadow:{{ n.halo }};cursor:pointer;display:grid;place-items:center;font-family:var(--font-heading);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums" style-hover="box-shadow:0 0 0 5px color-mix(in srgb, var(--color-accent) 22%, transparent)">{{ n.num }}</button>
+            <div style="position:absolute;left:{{ n.lblLeft }}px;top:{{ n.lblTop }}px;width:150px;text-align:center;pointer-events:none;display:flex;flex-direction:column;gap:1px">
+              <span style="font-family:var(--font-heading);font-size:14px;font-weight:600;line-height:1.1">{{ n.name }}</span>
+              <sc-if value="{{ detailed }}" hint-placeholder-val="{{ true }}"><span style="font-size:10.5px;color:{{ n.tagInk }}">{{ n.statusLabel }}</span></sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ card }}">
+            <div onClick="{{ stop }}" style="position:absolute;left:{{ card.x }}px;top:{{ card.y }}px;width:310px;box-sizing:border-box;background:var(--color-bg);border:1px solid var(--color-accent);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:16px 18px;display:flex;flex-direction:column;gap:10px;z-index:3">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <span style="font-size:10.5px;letter-spacing:0.1em;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">STAGE {{ card.num }}</span>
+                <span class="tag" style="border:1px solid {{ card.tagBorder }};background:{{ card.tagBg }};color:{{ card.tagInk }}">{{ card.statusLabel }}</span>
+                <button class="btn btn-ghost" onClick="{{ closeCard }}" style="margin-left:auto;color:var(--color-text);padding:2px 6px">✕</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:var(--font-heading);font-size:18px;font-weight:600;line-height:1.1">{{ card.name }}</div>
+                <div style="font-size:11.5px;color:var(--color-neutral-700)">{{ card.agent }} · {{ card.resource }}</div>
+              </div>
+              <p style="margin:0;font-size:12.5px;line-height:1.5;text-wrap:pretty">{{ card.outcome }}</p>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:8px 0;font-variant-numeric:tabular-nums">
+                <div><div style="font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ card.timeLabel }}</div><div style="font-family:var(--font-heading);font-size:16px">{{ card.timeVal }}</div></div>
+                <div><div style="font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Yield</div><div style="font-family:var(--font-heading);font-size:16px">{{ card.yield }}</div></div>
+                <div><div style="font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Output</div><div style="font-family:var(--font-heading);font-size:16px">{{ card.throughput }}</div></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="font-size:9.5px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Latest agent decision</div>
+                <div style="font-family:var(--font-heading);font-size:14px;font-weight:600;line-height:1.2">{{ card.lastDec.action }}</div>
+                <div style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">{{ card.lastDec.reason }}</div>
+              </div>
+              <sc-if value="{{ card.hasAlerts }}"><div style="font-size:12px;line-height:1.45;padding:8px 10px;border:1px solid {{ alarm }};border-radius:var(--radius-md)"><span style="color:{{ alarm }}">▲ {{ card.alertSev }}</span> — {{ card.alertText }}</div></sc-if>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <sc-if value="{{ card.isGate }}"><button class="btn btn-primary" onClick="{{ approveGate }}">Approve</button><button class="btn btn-secondary" onClick="{{ holdGate }}">Hold</button><button class="btn btn-ghost" onClick="{{ validateCard }}">Validate</button></sc-if>
+                <button class="btn btn-ghost" onClick="{{ card.onOpen }}" style="margin-left:auto">Full details →</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isGraph }}">
+      <div style="overflow:auto;border:1px solid var(--color-divider);border-radius:var(--radius-md);background-image:radial-gradient(color-mix(in srgb, #201f1d 14%, transparent) 1px, transparent 1px);background-size:18px 18px">
+        <div style="position:relative;width:{{ graph.w }}px;height:{{ graph.h }}px">
+          <svg width="{{ graph.w }}" height="{{ graph.h }}" style="position:absolute;inset:0">
+            <sc-for list="{{ graph.edges }}" as="e"><path d="{{ e.d }}" fill="none" stroke="{{ e.stroke }}" stroke-width="1.4" stroke-dasharray="{{ e.dash }}"></path></sc-for>
+            <sc-if value="{{ graph.loop }}"><path d="{{ graph.loop.d }}" fill="none" stroke="#7d5411" stroke-width="1.2" stroke-dasharray="3 4"></path></sc-if>
+          </svg>
+          <sc-if value="{{ graph.loop }}">
+            <div style="position:absolute;left:{{ graph.loop.lx }}px;top:{{ graph.loop.ly }}px;transform:translate(-50%,-50%);font-size:11px;color:var(--color-accent-700);background:var(--color-bg);padding:2px 8px;border:1px solid var(--color-accent-300);border-radius:10px;white-space:nowrap">{{ graph.loop.label }}</div>
+          </sc-if>
+          <sc-for list="{{ graph.nodes }}" as="n">
+            <div onClick="{{ n.onClick }}" style="position:absolute;left:{{ n.x }}px;top:{{ n.y }}px;width:184px;height:100px;box-sizing:border-box;background:var(--color-bg);border:1px solid {{ n.border }};box-shadow:{{ n.shadow }};border-radius:var(--radius-lg);padding:11px 12px;cursor:pointer;display:flex;flex-direction:column;gap:4px" style-hover="box-shadow:var(--shadow-md)">
+              <div style="display:flex;gap:8px;align-items:center">
+                <span style="width:12px;height:12px;flex:none;box-sizing:border-box;border:1.5px solid {{ n.ring }};background:{{ n.fill }};border-radius:{{ n.markRadius }}"></span>
+                <span style="font-family:var(--font-heading);font-size:14px;font-weight:600;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.name }}</span>
+              </div>
+              <div style="font-size:11px;color:var(--color-neutral-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.agent }}</div>
+              <div style="font-size:11px;font-variant-numeric:tabular-nums;display:flex;justify-content:space-between;color:var(--color-neutral-800)"><span>{{ n.statusLabel }}</span><span>{{ n.yield }}</span></div>
+              <div style="margin-top:auto;height:2px;background:var(--color-neutral-200)"><div style="height:2px;width:{{ n.pct }}%;background:{{ n.bar }}"></div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isLedger }}">
+      <div style="border-top:1px solid var(--color-divider)">
+        <sc-for list="{{ nodes }}" as="n">
+          <div onClick="{{ n.onClick }}" style="display:grid;grid-template-columns:70px 22px minmax(0,1fr) 220px 150px;gap:18px;padding:18px 8px;border-bottom:1px solid var(--color-divider);cursor:pointer;align-items:start;background:{{ n.rowBg }}" style-hover="background:color-mix(in srgb, var(--color-text) 4%, transparent)">
+            <div style="font-family:var(--font-heading);font-size:27px;font-weight:500;line-height:0.9;font-variant-numeric:tabular-nums;color:{{ n.numColor }}">{{ n.num }}</div>
+            <div style="padding-top:6px"><div style="width:14px;height:14px;box-sizing:border-box;border:1.5px solid {{ n.ring }};background:{{ n.fill }};border-radius:{{ n.markRadius }}"></div></div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="font-family:var(--font-heading);font-size:18px;font-weight:600;line-height:1.1">{{ n.name }}</div>
+              <div style="font-size:12px;color:var(--color-neutral-700)">{{ n.agent }} · {{ n.resource }}</div>
+              <p style="margin:4px 0 0;font-size:13.5px;line-height:1.55;text-align:justify;hyphens:auto;max-width:620px">{{ n.outcome }}</p>
+            </div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12px;font-variant-numeric:tabular-nums;padding-top:4px">
+              <span style="color:var(--color-neutral-700)">{{ n.timeLabel }}</span><span>{{ n.timeVal }}</span>
+              <span style="color:var(--color-neutral-700)">Yield</span><span>{{ n.yield }}</span>
+              <span style="color:var(--color-neutral-700)">Throughput</span><span>{{ n.throughput }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;padding-top:4px">
+              <span class="tag" style="border:1px solid {{ n.tagBorder }};background:{{ n.tagBg }};color:{{ n.tagInk }}">{{ n.statusLabel }}</span>
+              <span style="font-size:11px;color:var(--color-neutral-700)">{{ n.decisionCount }} agent decisions</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </section>
+
+  <sc-if value="{{ showStream }}" hint-placeholder-val="{{ true }}">
+    <section style="padding:12px 36px 40px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--color-divider)">
+        <h3 style="margin:0;font-size:18px">Decision stream</h3>
+        <span style="font-size:12.5px;color:var(--color-neutral-700)">What the agents decided on this run, and why</span>
+      </div>
+      <sc-for list="{{ stream }}" as="d" hint-placeholder-count="5">
+        <div style="display:grid;grid-template-columns:56px 170px minmax(0,1fr) 90px;gap:18px;padding:12px 0;border-bottom:1px solid var(--color-divider);align-items:baseline">
+          <span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ d.time }}</span>
+          <span style="font-size:12.5px;color:var(--color-accent-700)">{{ d.agent }}</span>
+          <div><span style="font-family:var(--font-heading);font-size:14px;font-weight:600">{{ d.action }}</span> <span style="font-size:13px;color:var(--color-neutral-800)">— {{ d.reason }}</span></div>
+          <span style="font-size:12px;font-variant-numeric:tabular-nums;text-align:right;color:var(--color-neutral-700)">conf. {{ d.conf }}</span>
+        </div>
+      </sc-for>
+    </section>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{ isTemplates }}">
+  <header style="padding:28px 36px 22px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">Library · {{ templateCount }} pipelines</div>
+      <h1 style="font-size:28px;font-weight:600;margin:0">Pipeline templates</h1>
+      <p style="margin:0;font-size:14px;color:var(--color-neutral-700);max-width:620px">Stage sequences for common production modes. Each ships with default agents, gates and success criteria that you can adjust in the builder.</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <sc-for list="{{ catItems }}" as="c">
+        <button onClick="{{ c.onClick }}" style="padding:6px 12px;font-size:12.5px;border-radius:14px;cursor:pointer;background:transparent;border:1px solid {{ c.border }};color:{{ c.color }}">{{ c.label }}</button>
+      </sc-for>
+    </div>
+  </header>
+  <section style="padding:28px 36px 48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px">
+    <sc-for list="{{ tplCards }}" as="t" hint-placeholder-count="6">
+      <div class="card" style="gap:12px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="card-kicker">{{ t.cat }}</span><span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ t.stageCount }} stages · {{ t.gateCount }} gates</span></div>
+        <div style="font-family:var(--font-heading);font-size:19px;font-weight:600;line-height:1.1">{{ t.name }}</div>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:var(--color-neutral-800);text-align:justify;hyphens:auto">{{ t.desc }}</p>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;padding:12px 0;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+          <sc-for list="{{ t.chain }}" as="s">
+            <span style="font-size:11.5px;padding:2px 8px;border:1px solid var(--color-divider);border-radius:3px;white-space:nowrap">{{ s.label }}</span>
+            <sc-if value="{{ s.notLast }}"><span style="font-size:11px;color:var(--color-accent)">→</span></sc-if>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onClick="{{ t.onRun }}">Run pipeline</button>
+          <button class="btn btn-secondary" onClick="{{ t.onEdit }}">Customize</button>
+        </div>
+      </div>
+    </sc-for>
+  </section>
+</sc-if>
+
+<sc-if value="{{ isRuns }}">
+  <header style="padding:28px 36px 22px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">Last 7 days · Plant 03</div>
+      <h1 style="font-size:28px;font-weight:600;margin:0">Run history</h1>
+    </div>
+    <div style="display:flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+      <sc-for list="{{ runFilters }}" as="f"><button onClick="{{ f.onClick }}" style="border:0;padding:8px 14px;font-size:13px;cursor:pointer;background:transparent;color:{{ f.color }};box-shadow:{{ f.shadow }}">{{ f.label }}</button></sc-for>
+    </div>
+  </header>
+  <section style="padding:12px 36px 48px;overflow-x:auto">
+    <div class="table dtable" role="table" style="font-variant-numeric:tabular-nums">
+      <div class="dthead" role="rowgroup"><div class="dtr" role="row"><div class="dth" role="columnheader">Run</div><div class="dth" role="columnheader">Pipeline</div><div class="dth" role="columnheader">Started</div><div class="dth" role="columnheader">Duration</div><div class="dth" role="columnheader">Stages</div><div class="dth" role="columnheader">Yield</div><div class="dth" role="columnheader">Agent decisions</div><div class="dth" role="columnheader">Human interventions</div><div class="dth" role="columnheader">Outcome</div></div></div>
+      <div class="dtbody" role="rowgroup">
+        <sc-for list="{{ runsList }}" as="r" hint-placeholder-count="8">
+          <div class="dtr" role="row" onClick="{{ r.onClick }}" style="cursor:pointer">
+            <div class="dtd" role="cell" style="font-family:var(--font-heading);font-size:15px;font-weight:600">{{ r.id }}</div>
+            <div class="dtd" role="cell">{{ r.tplName }}</div>
+            <div class="dtd" role="cell" style="color:var(--color-neutral-700)">{{ r.started }}</div>
+            <div class="dtd" role="cell">{{ r.duration }}</div>
+            <div class="dtd" role="cell"><div style="display:flex;gap:2px"><sc-for list="{{ r.segs }}" as="g"><span style="width:12px;height:6px;border-radius:1px;background:{{ g }}"></span></sc-for></div></div>
+            <div class="dtd" role="cell">{{ r.yield }}</div>
+            <div class="dtd" role="cell">{{ r.decisions }}</div>
+            <div class="dtd" role="cell">{{ r.interventions }}</div>
+            <div class="dtd" role="cell"><span class="tag" style="border:1px solid {{ r.tagBorder }};background:{{ r.tagBg }};color:{{ r.tagInk }}">{{ r.outcome }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+</sc-if>
+
+<sc-if value="{{ isFloor }}">
+  <header style="padding:28px 36px 22px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">Live · refreshed 4 s ago</div>
+      <h1 style="font-size:28px;font-weight:600;margin:0">Floor &amp; fleet</h1>
+    </div>
+    <div style="display:flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+      <sc-for list="{{ floorTabs }}" as="f"><button onClick="{{ f.onClick }}" style="border:0;padding:8px 14px;font-size:13px;cursor:pointer;background:transparent;color:{{ f.color }};box-shadow:{{ f.shadow }}">{{ f.label }}</button></sc-for>
+    </div>
+  </header>
+  <sc-if value="{{ floorAssets }}" hint-placeholder-val="{{ true }}">
+    <sc-for list="{{ zones }}" as="z">
+      <section style="padding:24px 36px 8px">
+        <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid var(--color-divider)">
+          <h3 style="margin:0;font-size:17px">{{ z.name }}</h3><span style="font-size:12px;color:var(--color-neutral-700)">{{ z.summary }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">
+          <sc-for list="{{ z.assets }}" as="a">
+            <div class="card" style="gap:8px;border-color:{{ a.border }}">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span class="card-kicker">{{ a.type }}</span><span class="tag" style="border:1px solid {{ a.tagBorder }};background:{{ a.tagBg }};color:{{ a.tagInk }}">{{ a.status }}</span></div>
+              <div style="font-family:var(--font-heading);font-size:17px;font-weight:600;line-height:1.1">{{ a.name }}</div>
+              <div style="font-size:12.5px;color:var(--color-neutral-800)">{{ a.job }}</div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)"><span>Utilization</span><span>{{ a.util }}%</span></div>
+              <div style="height:3px;background:var(--color-neutral-200)"><div style="height:3px;width:{{ a.util }}%;background:{{ a.bar }}"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)"><span>OEE {{ a.oee }}</span><span>{{ a.agent }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+  </sc-if>
+  <sc-if value="{{ floorAgents }}">
+    <section style="padding:24px 36px 48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+      <sc-for list="{{ agents }}" as="a">
+        <div class="card" style="gap:10px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="card-kicker">{{ a.scope }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ a.level }}</span></div>
+          <div style="font-family:var(--font-heading);font-size:18px;font-weight:600;line-height:1.1">{{ a.name }}</div>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:var(--color-neutral-800)">Now: {{ a.task }}</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--color-divider);padding-top:10px;font-variant-numeric:tabular-nums">
+            <div><div style="font-family:var(--font-heading);font-size:19px">{{ a.decisions }}</div><div style="font-size:10.5px;color:var(--color-neutral-700)">decisions today</div></div>
+            <div><div style="font-family:var(--font-heading);font-size:19px">{{ a.escalations }}</div><div style="font-size:10.5px;color:var(--color-neutral-700)">escalated</div></div>
+            <div><div style="font-family:var(--font-heading);font-size:19px">{{ a.conf }}</div><div style="font-size:10.5px;color:var(--color-neutral-700)">avg. confidence</div></div>
+          </div>
+        </div>
+      </sc-for>
+    </section>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{ isInbox }}">
+  <div style="display:flex;flex-wrap:wrap;flex:1;min-height:100vh;align-content:flex-start">
+    <div style="flex:1 1 260px;max-width:380px;border-right:1px solid var(--color-divider)">
+      <div style="padding:28px 24px 18px;border-bottom:1px solid var(--color-divider)">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">{{ inboxOpen }} open · {{ inboxDone }} resolved</div>
+        <h1 style="font-size:26px;font-weight:600;margin:4px 0 0">Approvals &amp; exceptions</h1>
+      </div>
+      <sc-for list="{{ inboxList }}" as="i" hint-placeholder-count="5">
+        <div onClick="{{ i.onClick }}" style="padding:16px 24px;border-bottom:1px solid var(--color-divider);cursor:pointer;display:flex;flex-direction:column;gap:5px;background:{{ i.bg }};opacity:{{ i.opacity }}" style-hover="background:color-mix(in srgb, var(--color-text) 4%, transparent)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <span class="tag" style="border:1px solid {{ i.tagBorder }};background:{{ i.tagBg }};color:{{ i.tagInk }}">{{ i.kind }}</span>
+            <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ i.time }}</span>
+          </div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;line-height:1.15">{{ i.title }}</div>
+          <div style="font-size:12px;color:var(--color-neutral-700)">{{ i.agent }} · {{ i.stateLine }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:999 1 280px;padding:32px 32px 48px;display:flex;flex-direction:column;gap:22px;max-width:820px;min-width:0">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">{{ inb.kind }} · {{ inb.severity }} · raised by {{ inb.agent }}</div>
+        <h2 style="margin:0;font-size:22px;font-weight:600">{{ inb.title }}</h2>
+        <p style="margin:0;font-size:14.5px;line-height:1.6;text-wrap:pretty">{{ inb.summary }}</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));align-items:end;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+        <sc-for list="{{ inb.evidence }}" as="e">
+          <div style="padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ e.label }}</span>
+            <span style="font-family:var(--font-heading);font-size:19px;font-variant-numeric:tabular-nums">{{ e.value }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><h4 style="margin:0">Options the agent considered</h4><span style="font-size:12px;color:var(--color-neutral-700)">confidence in recommendation {{ inb.conf }}</span></div>
+        <sc-for list="{{ inb.options }}" as="o">
+          <div onClick="{{ o.onClick }}" style="border:1px solid {{ o.border }};box-shadow:{{ o.shadow }};border-radius:var(--radius-md);padding:14px 16px;cursor:pointer;display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;align-items:start">
+            <span style="width:16px;height:16px;box-sizing:border-box;border-radius:50%;border:1.5px solid {{ o.border }};background:{{ o.dot }};box-shadow:inset 0 0 0 3px var(--color-bg);margin-top:3px"></span>
+            <div><div style="font-family:var(--font-heading);font-size:15px;font-weight:600">{{ o.label }}</div><div style="font-size:13px;color:var(--color-neutral-800);line-height:1.5">{{ o.detail }}</div></div>
+            <sc-if value="{{ o.recommended }}"><span class="tag tag-accent">Recommended</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ inb.open }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onClick="{{ resolveInbox }}">Approve selected option</button>
+          <button class="btn btn-secondary" onClick="{{ rejectInbox }}">Reject &amp; hold</button>
+          <button class="btn btn-ghost" onClick="{{ openInboxStage }}">Open stage in pipeline</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ inb.closed }}">
+        <div style="font-size:14px;color:var(--color-accent-700);padding:12px 0;border-top:1px solid var(--color-divider)">{{ inb.resolution }}</div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isBuilder }}">
+  <header style="padding:28px 36px 22px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">Draft · based on {{ tpl.name }}</div>
+      <h1 style="font-size:28px;font-weight:600;margin:0">Pipeline builder</h1>
+    </div>
+    <div style="display:flex;gap:10px"><button class="btn btn-secondary" onClick="{{ resetBuilder }}">Reset</button><button class="btn btn-primary" onClick="{{ publish }}">{{ publishLabel }}</button></div>
+  </header>
+  <div style="display:grid;display:flex;flex-wrap:wrap;flex:1;min-height:0;align-content:flex-start">
+    <div style="flex:1 1 200px;max-width:240px;order:1;border-right:1px solid var(--color-divider);padding:22px 16px;display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:6px">Add stage</div>
+      <sc-for list="{{ palette }}" as="p">
+        <button onClick="{{ p.onClick }}" style="text-align:left;background:transparent;border:1px dashed var(--color-divider);border-radius:var(--radius-md);padding:8px 10px;cursor:pointer;display:flex;flex-direction:column;gap:1px" style-hover="border-color:var(--color-accent);background:color-mix(in srgb, var(--color-accent) 6%, transparent)">
+          <span style="font-size:13px">+ {{ p.name }}</span><span style="font-size:10.5px;color:var(--color-neutral-700)">{{ p.agent }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="padding:28px 28px;display:flex;flex-direction:column;gap:18px;min-width:0;flex:999 1 400px;order:2">
+      <div style="font-size:12.5px;color:var(--color-neutral-700)">Stages run left to right. Select a stage to configure its agent, gate and success criteria.</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 0">
+        <sc-for list="{{ bStages }}" as="s" hint-placeholder-count="6">
+          <div onClick="{{ s.onClick }}" style="width:168px;box-sizing:border-box;padding:12px;border:1px solid {{ s.border }};box-shadow:{{ s.shadow }};border-radius:var(--radius-md);cursor:pointer;display:flex;flex-direction:column;gap:5px;background:var(--color-bg)">
+            <span style="font-size:10.5px;letter-spacing:0.08em;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">STAGE {{ s.num }}</span>
+            <span style="font-family:var(--font-heading);font-size:15px;font-weight:600;line-height:1.1">{{ s.name }}</span>
+            <span style="font-size:11px;color:var(--color-neutral-700)">{{ s.resource }}</span>
+            <span class="tag" style="align-self:flex-start;border:1px solid {{ s.modeBorder }};color:{{ s.modeInk }};background:transparent">{{ s.mode }}</span>
+          </div>
+          <sc-if value="{{ s.notLast }}"><span style="width:26px;text-align:center;color:var(--color-accent)">→</span></sc-if>
+        </sc-for>
+      </div>
+    </div>
+    <div style="flex:1 1 260px;order:3;border-left:1px solid var(--color-divider);border-top:1px solid var(--color-divider);padding:22px 22px;display:flex;flex-direction:column;gap:16px">
+      <sc-if value="{{ bSel }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><h4 style="margin:0">Stage {{ bSel.num }}</h4>
+          <div style="display:flex;gap:2px">
+            <button class="btn btn-ghost" onClick="{{ bMoveL }}" title="Move earlier">←</button>
+            <button class="btn btn-ghost" onClick="{{ bMoveR }}" title="Move later">→</button>
+            <button class="btn btn-ghost" onClick="{{ bRemove }}">Remove</button>
+          </div>
+        </div>
+        <div class="field"><label>Stage name</label><input class="input" value="{{ bSel.name }}" onChange="{{ bSetName }}"></div>
+        <div class="field"><label>Assigned resource</label>
+          <select class="input" value="{{ bSel.resource }}" onChange="{{ bSetRes }}"><sc-for list="{{ resources }}" as="r"><option value="{{ r }}">{{ r }}</option></sc-for></select>
+        </div>
+        <div class="field"><label>Execution mode</label>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+            <sc-for list="{{ modeItems }}" as="m"><button onClick="{{ m.onClick }}" style="border:0;padding:8px 6px;font-size:12.5px;cursor:pointer;background:transparent;color:{{ m.color }};box-shadow:{{ m.shadow }}">{{ m.label }}</button></sc-for>
+          </div>
+          <div style="font-size:11.5px;color:var(--color-neutral-700);margin-top:6px">{{ modeHelp }}</div>
+        </div>
+        <div class="field"><label>Success criteria</label><textarea class="input" value="{{ bSel.criteria }}" onChange="{{ bSetCrit }}" style="min-height:74px"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Timeout (min)</label><input class="input" type="number" value="{{ bSel.timeout }}" onChange="{{ bSetTimeout }}"></div>
+          <div class="field"><label>Escalate to</label><select class="input" value="{{ bSel.escalate }}" onChange="{{ bSetEsc }}"><sc-for list="{{ roles }}" as="r"><option value="{{ r }}">{{ r }}</option></sc-for></select></div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ isValid }}">
+  <div style="display:flex;flex-wrap:wrap;flex:1;min-height:100vh;align-content:stretch">
+    <div style="flex:1 1 220px;max-width:290px;border-right:1px solid var(--color-divider);display:flex;flex-direction:column">
+      <div style="padding:28px 22px 16px;border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">{{ vSummary }}</div>
+        <h1 style="font-size:26px;font-weight:600;margin:0">Validation</h1>
+        <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--color-neutral-700);text-wrap:pretty">Prove a stage or process works before it runs on its own: agent pre-check, your evidence, then a signed review chain.</p>
+        <button class="btn btn-primary" onClick="{{ vNew }}" style="align-self:flex-start">New from current pipeline</button>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ vFilters }}" as="c"><button onClick="{{ c.onClick }}" style="padding:4px 10px;font-size:12px;border-radius:14px;cursor:pointer;background:transparent;border:1px solid {{ c.border }};color:{{ c.color }}">{{ c.label }}</button></sc-for>
+        </div>
+      </div>
+      <sc-for list="{{ vList }}" as="v" hint-placeholder-count="5">
+        <div onClick="{{ v.onClick }}" style="padding:14px 22px;border-bottom:1px solid var(--color-divider);cursor:pointer;display:flex;flex-direction:column;gap:5px;background:{{ v.bg }}" style-hover="background:color-mix(in srgb, var(--color-text) 4%, transparent)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="tag" style="border:1px solid {{ v.tagBorder }};background:{{ v.tagBg }};color:{{ v.tagInk }}">{{ v.statusLabel }}</span><span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ v.id }}</span></div>
+          <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ v.type }}</div>
+          <div style="font-size:14px;font-weight:600;line-height:1.25">{{ v.title }}</div>
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--color-neutral-700)"><span>{{ v.waiting }}</span><span style="font-variant-numeric:tabular-nums">{{ v.updated }}</span></div>
+          <div style="height:2px;background:var(--color-neutral-200)"><div style="height:2px;width:{{ v.pct }}%;background:{{ v.bar }}"></div></div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:999 1 280px;min-width:0;display:flex;flex-direction:column;padding-bottom:48px">
+      <div style="padding:28px 32px 20px;border-bottom:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:16px 24px;justify-content:space-between;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0;max-width:640px">
+          <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700);font-variant-numeric:tabular-nums">{{ vp.type }} · {{ vp.id }}</div>
+          <h2 style="margin:0;font-size:24px;font-weight:600;text-wrap:pretty">{{ vp.title }}</h2>
+          <div style="font-size:12.5px;color:var(--color-neutral-700)">{{ vp.tplName }} · {{ vp.stage }} · owner {{ vp.owner }}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0"><label>Acting as</label><select class="input" value="{{ actingRole }}" onChange="{{ setActing }}" style="width:auto;min-width:220px"><sc-for list="{{ actingOpts }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select></div>
+          <button class="btn btn-ghost" onClick="{{ vOpenPipe }}">Open in pipeline</button>
+        </div>
+      </div>
+      <div style="padding:18px 32px;border-bottom:1px solid var(--color-divider);overflow-x:auto">
+        <div style="display:flex;align-items:flex-start;min-width:560px">
+          <sc-for list="{{ vSteps }}" as="st" hint-placeholder-count="6">
+            <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
+              <div style="display:flex;align-items:center;width:100%">
+                <span style="width:22px;height:22px;flex:none;box-sizing:border-box;border-radius:50%;border:1.5px solid {{ st.ring }};border-style:{{ st.bs }};background:{{ st.fill }};color:{{ st.ink }};display:grid;place-items:center;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">{{ st.mark }}</span>
+                <sc-if value="{{ st.notLast }}"><span style="flex:1;height:1.5px;background:{{ st.line }};margin:0 8px"></span></sc-if>
+              </div>
+              <span style="font-size:12px;font-weight:{{ st.fw }};color:{{ st.labelInk }}">{{ st.label }}</span>
+              <span style="font-size:11px;color:var(--color-neutral-700);font-variant-numeric:tabular-nums">{{ st.sub }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ vp.banner }}"><div style="margin:20px 32px 0;padding:12px 16px;border:1px solid {{ vp.bannerBorder }};border-radius:var(--radius-md);font-size:13px;line-height:1.5">{{ vp.banner }}</div></sc-if>
+      <sc-if value="{{ vp.editable }}">
+        <div style="margin:20px 32px 0;padding:14px 18px;border:1px solid {{ vp.readyBorder }};border-radius:var(--radius-md);display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center">
+          <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 320px">
+            <div style="font-size:14px;font-weight:600">{{ vp.readyTitle }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px 18px"><sc-for list="{{ vp.ready }}" as="r"><span style="font-size:12px;display:flex;gap:6px;align-items:center;color:{{ r.ink }};font-variant-numeric:tabular-nums"><span>{{ r.mark }}</span><span>{{ r.label }}</span></span></sc-for></div>
+          </div>
+          <button class="btn btn-primary" disabled="{{ vp.cantSubmit }}" onClick="{{ vSubmit }}">{{ vp.submitLabel }}</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ vp.waitNote }}"><div style="margin:16px 32px 0;font-size:12.5px;color:var(--color-neutral-700)">{{ vp.waitNote }}</div></sc-if>
+
+      <section style="padding:26px 32px 4px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;padding-bottom:8px;border-bottom:1px solid var(--color-divider)"><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">01</span><h3 style="margin:0;font-size:17px">Scope &amp; acceptance</h3></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px 28px">
+          <div class="field"><label>Objective</label>
+            <sc-if value="{{ vp.editable }}"><textarea class="input" value="{{ vp.objective }}" onChange="{{ vSetObjective }}" style="min-height:76px"></textarea></sc-if>
+            <sc-if value="{{ vp.locked }}"><p style="margin:0;font-size:13.5px;line-height:1.55;text-wrap:pretty">{{ vp.objective }}</p></sc-if>
+          </div>
+          <div class="field"><label>Acceptance criteria</label>
+            <sc-if value="{{ vp.editable }}"><textarea class="input" value="{{ vp.acceptance }}" onChange="{{ vSetAcceptance }}" style="min-height:76px"></textarea></sc-if>
+            <sc-if value="{{ vp.locked }}"><p style="margin:0;font-size:13.5px;line-height:1.55;text-wrap:pretty">{{ vp.acceptance }}</p></sc-if>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 24px;padding-top:12px;border-top:1px solid var(--color-divider)">
+          <sc-for list="{{ vp.scopeMeta }}" as="m"><div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ m.label }}</span><span style="font-size:13px">{{ m.value }}</span></div></sc-for>
+        </div>
+      </section>
+
+      <section style="padding:26px 32px 4px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;padding-bottom:8px;border-bottom:1px solid var(--color-divider)"><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">02</span><h3 style="margin:0;font-size:17px">Validation checks</h3><span style="font-size:12px;color:var(--color-neutral-700);font-variant-numeric:tabular-nums">{{ vp.checkSummary }}</span><sc-if value="{{ vp.editable }}"><button class="btn btn-secondary" onClick="{{ vPrecheck }}" style="margin-left:auto">{{ vp.precheckLabel }}</button></sc-if></div>
+        <div style="overflow-x:auto">
+          <div class="table dtable" role="table" style="font-size:13px;font-variant-numeric:tabular-nums">
+            <div class="dthead" role="rowgroup"><div class="dtr" role="row"><div class="dth" role="columnheader">Criterion</div><div class="dth" role="columnheader">Method</div><div class="dth" role="columnheader">Target</div><div class="dth" role="columnheader">Result</div><div class="dth" role="columnheader">Source</div><div class="dth" role="columnheader" style="text-align:right">Status</div></div></div>
+            <div class="dtbody" role="rowgroup"><sc-for list="{{ vp.checks }}" as="c"><div class="dtr" role="row">
+              <div class="dtd" role="cell" style="font-weight:500">{{ c.c }}</div><div class="dtd" role="cell" style="color:var(--color-neutral-700)">{{ c.method }}</div><div class="dtd" role="cell">{{ c.target }}</div><div class="dtd" role="cell">{{ c.result }}</div>
+              <div class="dtd" role="cell"><span class="tag" style="border:1px solid {{ c.srcBorder }};background:transparent;color:{{ c.srcInk }}">{{ c.src }}</span></div>
+              <div class="dtd" role="cell" style="text-align:right;white-space:nowrap">
+                <sc-if value="{{ c.canMark }}"><div style="display:inline-flex;gap:4px"><button onClick="{{ c.onPass }}" style="padding:3px 10px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;background:transparent;border:1px solid var(--color-accent);color:var(--color-accent-800)">Pass</button><button onClick="{{ c.onFail }}" style="padding:3px 10px;font-size:12px;border-radius:var(--radius-sm);cursor:pointer;background:transparent;border:1px solid oklch(0.5 0.15 30);color:oklch(0.5 0.15 30)">Fail</button></div></sc-if>
+                <sc-if value="{{ c.showStatus }}"><span style="color:{{ c.stInk }};font-weight:500">{{ c.stLabel }}</span></sc-if>
+              </div></div></sc-for></div>
+          </div>
+        </div>
+        <sc-if value="{{ vp.precheck }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+            <sc-for list="{{ vp.metricsList }}" as="m"><div style="padding:12px 12px 12px 0;display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ m.label }}</span><span style="font-size:20px;font-weight:500;font-variant-numeric:tabular-nums">{{ m.value }}</span></div></sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;padding:12px 16px;border:1px solid var(--color-accent-300);border-radius:var(--radius-md)">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent-700)">Agent assessment · {{ vp.agent }}</span><span style="font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">confidence {{ vp.conf }}</span></div>
+            <p style="margin:0;font-size:13.5px;line-height:1.55;text-wrap:pretty">{{ vp.assessment }}</p>
+          </div>
+        </sc-if>
+      </section>
+
+      <section style="padding:26px 32px 4px;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;padding-bottom:8px;border-bottom:1px solid var(--color-divider)"><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">03</span><h3 style="margin:0;font-size:17px">Proof &amp; evidence</h3><span style="font-size:12px;color:var(--color-neutral-700);font-variant-numeric:tabular-nums">{{ vp.evSummary }}</span></div>
+        <sc-for list="{{ vp.evidence }}" as="e">
+          <div style="display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--color-divider)">
+            <span style="width:30px;height:36px;box-sizing:border-box;border:1px solid {{ e.docBorder }};border-style:{{ e.docStyle }};border-radius:2px;display:grid;place-items:center;font-size:8.5px;font-weight:600;letter-spacing:0.04em;background:{{ e.docBg }}">{{ e.ext }}</span>
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+              <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:500">{{ e.name }}</span><span style="font-size:11px;color:{{ e.reqInk }}">{{ e.reqLabel }}</span></div>
+              <span style="font-size:12px;color:var(--color-neutral-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.meta }}</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <sc-if value="{{ e.canAttach }}"><label class="btn btn-secondary" style="cursor:pointer">Attach<input type="file" onChange="{{ e.onFile }}" style="display:none"></label></sc-if>
+              <sc-if value="{{ e.canRemove }}"><button class="btn btn-ghost" onClick="{{ e.onRemove }}">Remove</button></sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ vp.editable }}"><label class="btn btn-ghost" style="cursor:pointer;align-self:flex-start;margin-top:8px">+ Add other evidence<input type="file" onChange="{{ vAddEvidence }}" style="display:none"></label></sc-if>
+      </section>
+
+      <section style="padding:26px 32px 4px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;padding-bottom:8px;border-bottom:1px solid var(--color-divider)"><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">04</span><h3 style="margin:0;font-size:17px">Sign-off</h3></div>
+        <div>
+          <sc-for list="{{ vp.signs }}" as="g">
+            <div style="display:grid;grid-template-columns:22px minmax(0,1fr);gap:14px">
+              <div style="display:flex;flex-direction:column;align-items:center">
+                <span style="width:22px;height:22px;flex:none;box-sizing:border-box;border-radius:50%;border:1.5px solid {{ g.ring }};border-style:{{ g.bs }};background:{{ g.fill }};color:{{ g.ink }};display:grid;place-items:center;font-size:11px;font-weight:600">{{ g.mark }}</span>
+                <sc-if value="{{ g.notLast }}"><span style="width:1.5px;flex:1;min-height:18px;background:{{ g.line }}"></span></sc-if>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding:2px 0 16px">
+                <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span style="font-size:14px;font-weight:600">{{ g.meaning }} · {{ g.role }}</span><span style="font-size:12px;color:{{ g.stInk }}">{{ g.stLabel }}</span></div>
+                <span style="font-size:12.5px;color:var(--color-neutral-700);font-variant-numeric:tabular-nums">{{ g.detail }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ vp.canSign }}">
+          <div style="border:1px solid var(--color-accent);border-radius:var(--radius-md);padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span style="font-size:15px;font-weight:600">Electronic signature</span><span style="font-size:12px;color:var(--color-neutral-700)">Signing as {{ actingName }} · {{ actingRole }}</span></div>
+            <div class="field"><label>Comment</label><textarea class="input" value="{{ vComment }}" onChange="{{ setVComment }}" placeholder="Required to request changes or reject" style="min-height:60px"></textarea></div>
+            <label style="display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.45;cursor:pointer"><input type="checkbox" checked="{{ vConfirm }}" onChange="{{ toggleVConfirm }}" style="margin-top:2px;accent-color:var(--color-accent)"><span>I have reviewed the checks and evidence. This signature means “{{ vp.curMeaning }}” and is recorded in the audit trail.</span></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" disabled="{{ vCantSign }}" onClick="{{ vApprove }}">Sign &amp; approve</button>
+              <button class="btn btn-secondary" disabled="{{ vCantReturn }}" onClick="{{ vChanges }}">Request changes</button>
+              <button class="btn btn-ghost" disabled="{{ vCantReturn }}" onClick="{{ vReject }}" style="color:oklch(0.5 0.15 30)">Reject</button>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+      <section style="padding:22px 32px 4px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;padding-bottom:8px;border-bottom:1px solid var(--color-divider)"><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">05</span><h3 style="margin:0;font-size:17px">Audit trail</h3></div>
+        <sc-for list="{{ vp.audit }}" as="a"><div style="display:grid;grid-template-columns:52px 130px minmax(0,1fr);gap:14px;padding:9px 0;border-bottom:1px solid var(--color-divider);font-size:12.5px"><span style="font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ a.t }}</span><span style="color:var(--color-accent-700)">{{ a.who }}</span><span>{{ a.text }}</span></div></sc-for>
+      </section>
+    </div>
+  </div>
+</sc-if>
+</main>
+
+<sc-if value="{{ sel }}">
+  <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 18%, transparent)"></div>
+  <aside style="position:fixed;top:0;right:0;bottom:0;width:min(500px,100%);overflow-y:auto;background:var(--color-bg);border-left:1px solid var(--color-divider);box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
+    <div style="padding:24px 28px 18px;border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;letter-spacing:0.1em;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">STAGE {{ sel.num }} OF {{ nodeCount }}</span>
+        <button class="btn btn-ghost" onClick="{{ closeDrawer }}" style="color:var(--color-text)">Close ✕</button>
+      </div>
+      <h2 style="margin:0;font-size:22px;font-weight:600">{{ sel.name }}</h2>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="tag" style="border:1px solid {{ sel.tagBorder }};background:{{ sel.tagBg }};color:{{ sel.tagInk }}">{{ sel.statusLabel }}</span>
+        <span style="font-size:12.5px;color:var(--color-neutral-800)">{{ sel.agent }} · {{ sel.resource }}</span>
+      </div>
+    </div>
+    <div style="padding:18px 28px;border-bottom:1px solid var(--color-divider)">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:6px">Outcome</div>
+      <p style="margin:0;font-size:14px;line-height:1.6;text-align:justify;hyphens:auto">{{ sel.outcome }}</p>
+    </div>
+    <sc-if value="{{ sel.isGate }}">
+      <div style="margin:18px 28px 0;padding:16px 18px;border:1px solid var(--color-accent);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:var(--font-heading);font-size:17px;font-weight:600">Human approval gate</span><span style="font-size:11.5px;color:var(--color-neutral-700)">{{ sel.gateRole }}</span></div>
+        <p style="margin:0;font-size:13px;line-height:1.55">{{ sel.gateText }}</p>
+        <div style="display:flex;gap:8px;margin-top:4px"><button class="btn btn-primary" onClick="{{ approveGate }}">Approve &amp; release</button><button class="btn btn-secondary" onClick="{{ holdGate }}">Hold stage</button><button class="btn btn-ghost" onClick="{{ validateSel }}">Validate with evidence →</button></div>
+      </div>
+    </sc-if>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--color-divider);padding:6px 28px">
+      <sc-for list="{{ sel.kpis }}" as="k">
+        <div style="padding:12px 0;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">{{ k.label }}</span>
+          <span style="font-family:var(--font-heading);font-size:18px;font-variant-numeric:tabular-nums">{{ k.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="padding:18px 28px;border-bottom:1px solid var(--color-divider)">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:6px">Quality metrics</div>
+      <div class="table dtable" role="table" style="font-size:13px;font-variant-numeric:tabular-nums">
+        <div class="dthead" role="rowgroup"><div class="dtr" role="row"><div class="dth" role="columnheader">Metric</div><div class="dth" role="columnheader">Target</div><div class="dth" role="columnheader">Actual</div><div class="dth" role="columnheader"></div></div></div>
+        <div class="dtbody" role="rowgroup"><sc-for list="{{ sel.metrics }}" as="m"><div class="dtr" role="row"><div class="dtd" role="cell">{{ m.label }}</div><div class="dtd" role="cell" style="color:var(--color-neutral-700)">{{ m.target }}</div><div class="dtd" role="cell">{{ m.actual }}</div><div class="dtd" role="cell" style="color:{{ m.color }};text-align:right">{{ m.mark }}</div></div></sc-for></div>
+      </div>
+    </div>
+    <div style="padding:18px 28px;border-bottom:1px solid var(--color-divider);display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:8px">Inputs</div><sc-for list="{{ sel.inputs }}" as="x"><div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--color-divider)">{{ x }}</div></sc-for></div>
+      <div><div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:8px">Outputs</div><sc-for list="{{ sel.outputs }}" as="x"><div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--color-divider)">{{ x }}</div></sc-for></div>
+    </div>
+    <sc-if value="{{ sel.hasAlerts }}">
+      <div style="padding:18px 28px;border-bottom:1px solid var(--color-divider)">
+        <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:{{ alarm }};margin-bottom:8px">Alerts &amp; exceptions</div>
+        <sc-for list="{{ sel.alerts }}" as="a"><div style="font-size:13px;line-height:1.5;padding:10px 12px;border:1px solid {{ alarm }};border-radius:var(--radius-md);color:var(--color-text)"><span style="color:{{ alarm }}">▲ {{ a.sev }}</span> — {{ a.text }}</div></sc-for>
+      </div>
+    </sc-if>
+    <div style="padding:18px 28px 32px">
+      <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:8px">Decision log</div>
+      <sc-for list="{{ sel.decisions }}" as="d">
+        <div style="display:grid;grid-template-columns:48px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--color-divider)">
+          <span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">{{ d.time }}</span>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-family:var(--font-heading);font-size:14px;font-weight:600">{{ d.action }}</span>
+            <span style="font-size:13px;line-height:1.5;color:var(--color-neutral-800)">{{ d.reason }}</span>
+            <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">{{ d.agent }} · confidence {{ d.conf }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </aside>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;flow&quot;,&quot;graph&quot;,&quot;ledger&quot;],&quot;default&quot;:&quot;flow&quot;,&quot;tsType&quot;:&quot;'flow'|'graph'|'ledger'&quot;},&quot;cardDensity&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;detailed&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;detailed&quot;,&quot;tsType&quot;:&quot;'detailed'|'compact'&quot;},&quot;showStream&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ALARM = 'oklch(0.5 0.15 30)', ALARM_BG = 'oklch(0.96 0.025 30)';
+const INK = 'var(--color-text)', ACC = 'var(--color-accent)', DIV = 'var(--color-divider)';
+const T = (id, cat, name, desc, cols, loop) => ({ id, cat, name, desc, cols: cols.map(c => c.split('|')), loop });
+const TEMPLATES = [
+  T('discrete','Discrete','Discrete assembly','Order-driven build of multi-part products: sourcing and tooling run in parallel, a vision gate before packing, and a rework loop back to sub-assembly.',['Order intake','Material sourcing|Tooling prep','Machining|Fixture build','Sub-assembly','Final assembly|Documentation pack','Quality inspection','Packaging','Dispatch'],[5,3]),
+  T('batch','Process','Batch chemical process','Recipe-controlled batches from receiving to release, with QC sampling holding the batch until lab results clear.',['Demand planning','Raw material receiving','Weighing & dispensing','Mixing','Reaction','QC sampling','Filling','Labeling','Batch release']),
+  T('cnc','Fabrication','Machining job shop','High-mix, low-volume jobs. CAM programming and stock procurement overlap; CMM inspection closes each job.',['Quote & order','CAM programming|Stock procurement','Program simulation|Stock cutting','Fixture setup','CNC milling','Deburr & finish','CMM inspection','Ship'],[6,4]),
+  T('molding','Discrete','Injection molding','Resin drying and mold setup in parallel, cycle-level monitoring on the press, visual inspection before pack-out.',['Order intake','Resin drying|Mold setup','Molding','Trim & degate','Visual inspection','Pack']),
+  T('smt','Electronics','Electronics SMT line','Board assembly from kitting through reflow, AOI and functional test to box build.',['Work order','Component kitting|Stencil prep','Solder paste print','Pick & place','Reflow','AOI inspection|X-ray sampling','Functional test','Box build'],[5,3]),
+  T('fnb','Process','Food & beverage batch','Ingredient traceability through blending, heat treatment and filling, with lab release before shipment.',['Production plan','Ingredient receiving|Packaging receiving','Blending|Packaging QC','Heat treatment','Cooling','Filling','Lab release','Palletize & ship']),
+  T('pharma','Regulated','Pharma GMP batch','Electronic batch record from issue to QA release. Every stage signs its record; in-process QC gates compression.',['Batch record issue','Dispensing|Equipment cleaning','Granulation','Drying','Compression','In-process QC|Coating prep','Coating','QA release']),
+  T('additive','Fabrication','Additive manufacturing','Powder-bed builds: powder QC and nesting in parallel, post-processing chain, CT scan before release.',['Build prep','Powder QC|Nesting','Print','Depowder','Heat treat|Build report','Support removal','CT scan inspection','Ship']),
+  T('sheet','Fabrication','Sheet metal fabrication','Nest, cut, bend, weld and coat, with a final dimensional inspection before dispatch.',['Order intake','Nesting','Laser cutting|Tube cutting','Press brake bending|Tube bending','Welding','Powder coat','Final inspection','Dispatch'],[6,4]),
+  T('finish','Process','Surface finishing','Pre-treatment, primer and paint booth passes, oven cure and film-thickness QC.',['Receive parts','Pre-treatment','Primer','Paint booth','Cure oven','Film-thickness QC','Unload & pack'],[5,3]),
+  T('kitting','Logistics','Warehouse & kitting','Demand-signal driven picking and kitting with verification before line-side delivery.',['Demand signal','Pick','Kitting|Labeling','Kit verification','Line delivery']),
+  T('maint','Maintenance','Predictive maintenance','From anomaly to return-to-service: diagnosis, parts and downtime scheduled in parallel, verified by a test run.',['Anomaly detection','Diagnosis','Spare parts reservation|Downtime scheduling','Repair','Verification run','Return to service']),
+  T('eto','Lifecycle','Engineer-to-order','Customer-specific designs: design review gates procurement and fabrication, factory acceptance test before delivery.',['Customer request','Engineering design','Design review','Procurement|Fabrication|Software config','Long-lead receiving|Machining|Controls test','Assembly','Factory acceptance test','Delivery']),
+  T('npi','Lifecycle','New product introduction','Design release to rate: pilot build, first article inspection and capability study before ramp.',['Design release','Process planning','Pilot build','First article inspection','Capability study','Ramp to rate'],[3,2]),
+  T('rework','Quality','Rework & recall','Containment and root cause on a reported defect, rework, re-inspection and customer notice.',['Defect report','Containment|Customer notice','Root-cause analysis|Stock sweep','Rework','Re-inspection','Close-out'],[4,3]),
+];
+const CATS = [
+  { k:'qa', re:/inspect|qa\b|qc|quality|test|verif|release|cmm|aoi|scan|sampling|article|capability|acceptance|review/i, agent:'Vision QA agent', res:'Vision station VS-02', out:'Inspection report IR-', role:'Quality engineer', alert:'2 of 48 samples near upper limit on bore diameter; agent tightened sampling to 100% for the next lot.',
+    dec:[['Raised sampling rate to 100%','Cpk on bore diameter fell from 1.52 to 1.36 over the last 3 lots.'],['Flagged 2 units for rework','Surface defect score 0.81 exceeded the 0.70 reject threshold.'],['Released lot to next stage','All 6 characteristics within tolerance; measurement system R&R 8%.']],
+    met:[['First-pass yield','≥ 97%',94,99.5,'%'],['Defects','≤ 500 ppm',120,640,' ppm'],['Cpk (critical dim.)','≥ 1.33',1.2,1.7,'']] },
+  { k:'plan', re:/order|intake|quote|demand|plan|request|record|signal|design|anomaly|defect|release$|detection/i, agent:'Planning agent', res:'ERP / MES link', out:'Work order WO-', role:'Production planner', alert:'Customer changed quantity after release; agent re-planned without moving the due date.',
+    dec:[['Merged 3 orders into one run','Same routing and material; saves one changeover of 42 min.'],['Moved due date risk to amber','Supplier lead time for housing extended by 2 days.'],['Reserved capacity on Line A','Line B utilization forecast at 97% this shift.']],
+    met:[['On-time release','≥ 98%',95,100,'%'],['Plan adherence','≥ 95%',91,99,'%'],['Data completeness','100%',98,100,'%']] },
+  { k:'supply', re:/sourc|material|procure|receiv|kit|pick|stock|powder|resin|ingredient|spare|dispens|weigh|nesting/i, agent:'Supply agent', res:'AGV fleet · Bay 2', out:'Material kit K-', role:'Materials lead', alert:'Lot of M6 fasteners short by 400 pcs; agent substituted approved alternate from Supplier B.',
+    dec:[['Substituted approved alternate part','Primary lot short 400 pcs; alternate is on the approved vendor list.'],['Dispatched AGV-02 for replenishment','Line-side stock would hit zero in 38 min at current takt.'],['Quarantined incoming lot','Certificate of conformance missing heat number.']],
+    met:[['Kit accuracy','≥ 99.5%',98.8,100,'%'],['Material availability','100%',96,100,'%'],['Inbound lead time','≤ 2 h',1.1,2.6,' h']] },
+  { k:'line', re:/assembl|mount|place|reflow|build|box|fit|rework|containment|repair|ramp|pilot/i, agent:'Line agent', res:'Robot cell R-3', out:'Assembly lot A-', role:'Line supervisor', alert:'Torque on station 4 drifted 6% low for 11 min; agent recalibrated the driver and re-torqued 18 units.',
+    dec:[['Rebalanced stations 3 and 4','Station 4 cycle time 71 s vs 62 s takt.'],['Recalibrated torque driver','Mean torque drifting 6% low; within correction window.'],['Paused feeder 12 for splice','Reel will empty in 90 s; splice avoids a line stop.']],
+    met:[['Cycle time','≤ 62 s',55,68,' s'],['OEE','≥ 80%',74,90,'%'],['Scrap','≤ 1.0%',0.3,1.4,'%']] },
+  { k:'mach', re:/machin|cnc|mill|turn|cut|laser|stamp|press|bend|weld|mold|print|fixture|tooling|cam|depowder|support|trim|deburr|granul|compress|fabricat/i, agent:'Scheduler agent', res:'Cells CNC-04 / 05', out:'Part lot L-', role:'Cell lead', alert:'Spindle vibration on CNC-05 trending up 18%; agent moved remaining 60 parts to CNC-07.',
+    dec:[['Split batch across CNC-04 and CNC-05','CNC-04 spindle load forecast 94% for the next 2 h; split keeps takt under 62 s.'],['Swapped tool T12 early','Tool wear model predicts breakage risk 0.3 within 40 parts.'],['Resequenced 3 jobs by due date','Two expedite orders arrived; no extra changeover.']],
+    met:[['OEE','≥ 80%',72,91,'%'],['Scrap rate','≤ 1.5%',0.4,1.9,'%'],['Cycle time','≤ 4.2 min',3.6,4.6,' min']] },
+  { k:'proc', re:/mix|blend|react|heat|cool|dry|cure|coat|paint|primer|treat|fill|oven|granul|steril/i, agent:'Process agent', res:'Vessel V-2 / Oven O-1', out:'Batch B-', role:'Process engineer', alert:'Temperature overshoot of 2.4 °C for 90 s in zone 3; agent adjusted setpoint and logged a deviation.',
+    dec:[['Adjusted setpoint −1.5 °C','Zone 3 overshoot trend; model predicts viscosity drift otherwise.'],['Extended hold by 6 min','Moisture reading 2.9% vs 2.5% target.'],['Held batch pending sample','Inline sensor disagreed with lab value by 4%.']],
+    met:[['Temperature deviation','≤ ±2 °C',0.6,2.6,' °C'],['Batch yield','≥ 96%',94,99,'%'],['Moisture','≤ 2.5%',1.8,2.9,'%']] },
+  { k:'log', re:/pack|label|palletiz|ship|dispatch|deliver|notice|return|service|unload/i, agent:'Logistics agent', res:'Pack line P-1', out:'Shipment SH-', role:'Shipping lead', alert:'Carrier pickup moved 40 min earlier; agent re-prioritized pallet wrap order.',
+    dec:[['Consolidated 2 shipments','Same carrier and destination; saves one pickup.'],['Re-prioritized pallet order','Carrier ETA moved 40 min earlier.'],['Printed revised labels','Customer PO line split after release.']],
+    met:[['Pack accuracy','≥ 99.8%',99.3,100,'%'],['On-time ship','≥ 97%',93,100,'%'],['Damage rate','≤ 0.2%',0,0.3,'%']] },
+  { k:'maint', re:/maint|diagnos|downtime/i, agent:'Maintenance agent', res:'CMMS · Tech crew 2', out:'Work order MW-', role:'Maintenance lead', alert:'Bearing temperature 8 °C above baseline on CNC-05.',
+    dec:[['Opened predictive work order','Vibration RMS up 18% over 36 h; failure probability 0.22 in 5 days.'],['Scheduled repair for shift change','Lowest production impact window, 22:00–23:30.'],['Reserved bearing kit BK-6205','In stock at central stores.']],
+    met:[['MTTR','≤ 90 min',60,110,' min'],['Planned vs unplanned','≥ 85%',80,95,'%'],['Repeat failures','0',0,1,'']] },
+];
+const CAT_ORDER = ['qa','maint','plan','line','mach','proc','supply','log'].map(k => CATS.find(c => c.k === k));
+// Explicit stage → owning agent map. Keyword matching alone mis-assigned stages
+// (e.g. "Return to service" matched "turn", "Procurement" matched "cure"); the regexes remain only as a fallback for stages renamed in the builder.
+const AGENT_OF = (() => { const m = {}; const add = (k, names) => names.split('|').forEach(n => { m[n] = k; });
+  add('plan', 'Order intake|Demand planning|Quote & order|Work order|Production plan|Batch record issue|Demand signal|Customer request|Engineering design|Design release|Process planning|Ramp to rate|Documentation pack');
+  add('supply', 'Material sourcing|Raw material receiving|Weighing & dispensing|Stock procurement|Component kitting|Ingredient receiving|Packaging receiving|Dispensing|Receive parts|Pick|Kitting|Line delivery|Procurement|Long-lead receiving|Stock sweep');
+  add('mach', 'Tooling prep|Machining|Fixture build|CAM programming|Program simulation|Stock cutting|Fixture setup|CNC milling|Deburr & finish|Mold setup|Molding|Trim & degate|Build prep|Nesting|Print|Depowder|Support removal|Laser cutting|Tube cutting|Press brake bending|Tube bending|Welding|Fabrication');
+  add('line', 'Sub-assembly|Final assembly|Stencil prep|Solder paste print|Pick & place|Box build|Assembly|Software config|Pilot build|Rework');
+  add('proc', 'Mixing|Reaction|Filling|Resin drying|Reflow|Blending|Heat treatment|Cooling|Equipment cleaning|Granulation|Drying|Compression|Coating prep|Coating|Heat treat|Powder coat|Pre-treatment|Primer|Paint booth|Cure oven');
+  add('qa', 'Quality inspection|QC sampling|Batch release|CMM inspection|Visual inspection|AOI inspection|X-ray sampling|Functional test|Packaging QC|Lab release|In-process QC|QA release|Powder QC|Build report|CT scan inspection|Final inspection|Film-thickness QC|Kit verification|Design review|Controls test|Factory acceptance test|First article inspection|Capability study|Defect report|Containment|Root-cause analysis|Re-inspection|Close-out');
+  add('log', 'Packaging|Dispatch|Labeling|Ship|Pack|Palletize & ship|Unload & pack|Delivery|Customer notice');
+  add('maint', 'Anomaly detection|Diagnosis|Spare parts reservation|Downtime scheduling|Repair|Verification run|Return to service|Maintenance check');
+  return m; })();
+const catOf = n => (AGENT_OF[n] && CATS.find(c => c.k === AGENT_OF[n])) || CAT_ORDER.find(c => c.re.test(n)) || CATS[1];
+const hsh = s => { let x = 2166136261; for (const c of s) { x ^= c.charCodeAt(0); x = Math.imul(x, 16777619); } return x >>> 0; };
+const rnd = (s, a, b) => a + (hsh(s) % 1000) / 1000 * (b - a);
+// Target strings look like '≥ 97%', '≤ 500 ppm', '≤ ±2 °C', '100%', '0'.
+const parseTarget = t => { const n = parseFloat(String(t).replace(/,/g, '').match(/-?\d+(\.\d+)?/)[0]);
+  return { op: t.indexOf('≥') >= 0 ? 'ge' : t.indexOf('≤') >= 0 ? 'le' : 'eq', val: n, abs: t.indexOf('±') >= 0 }; };
+const meetsTarget = (x, t) => { const p = parseTarget(t); if (isNaN(x)) return true;
+  return p.op === 'ge' ? x >= p.val : p.op === 'le' ? (p.abs ? Math.abs(x) : x) <= p.val : x === p.val; };
+const metricValue = (t, lo, hi, r, breach) => { const p = parseTarget(t), range = Math.max(hi - lo, 0.1), big = Math.abs(p.val) >= 10;
+  const m = Math.max(range * 0.04, Math.abs(p.val) * 0.002, 0.01), d = Math.max(range * 0.1, big ? 1.5 : 0.05);
+  if (p.op === 'eq') return breach ? (p.val === 0 ? 1 : p.val - 1) : p.val;
+  if (p.op === 'ge') { if (breach) return p.val - d; const a = Math.max(lo, p.val + m), b = Math.max(hi, a + m); return a + r * (b - a); }
+  if (breach) return p.val + d; const b = p.val - m, a = Math.min(Math.max(lo, 0), b - m); return a + r * (b - a); };
+const fmt = m =>String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(Math.round(m % 60)).padStart(2, '0');
+const NOW = 13 * 60 + 5;
+const LEVELS = [
+  ['L1 · Assist','Agents monitor and suggest. Every stage transition needs an operator.'],
+  ['L2 · Recommend','Agents plan and prepare actions; operators confirm each decision.'],
+  ['L3 · Supervised','Agents execute within guardrails and escalate at quality gates and out-of-policy events.'],
+  ['L4 · Autonomous','Agents execute end to end, including gates within policy. Humans are notified and can intervene.'],
+];
+const STATUS = {
+  done: { label:'Completed', ring:'var(--color-neutral-900)', fill:'var(--color-neutral-900)', r:'50%', tb:'var(--color-divider)', tbg:'var(--color-neutral-100)', ti:'var(--color-neutral-800)', bar:'var(--color-neutral-800)', seg:'var(--color-neutral-800)' },
+  alert: { label:'Done · deviation', ring:ALARM, fill:'transparent', r:'50%', tb:ALARM, tbg:ALARM_BG, ti:ALARM, bar:ALARM, seg:ALARM },
+  running: { label:'Running', ring:ACC, fill:'var(--color-accent-200)', r:'50%', tb:'var(--color-accent-200)', tbg:'var(--color-accent-100)', ti:'var(--color-accent-800)', bar:ACC, seg:ACC },
+  approval: { label:'Awaiting approval', ring:ACC, fill:'transparent', r:'2px', tb:ACC, tbg:'transparent', ti:'var(--color-accent-700)', bar:ACC, seg:'var(--color-accent-300)' },
+  held: { label:'Held by operator', ring:ALARM, fill:'transparent', r:'2px', tb:ALARM, tbg:'transparent', ti:ALARM, bar:ALARM, seg:ALARM },
+  queued: { label:'Queued', ring:'var(--color-neutral-400)', fill:'transparent', r:'50%', tb:'var(--color-divider)', tbg:'transparent', ti:'var(--color-neutral-700)', bar:'var(--color-neutral-300)', seg:'var(--color-neutral-300)' },
+};
+const ICONS = {
+  valid:'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1zM9 12l2 2 4-4',
+  pipes:'M3 6h5v5H3zM16 13h5v5h-5zM8 8.5h3a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1',
+  templates:'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  runs:'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2',
+  floor:'M2 20V9l6 4V9l6 4V4h8v16zM17 16h1M12 16h1M7 16h1',
+  inbox:'M22 12h-6l-2 3h-4l-2-3H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z',
+  builder:'M20 7h-9M14 17H5M17 20a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+};
+const RESOURCES = ['ERP / MES link','AGV fleet · Bay 2','Cells CNC-04 / 05','CNC-07','Robot cell R-3','Vision station VS-02','CMM-1','Vessel V-2 / Oven O-1','Pack line P-1','CMMS · Tech crew 2','Human operator'];
+const ROLES = ['Production planner','Materials lead','Cell lead','Line supervisor','Quality engineer','Process engineer','Shipping lead','Plant manager'];
+const MODES = { Auto:'Agent runs the stage and advances on success criteria.', Approve:'Agent prepares and recommends; a person signs off before advancing.', Manual:'A person executes; the agent tracks and records.' };
+const INBOX = [
+  { id:'i1', kind:'Approval', sev:'Quality gate', time:'13:02', tpl:'discrete', title:'Release lot L-2417 to final assembly', agent:'Vision QA agent',
+    summary:'Sub-assembly lot L-2417 passed 46 of 48 inspected units. Two units were routed to rework automatically. Bore-diameter Cpk dropped to 1.36, still above the 1.33 limit, so the agent recommends releasing the lot with tightened sampling on the next one.',
+    ev:[['Units inspected','48'],['Pass','46'],['Cpk bore','1.36'],['Limit','1.33']], conf:'0.91',
+    opts:[['Release with 100% sampling next lot','Keeps flow; catches drift early if it continues.',1],['Release as-is','Standard sampling; faster but less protection.'],['Hold and re-inspect lot','Adds ~35 min to the run; ETA moves to 15:55.']] },
+  { id:'i2', kind:'Exception', sev:'High', time:'12:48', tpl:'cnc', title:'Spindle vibration trending on CNC-05', agent:'Maintenance agent',
+    summary:'Vibration RMS on the CNC-05 spindle rose 18% over 36 hours and bearing temperature is 8 °C above baseline. Failure probability within five days is estimated at 0.22. Sixty parts remain in the current job.',
+    ev:[['Vibration Δ','+18%'],['Bearing temp','+8 °C'],['P(failure 5d)','0.22'],['Parts left','60']], conf:'0.87',
+    opts:[['Move remaining parts to CNC-07, repair at 22:00','CNC-07 has capacity; no due-date impact.',1],['Run to completion, then repair','Finishes 40 min sooner; accepts small failure risk.'],['Stop CNC-05 now','Lowest machine risk; job slips 3 h.']] },
+  { id:'i3', kind:'Approval', sev:'Supply', time:'12:31', tpl:'discrete', title:'Substitute supplier for M6 fasteners', agent:'Supply agent',
+    summary:'The primary lot of M6 fasteners is 400 pieces short. Supplier B holds an approved alternate at the same specification, deliverable in 55 minutes, at 3% higher unit cost.',
+    ev:[['Shortfall','400 pcs'],['Alt. lead time','55 min'],['Cost Δ','+3%'],['Line impact','none']], conf:'0.94',
+    opts:[['Use Supplier B alternate','Approved vendor; no line stop.',1],['Wait for primary replenishment','Line stops for ~2.5 h at station 6.']] },
+  { id:'i4', kind:'Exception', sev:'Medium', time:'11:57', tpl:'smt', title:'Reflow zone 4 temperature drift +6 °C', agent:'Process agent',
+    summary:'Zone 4 of the reflow oven drifted 6 °C above profile for 11 minutes. The agent corrected the setpoint; 32 boards passed through during the drift and are flagged for extra AOI review.',
+    ev:[['Drift','+6 °C'],['Duration','11 min'],['Boards affected','32'],['Corrected','yes']], conf:'0.83',
+    opts:[['Extra AOI on 32 boards, continue line','Contained; minimal delay.',1],['X-ray sample 5 boards first','Higher certainty; adds 25 min.']] },
+  { id:'i5', kind:'Approval', sev:'Capacity', time:'11:20', tpl:'sheet', title:'Add overtime on shift B to recover 140 units', agent:'Planning agent',
+    summary:'Downtime on the press brake this morning left the order 140 units behind. Two hours of overtime on shift B would recover the plan; the alternative is to split the shipment.',
+    ev:[['Units behind','140'],['Overtime','2 h'],['Cost','€ 1,280'],['Due','Fri 16:00']], conf:'0.78',
+    opts:[['Approve 2 h overtime','Full shipment on time.',1],['Split the shipment','No overtime; 140 units ship Monday.']] },
+];
+const ZONES = [
+  ['Zone A · Machining',[['CNC-04','CNC mill','Running','WO-4471 · bracket, op 20',86,'82%','Scheduler'],['CNC-05','CNC mill','Degraded','WO-4471 · parts moving to CNC-07',61,'64%','Maintenance'],['CNC-07','CNC mill','Running','WO-4471 · 60 parts incoming',72,'79%','Scheduler'],['Deburr D-1','Finishing cell','Idle','Waiting for lot L-2418',18,'—','Scheduler']]],
+  ['Zone B · Assembly',[['Robot cell R-2','6-axis robot','Running','Sub-assembly · housing',91,'85%','Line'],['Robot cell R-3','6-axis robot','Running','Final assembly · station 4',88,'83%','Line'],['Line L-1','Manual stations','Running','8 operators · takt 62 s',79,'80%','Line']]],
+  ['Zone C · Quality',[['VS-01','Vision station','Running','Surface inspection',74,'—','Vision QA'],['VS-02','Vision station','Gate','Lot L-2417 awaiting release',40,'—','Vision QA'],['CMM-1','Coordinate measuring','Running','First article · part 88-201',66,'—','Vision QA']]],
+  ['Zone D · Logistics',[['AGV-01','Autonomous vehicle','Running','Kit K-3310 → Line L-1',58,'—','Supply'],['AGV-02','Autonomous vehicle','Running','Fasteners → station 6',63,'—','Supply'],['AGV-03','Autonomous vehicle','Charging','84% battery',0,'—','Supply'],['Pack line P-1','Packing','Idle','Next: SH-5520 at 14:40',12,'—','Logistics']]],
+];
+const AGENTS = [
+  ['Planning agent','Orders & capacity','L3','Re-planning Friday shipment after press brake downtime',64,3,'0.88'],
+  ['Supply agent','Materials & AGVs','L4','Routing AGV-02 with alternate fasteners',121,1,'0.93'],
+  ['Scheduler agent','Machining cells','L3','Balancing WO-4471 across CNC-04 and CNC-07',88,2,'0.90'],
+  ['Line agent','Assembly','L3','Rebalancing stations 3 and 4',73,0,'0.91'],
+  ['Vision QA agent','Inspection & release','L3','Holding lot L-2417 at quality gate',212,4,'0.89'],
+  ['Process agent','Thermal & chemical','L3','Monitoring reflow zone 4 after correction',57,1,'0.85'],
+  ['Logistics agent','Packing & shipping','L4','Consolidating two shipments for carrier 14:40',31,0,'0.95'],
+  ['Maintenance agent','Asset health','L2','Preparing CNC-05 bearing repair for 22:00',12,2,'0.84'],
+];
+const ASTAT = { Running:'running', Degraded:'alert', Gate:'approval', Idle:'queued', Charging:'queued' };
+
+const VALARM = 'oklch(0.5 0.15 30)';
+const PEOPLE = { 'Process engineer': 'A. Rivera', 'Quality engineer': 'M. Okafor', 'Plant manager': 'S. Lindqvist' };
+const SIGN_ROLES = [['Process engineer', 'Performed by'], ['Quality engineer', 'Reviewed by'], ['Plant manager', 'Approved by']];
+const ck = (c, method, target, src, agentResult, agentSt, extra) => Object.assign({ c, method, target, src, agentResult: agentResult || '', agentSt: agentSt || 'pass', result: '—', st: 'pending' }, extra || {});
+const ev = (name, kind, file, meta, autoFile) => ({ name, req: kind === 'req', auto: kind === 'auto', file: file || null, meta: meta || '', autoFile: autoFile || null });
+const resolveChecks = cs => cs.map(x => Object.assign({}, x, x.src === 'Agent' ? { result: x.agentResult, st: x.agentSt } : { result: 'Confirmed by A. Rivera', st: 'pass' }));
+const mkSigns = ats => SIGN_ROLES.map(([role, meaning], i) => ({ role, meaning, person: PEOPLE[role], at: ats[i] || null }));
+const SEED_PKGS = [
+  { id: 'VP-121', type: 'Stage validation', title: 'Final assembly torque sequence', tpl: 'discrete', stage: '05 · Final assembly', owner: 'A. Rivera', updated: '12:59', status: 'draft', precheck: false, signIdx: 0,
+    objective: 'Confirm the revised torque sequence at station 4 holds joint quality at 62 s takt before the line agent runs it without operator sign-off.',
+    acceptance: 'Torque Cpk ≥ 1.33 over 30 consecutive units; zero leak failures; no visual defects on joints; cycle time ≤ 62 s.',
+    sample: '30 consecutive units · 2 shifts', window: 'Today 08:00–13:00', autonomyAfter: 'Station 4 moves from L3 to L4',
+    checks: [ck('Torque mean', 'DC tool log, n = 30', '12.0 ± 0.6 Nm', 'Agent', '12.08 Nm'), ck('Torque capability (Cpk)', 'SPC, n = 30', '≥ 1.33', 'Agent', '1.41'), ck('Leak rate', 'Pressure decay test', '≤ 0.5 mbar/min', 'Agent', '0.31 mbar/min'), ck('Cycle time', 'Line telemetry', '≤ 62 s', 'Agent', '59.4 s'), ck('Joint visual', 'Visual, 30 units', 'No defects', 'Manual'), ck('Work instruction followed', 'Observation, 1 shift', 'Rev C, no deviations', 'Manual')],
+    evidence: [ev('Torque log export', 'auto', 'torque_log_R-2417.csv', 'Agent-generated · 12:59'), ev('SPC chart, torque', 'auto', null, '', 'spc_torque_st4.pdf'), ev('Photo of first assembled unit', 'req'), ev('Signed work instruction, rev C', 'req'), ev('Operator training records', 'opt')],
+    signs: mkSigns([]), agent: 'Line agent', conf: '0.92',
+    assessment: 'The torque process is centred (mean 12.08 Nm) and capable (Cpk 1.41) across both shifts, with no leak failures in 30 units. Recommend approval; once released, the line agent signs off station 4 on its own.',
+    metrics: [['Sample', '30 / 30'], ['Torque Cpk', '1.41'], ['First-pass yield', '100%'], ['Deviations', '0']],
+    audit: [{ t: '12:59', who: 'Line agent', text: 'Attached torque log export (30 rows)' }, { t: '12:58', who: 'A. Rivera', text: 'Created validation from stage 05 · Final assembly' }], gateKey: null },
+  { id: 'VP-120', type: 'Pilot validation', title: 'Blending recipe B-12 pilot', tpl: 'fnb', stage: '03 · Blending', owner: 'A. Rivera', updated: '10:20', status: 'review', precheck: true, signIdx: 2,
+    objective: 'Validate recipe B-12, which cuts mixing time with a revised ingredient order, across three pilot batches.',
+    acceptance: 'Viscosity 1,800–2,200 cP; Brix 11.5–12.5; homogeneity CV ≤ 3%; allergen swab negative.',
+    sample: '3 pilot batches · 1,200 L each', window: 'Sep 24 – Sep 27', autonomyAfter: 'Recipe B-12 added to the approved list at L3',
+    checks: resolveChecks([ck('Viscosity', 'Inline viscometer', '1,800–2,200 cP', 'Agent', '1,960 cP'), ck('Brix', 'Refractometer, 9 samples', '11.5–12.5', 'Agent', '12.1'), ck('Homogeneity (CV)', '9-point sampling', '≤ 3%', 'Agent', '1.8%'), ck('Mixing time', 'Batch telemetry', '≤ 34 min', 'Agent', '31 min'), ck('Allergen swab', 'Lab ATP + ELISA', 'Negative', 'Manual')]),
+    evidence: [ev('Batch records B-12-01 to 03', 'auto', 'batch_records_B12.pdf', 'Agent-generated · Sep 27'), ev('Lab certificate', 'req', 'lab_cert_4471.pdf', 'Uploaded by A. Rivera · Sep 27'), ev('Allergen swab results', 'req', 'swab_results.pdf', 'Uploaded by A. Rivera · Sep 27'), ev('Sensory panel notes', 'opt', 'sensory_panel.docx', 'Uploaded by A. Rivera · Sep 27')],
+    signs: mkSigns(['Today 08:40', 'Today 10:20']), agent: 'Process agent', conf: '0.88',
+    assessment: 'All three batches landed inside every limit. Mixing time averaged 31 min against 36 min on the current recipe. Viscosity varied 4% between batches, within normal raw-material spread.',
+    metrics: [['Batches', '3 / 3'], ['Viscosity', '1,960 cP'], ['Mix time Δ', '−14%'], ['Deviations', '0']],
+    audit: [{ t: '10:20', who: 'M. Okafor', text: 'Signed (reviewed by): lab data matches batch records' }, { t: '08:40', who: 'A. Rivera', text: 'Signed (performed by) and submitted for review' }, { t: '08:31', who: 'Process agent', text: 'Ran pre-check: 4 of 4 automated checks passed' }], gateKey: null },
+  { id: 'VP-119', type: 'Proof of concept', title: 'Printed bracket to replace machined part 88-201', tpl: 'additive', stage: 'Whole pipeline', owner: 'A. Rivera', updated: 'Sep 26', status: 'review', precheck: true, signIdx: 1,
+    objective: 'Show that a powder-bed printed bracket meets the drawing and load requirements of machined part 88-201 at lower cost and lead time.',
+    acceptance: 'Critical dimensions within ± 0.05 mm; static load ≥ 4.2 kN with no yield; porosity ≤ 0.5%; unit cost ≤ € 38; lead time ≤ 5 days.',
+    sample: '12 parts · 2 builds', window: 'Sep 21 – Sep 26', autonomyAfter: 'New pipeline published at L2',
+    checks: resolveChecks([ck('Critical dimensions', 'CMM, 12 parts', '± 0.05 mm', 'Agent', 'max 0.031 mm'), ck('Static load', 'Tensile rig, 3 parts', '≥ 4.2 kN, no yield', 'Manual'), ck('Porosity', 'CT scan', '≤ 0.5%', 'Agent', '0.18%'), ck('Surface roughness', 'Profilometer', 'Ra ≤ 6.3 µm', 'Agent', 'Ra 5.2 µm'), ck('Unit cost', 'Cost model', '≤ € 38', 'Agent', '€ 31.40'), ck('Lead time', 'Planning model', '≤ 5 days', 'Agent', '3.5 days')]),
+    evidence: [ev('CMM report, 12 parts', 'req', 'cmm_88-201_P01-P12.pdf', 'Uploaded by A. Rivera · Sep 25'), ev('CT scan summary', 'auto', 'ct_builds_B07_B08.pdf', 'Agent-generated · Sep 25'), ev('Load test data', 'req', 'load_test_3x.xlsx', 'Uploaded by A. Rivera · Sep 25'), ev('Photos of printed parts', 'req', 'bracket_photos.zip', 'Uploaded by A. Rivera · Sep 26'), ev('Cost comparison', 'opt', 'cost_model_v2.xlsx', 'Uploaded by A. Rivera · Sep 26')],
+    signs: mkSigns(['Sep 26 16:10']), agent: 'Vision QA agent', conf: '0.89',
+    assessment: 'All six criteria met with margin. Dimensional deviation peaks at 0.031 mm on the mounting bore and porosity is well under the limit. Unit cost falls 34% against the machined part; lead time drops from 9 days to 3.5.',
+    metrics: [['Parts tested', '12'], ['Max deviation', '0.031 mm'], ['Cost Δ', '−34%'], ['Lead time', '3.5 d']],
+    audit: [{ t: 'Sep 26', who: 'A. Rivera', text: 'Signed (performed by) and submitted for review' }, { t: 'Sep 26', who: 'Vision QA agent', text: 'Ran pre-check: 5 of 5 automated checks passed' }, { t: 'Sep 21', who: 'A. Rivera', text: 'Created proof of concept from template Additive manufacturing' }], gateKey: null },
+  { id: 'VP-117', type: 'Process change', title: 'Reflow profile rev D', tpl: 'smt', stage: '05 · Reflow', owner: 'A. Rivera', updated: '11:42', status: 'changes', precheck: true, signIdx: 1,
+    returnBy: 'M. Okafor', returnText: 'Void rate is above the limit on 2 of 5 boards. Extend soak by 10 s and re-run X-ray.',
+    retestNote: 'After extending soak by 10 s, BGA void rate fell to 21% across 5 boards. Peak temperature and time above liquidus are unchanged. Recommend resubmitting.',
+    objective: 'Validate reflow profile rev D, which lowers peak temperature by 4 °C to reduce stress on the new BGA package.',
+    acceptance: 'BGA void rate ≤ 25% (X-ray); AOI first-pass ≥ 99%; no tombstoning; peak 238–245 °C.',
+    sample: '200 boards AOI · 5 boards X-ray', window: 'Today 07:30–09:00', autonomyAfter: 'Profile rev D becomes the line default',
+    checks: resolveChecks([ck('Peak temperature', 'Thermal profiler', '238–245 °C', 'Agent', '241 °C'), ck('BGA void rate', 'X-ray, 5 boards', '≤ 25%', 'Agent', '27%', 'fail', { retest: { result: '21%', st: 'pass' } }), ck('AOI first-pass', 'AOI, 200 boards', '≥ 99%', 'Agent', '99.4%'), ck('Time above liquidus', 'Thermal profiler', '60–90 s', 'Agent', '74 s'), ck('Tombstoning', 'Visual, 200 boards', 'None', 'Manual')]),
+    evidence: [ev('Profile export, rev D', 'auto', 'profile_revD.csv', 'Agent-generated · 09:02'), ev('X-ray images, 5 boards', 'req', 'xray_5boards.zip', 'Uploaded by A. Rivera · 09:10'), ev('AOI report', 'auto', 'aoi_report_200.pdf', 'Agent-generated · 09:02'), ev('Engineering change request', 'req', 'ECR-2231.pdf', 'Uploaded by A. Rivera · 09:12')],
+    signs: mkSigns(['Today 09:15']), agent: 'Process agent', conf: '0.74',
+    assessment: 'Peak temperature and time above liquidus sit mid-window. BGA void rate averaged 27%, above the 25% limit, driven by 2 of 5 boards. A longer soak is likely to reduce voiding.',
+    metrics: [['Boards', '200'], ['Void rate', '27%'], ['AOI first-pass', '99.4%'], ['Failed checks', '1']],
+    audit: [{ t: '11:42', who: 'M. Okafor', text: 'Requested changes: void rate above limit on 2 of 5 boards' }, { t: '09:15', who: 'A. Rivera', text: 'Signed (performed by) and submitted for review' }, { t: '09:02', who: 'Process agent', text: 'Ran pre-check: 3 of 4 automated checks passed' }], gateKey: null },
+  { id: 'VP-114', type: 'Operational qualification', title: 'CNC-07 onboarding', tpl: 'cnc', stage: '05 · CNC milling', owner: 'A. Rivera', updated: 'Sep 23', status: 'approved', precheck: true, signIdx: 3,
+    objective: 'Qualify CNC-07 to run machining jobs interchangeably with CNC-04 and CNC-05 under the scheduler agent.',
+    acceptance: 'Positioning accuracy ≤ 0.008 mm; spindle runout ≤ 0.003 mm; 5 test parts in tolerance; cycle time within 5% of CNC-04; all interlocks pass.',
+    sample: '5 test parts · 1 shift', window: 'Sep 22', autonomyAfter: 'CNC-07 joins the scheduler agent pool',
+    checks: resolveChecks([ck('Positioning accuracy', 'Laser interferometer', '≤ 0.008 mm', 'Agent', '0.005 mm'), ck('Spindle runout', 'Dial test', '≤ 0.003 mm', 'Manual'), ck('Test part dimensions', 'CMM, 5 parts', 'All in tolerance', 'Agent', 'All in tolerance'), ck('Cycle time vs CNC-04', 'Telemetry', '≤ +5%', 'Agent', '+2.1%'), ck('Coolant & safety interlocks', 'Functional test', 'All pass', 'Manual')]),
+    evidence: [ev('Interferometer report', 'req', 'interferometer_CNC07.pdf', 'Uploaded by A. Rivera · Sep 22'), ev('CMM report, 5 parts', 'auto', 'cmm_CNC07_test.pdf', 'Agent-generated · Sep 22'), ev('Safety checklist', 'req', 'safety_CNC07_signed.pdf', 'Uploaded by A. Rivera · Sep 22')],
+    signs: mkSigns(['Sep 22 14:00', 'Sep 23 09:30', 'Sep 23 11:05']), agent: 'Scheduler agent', conf: '0.95',
+    assessment: 'CNC-07 matches the existing cells on accuracy and runs 2.1% slower than CNC-04, inside the 5% allowance. All five test parts passed CMM.',
+    metrics: [['Test parts', '5'], ['Accuracy', '0.005 mm'], ['Cycle Δ', '+2.1%'], ['Deviations', '0']],
+    audit: [{ t: 'Sep 23', who: 'Ordo', text: 'Released. CNC-07 joins the scheduler agent pool' }, { t: 'Sep 23', who: 'S. Lindqvist', text: 'Signed (approved by)' }, { t: 'Sep 23', who: 'M. Okafor', text: 'Signed (reviewed by)' }, { t: 'Sep 22', who: 'A. Rivera', text: 'Signed (performed by) and submitted for review' }], gateKey: null },
+];
+
+class Component extends DCLogic {
+  updPkg(id, fn) { this.setState(s => ({ pkgs: s.pkgs.map(q => q.id === id ? fn(JSON.parse(JSON.stringify(q))) : q) })); }
+  tick() { this.clk = (this.clk || NOW) + 1; return 'Today ' + fmt(this.clk); }
+  logA(q, who, text) { q.audit.unshift({ t: fmt(this.clk || NOW), who, text }); }
+  newFromNode(n, t, gateKey) {
+    const id = 'VP-' + (122 + this.state.pkgs.filter(q => q.fresh).length);
+    const checks = n.metrics.map(m => ck(m.label, 'Stage telemetry, this run', m.target, 'Agent', m.actual === '—' ? 'n/a' : m.actual, m.mark.indexOf('▲') === 0 ? 'fail' : 'pass'))
+      .concat([ck('Output visually confirmed', 'Operator inspection', 'Matches spec', 'Manual'), ck('Work instruction followed', 'Observation', 'No deviations', 'Manual')]);
+    this.tick();
+    const q = { id, fresh: true, type: 'Stage validation', title: n.name + ', run R-2417', tpl: t.id, stage: n.num + ' · ' + n.name, owner: 'A. Rivera', updated: fmt(this.clk), status: 'draft', precheck: false, signIdx: 0,
+      objective: 'Confirm ' + n.name.toLowerCase() + ' on run R-2417 meets its success criteria so the ' + n.agent.toLowerCase() + ' can release it.',
+      acceptance: n.metrics.map(m => m.label + ' ' + m.target).join('; ') + '.',
+      sample: 'Current lot · ' + n.resource, window: 'Today 08:00–' + fmt(NOW), autonomyAfter: gateKey ? 'Gate released to the next stage' : 'Stage result recorded as validated',
+      checks, evidence: [ev('Stage genealogy record', 'auto', null, '', 'genealogy_' + n.id + '.json'), ev('Photo of stage output', 'req'), ev('Signed stage checklist', 'req'), ev('Supporting measurements', 'opt')],
+      signs: mkSigns([]), agent: n.agent, conf: '0.90',
+      assessment: n.name + ' met its automated criteria on this run with yield ' + n.yield + '. ' + (n.hasAlerts ? 'One deviation was corrected in-stage and is recorded in the decision log.' : 'No deviations recorded.') + ' Recommend release once manual checks and evidence are complete.',
+      metrics: [['Yield', n.yield], ['Throughput', n.throughput], ['Agent decisions', String(n.decisionCount)], ['Deviations', String(n.alerts.length)]],
+      audit: [{ t: fmt(this.clk), who: 'A. Rivera', text: 'Created validation from stage ' + n.num + ' · ' + n.name }], gateKey };
+    this.setState(s => ({ pkgs: [q].concat(s.pkgs), vSel: id, screen: 'valid', sel: null, open: null, acting: 'Process engineer', vFilter: 'All', vComment: '', vConfirm: false }));
+  }
+  valVals(t, p, nodes) {
+    const s = this.state, acting = s.acting, me = PEOPLE[acting];
+    const VS = { draft: ['Draft', 'var(--color-divider)', 'var(--color-neutral-100)', 'var(--color-neutral-800)'], review: ['In review', 'var(--color-accent-200)', 'var(--color-accent-100)', 'var(--color-accent-800)'], changes: ['Changes requested', VALARM, 'oklch(0.96 0.025 30)', VALARM], approved: ['Approved', 'var(--color-neutral-800)', 'transparent', 'var(--color-neutral-900)'], rejected: ['Rejected', VALARM, 'transparent', VALARM] };
+    const needsMe = x => ((x.status === 'draft' || x.status === 'changes') && acting === 'Process engineer') || (x.status === 'review' && x.signs[x.signIdx].role === acting);
+    const curOf = x => x.status === 'draft' ? (x.precheck ? 2 : 0) : x.status === 'approved' ? 6 : x.signIdx + 2;
+    const filt = { 'All': () => true, 'Needs me': needsMe, 'In review': x => x.status === 'review', 'Closed': x => x.status === 'approved' || x.status === 'rejected' };
+    const vFilters = Object.keys(filt).map(k => ({ label: k, border: s.vFilter === k ? ACC : DIV, color: s.vFilter === k ? 'var(--color-accent-700)' : INK, onClick: () => this.setState({ vFilter: k }) }));
+    const vList = s.pkgs.filter(filt[s.vFilter]).map(x => { const S = VS[x.status];
+      const waiting = x.status === 'draft' ? (x.precheck ? 'Draft · pre-check done' : 'Draft · pre-check pending') : x.status === 'review' ? 'Waiting on ' + x.signs[x.signIdx].role.toLowerCase() : x.status === 'changes' ? 'Returned to ' + x.owner : x.status === 'approved' ? 'Released' : 'Closed';
+      return { id: x.id, type: x.type, title: x.title, updated: x.updated, waiting, statusLabel: S[0], tagBorder: S[1], tagBg: S[2], tagInk: S[3], pct: Math.round(Math.min(6, curOf(x)) / 6 * 100), bar: x.status === 'changes' || x.status === 'rejected' ? VALARM : x.status === 'approved' ? 'var(--color-neutral-800)' : ACC, bg: s.vSel === x.id ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)' : 'transparent', onClick: () => this.setState({ vSel: x.id, vComment: '', vConfirm: false }) }; });
+    const x = s.pkgs.find(q => q.id === s.vSel) || s.pkgs[0];
+    const upd = fn => this.updPkg(x.id, q => { fn(q); q.updated = fmt(this.clk || NOW); return q; });
+    const editable = (x.status === 'draft' || x.status === 'changes') && acting === 'Process engineer';
+    const bad = x.status === 'changes' || x.status === 'rejected';
+    const cur = curOf(x);
+    const labels = [['Draft', x.owner], ['Agent pre-check', x.precheck ? 'Complete' : 'Not run'], ['Submitted', x.signs[0].at || '—'], ['QE review', x.signs[1].at || x.signs[1].person], ['Approval', x.signs[2].at || x.signs[2].person], ['Released', x.status === 'approved' ? 'Live' : '—']];
+    const vSteps = labels.map(([label, sub], i) => { const done = i < cur, now = i === cur, alarm = now && bad;
+      return { label, sub, notLast: i < labels.length - 1, mark: done ? '✓' : alarm ? '!' : String(i + 1), ring: alarm ? VALARM : done ? 'var(--color-neutral-900)' : now ? ACC : 'var(--color-neutral-400)', bs: done || now ? 'solid' : 'dashed', fill: done ? 'var(--color-neutral-900)' : now && !alarm ? 'var(--color-accent-100)' : 'transparent', ink: done ? 'var(--color-bg)' : alarm ? VALARM : now ? 'var(--color-accent-800)' : 'var(--color-neutral-600)', line: done ? 'var(--color-neutral-800)' : 'var(--color-neutral-300)', fw: now ? 600 : 400, labelInk: done || now ? INK : 'var(--color-neutral-700)' }; });
+    const pend = x.checks.filter(c => c.st === 'pending').length, fails = x.checks.filter(c => c.st === 'fail').length;
+    const reqs = x.evidence.filter(e => e.req), reqOk = reqs.filter(e => e.file).length;
+    const readyRaw = [[x.precheck, 'Agent pre-check run'], [pend === 0, 'Checks recorded ' + (x.checks.length - pend) + '/' + x.checks.length], [fails === 0, fails ? fails + ' failed check' + (fails > 1 ? 's' : '') : 'No failed checks', fails > 0], [reqOk === reqs.length, 'Required evidence ' + reqOk + '/' + reqs.length]];
+    const allOk = readyRaw.every(r => r[0]);
+    const ready = readyRaw.map(([ok, label, isFail]) => ({ label, mark: ok ? '✓' : isFail ? '▲' : '○', ink: ok ? INK : isFail ? VALARM : 'var(--color-neutral-700)' }));
+    const checks = x.checks.map((c, i) => { const canMark = editable && c.src === 'Manual' && c.st === 'pending';
+      const mark = pass => () => upd(q => { this.tick(); q.checks[i].st = pass ? 'pass' : 'fail'; q.checks[i].result = pass ? 'Confirmed by ' + me : 'Not met (' + me + ')'; this.logA(q, me, (pass ? 'Passed' : 'Failed') + ' manual check: ' + c.c); });
+      return Object.assign({}, c, { canMark, showStatus: !canMark, onPass: mark(true), onFail: mark(false),
+        stLabel: c.st === 'pass' ? '✓ Pass' : c.st === 'fail' ? '▲ Fail' : 'Pending', stInk: c.st === 'fail' ? VALARM : c.st === 'pass' ? INK : 'var(--color-neutral-600)',
+        srcBorder: c.src === 'Agent' ? 'var(--color-accent-300)' : 'var(--color-neutral-400)', srcInk: c.src === 'Agent' ? 'var(--color-accent-800)' : 'var(--color-neutral-800)' }); });
+    const kb = f => Math.max(1, Math.round(f.size / 1024)) + ' KB';
+    const evidence = x.evidence.map((e, i) => { const ext = e.file ? (e.file.split('.').pop() || 'file').slice(0, 4).toUpperCase() : '';
+      return Object.assign({}, e, { ext, docBorder: e.file ? 'var(--color-neutral-800)' : 'var(--color-neutral-400)', docBg: e.file ? 'var(--color-neutral-100)' : 'transparent', docStyle: e.file ? 'solid' : 'dashed',
+        meta: e.file ? e.file + (e.meta ? ' · ' + e.meta : '') : e.auto ? 'Generated by the agent when pre-check runs' : e.req ? 'Not attached' : 'Optional, not attached',
+        reqLabel: e.auto ? 'Agent-generated' : e.req ? 'Required' : 'Optional', reqInk: e.req && !e.file && editable ? VALARM : e.auto ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+        canAttach: editable && !e.auto && !e.file, canRemove: editable && !e.auto && !!e.file,
+        onFile: evt => { const f = evt.target.files && evt.target.files[0]; if (!f) return; upd(q => { this.tick(); q.evidence[i].file = f.name; q.evidence[i].meta = 'Uploaded by ' + me + ' · ' + fmt(this.clk) + ' · ' + kb(f); this.logA(q, me, 'Attached evidence: ' + e.name); }); },
+        onRemove: () => upd(q => { this.tick(); q.evidence[i].file = null; q.evidence[i].meta = ''; this.logA(q, me, 'Removed evidence: ' + e.name); }) }); });
+    const signs = x.signs.map((g, i) => { const signed = !!g.at && !(bad && i >= x.signIdx), now = i === x.signIdx && x.status === 'review', ret = i === x.signIdx && bad;
+      return { role: g.role, meaning: g.meaning, notLast: i < x.signs.length - 1, mark: signed ? '✓' : ret ? '!' : String(i + 1),
+        ring: ret ? VALARM : signed ? 'var(--color-neutral-900)' : now ? ACC : 'var(--color-neutral-400)', bs: signed || now || ret ? 'solid' : 'dashed', fill: signed ? 'var(--color-neutral-900)' : now ? 'var(--color-accent-100)' : 'transparent', ink: signed ? 'var(--color-bg)' : ret ? VALARM : now ? 'var(--color-accent-800)' : 'var(--color-neutral-600)',
+        line: signed ? 'var(--color-neutral-800)' : 'var(--color-neutral-300)',
+        stLabel: signed ? 'Signed' : now ? 'Awaiting signature' : ret ? (x.status === 'rejected' ? 'Rejected' : 'Returned') : i === 0 && x.status === 'draft' ? 'Signs on submit' : 'Not yet', stInk: ret ? VALARM : now ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+        detail: g.person + (signed ? ' · ' + g.at : '') }; });
+    const canSign = x.status === 'review' && x.signs[x.signIdx].role === acting;
+    const waiter = x.status === 'review' ? x.signs[x.signIdx] : null;
+    const waitNote = waiter && !canSign ? 'Waiting on ' + waiter.person + ' (' + waiter.role.toLowerCase() + '). Switch “Acting as” to ' + waiter.role + ' to sign.' : (x.status === 'draft' || x.status === 'changes') && !editable ? 'This validation is with its owner, ' + x.owner + ' (process engineer). Switch “Acting as” to edit it.' : '';
+    const banner = x.status === 'approved' ? 'Approved and released ' + (x.signs[2].at || '') + '. ' + x.autonomyAfter + '.' : x.returnText && bad ? (x.status === 'rejected' ? 'Rejected by ' : 'Changes requested by ') + x.returnBy + ': “' + x.returnText + '”' : '';
+    const submit = () => upd(q => { const at = this.tick(); q.signs[0].at = at; for (let k = 1; k < q.signs.length; k++) q.signs[k].at = null; q.signIdx = 1; q.status = 'review'; q.returnText = null; this.logA(q, q.owner, 'Signed (performed by) and ' + (x.status === 'changes' ? 'resubmitted' : 'submitted') + ' for review'); });
+    const precheck = () => upd(q => { this.tick(); const re = q.status === 'changes'; q.checks.forEach(c => { if (c.src !== 'Agent') return; if (re && c.retest) { c.agentResult = c.retest.result; c.agentSt = c.retest.st; } c.result = c.agentResult; c.st = c.agentSt; });
+      q.evidence.forEach(e => { if (e.auto && !e.file && e.autoFile) { e.file = e.autoFile; e.meta = 'Agent-generated · ' + fmt(this.clk); } });
+      if (re && q.retestNote) { q.assessment = q.retestNote; q.metrics = q.metrics.map(m => m[0] === 'Void rate' ? [m[0], '21%'] : m[0] === 'Failed checks' ? [m[0], '0'] : m); q.conf = '0.87'; }
+      q.precheck = true; const ag = q.checks.filter(c => c.src === 'Agent'); this.logA(q, q.agent, (re ? 'Re-ran' : 'Ran') + ' pre-check: ' + ag.filter(c => c.st === 'pass').length + ' of ' + ag.length + ' automated checks passed'); });
+    const approve = () => { const gk = x.gateKey, last = x.signIdx + 1 >= x.signs.length, cm = s.vComment.trim();
+      upd(q => { const at = this.tick(); q.signs[q.signIdx].at = at; this.logA(q, me, 'Signed (' + q.signs[q.signIdx].meaning.toLowerCase() + ')' + (cm ? ': ' + cm : '')); q.signIdx += 1; if (q.signIdx >= q.signs.length) { q.status = 'approved'; this.logA(q, 'Ordo', 'Released. ' + q.autonomyAfter); } });
+      this.setState(st => ({ vComment: '', vConfirm: false, gate: last && gk ? Object.assign({}, st.gate, { [gk]: true }) : st.gate })); };
+    const giveBack = kind => () => { const cm = s.vComment.trim();
+      upd(q => { this.tick(); q.status = kind; q.returnBy = me; q.returnText = cm; this.logA(q, me, (kind === 'rejected' ? 'Rejected: ' : 'Requested changes: ') + cm); });
+      this.setState({ vComment: '', vConfirm: false }); };
+    const setField = k => e => { const v = e.target.value; this.updPkg(x.id, q => { q[k] = v; return q; }); };
+    const nNeed = s.pkgs.filter(needsMe).length;
+    return { isValid: s.screen === 'valid', vFilters, vList, vSummary: nNeed + ' need you · ' + s.pkgs.length + ' total', vNeedsCount: nNeed,
+      vp: Object.assign({}, x, { tplName: this.tplById(x.tpl).name, editable, locked: !editable, checks, evidence, signs, canSign, waitNote, banner, bannerBorder: x.status === 'approved' ? ACC : VALARM,
+        scopeMeta: [['Sample plan', x.sample], ['Trial window', x.window], ['Linked stage', x.stage], ['On approval', x.autonomyAfter]].map(([label, value]) => ({ label, value })),
+        metricsList: x.metrics.map(([label, value]) => ({ label, value })), checkSummary: (x.checks.length - pend) + ' of ' + x.checks.length + ' recorded' + (fails ? ' · ' + fails + ' failed' : ''),
+        evSummary: x.evidence.filter(e => e.file).length + ' attached · ' + reqOk + ' of ' + reqs.length + ' required',
+        ready, readyTitle: allOk ? 'Ready to submit for review' : 'Complete these before submitting', readyBorder: allOk ? ACC : DIV, cantSubmit: !allOk, submitLabel: x.status === 'changes' ? 'Resubmit for review' : 'Sign & submit',
+        precheckLabel: x.precheck ? 'Re-run agent pre-check' : 'Run agent pre-check', curMeaning: waiter ? waiter.meaning : '' }),
+      vSteps, actingRole: acting, actingName: me, actingOpts: Object.keys(PEOPLE).map(r => ({ value: r, label: PEOPLE[r] + ' · ' + r })),
+      setActing: e => this.setState({ acting: e.target.value, vComment: '', vConfirm: false }),
+      vComment: s.vComment, setVComment: e => this.setState({ vComment: e.target.value }), vConfirm: s.vConfirm, toggleVConfirm: () => this.setState(st => ({ vConfirm: !st.vConfirm })),
+      vCantSign: !s.vConfirm, vCantReturn: !s.vComment.trim(),
+      vSubmit: submit, vPrecheck: precheck, vApprove: approve, vChanges: giveBack('changes'), vReject: giveBack('rejected'),
+      vSetObjective: setField('objective'), vSetAcceptance: setField('acceptance'),
+      vAddEvidence: evt => { const f = evt.target.files && evt.target.files[0]; if (!f) return; upd(q => { this.tick(); q.evidence.push(ev(f.name.replace(/\.[^.]+$/, ''), 'opt', f.name, 'Uploaded by ' + me + ' · ' + fmt(this.clk) + ' · ' + kb(f))); this.logA(q, me, 'Attached evidence: ' + f.name); }); },
+      vOpenPipe: () => this.setState({ tplId: x.tpl, screen: 'pipes', sel: null, open: null }),
+      vNew: () => { const n = nodes.find(q => q.st === 'approval') || nodes.find(q => q.st === 'running') || nodes[0]; this.newFromNode(n, t, n.st === 'approval' ? t.id + p : null); },
+    };
+  }
+  state = { pkgs: SEED_PKGS, vSel: 'VP-121', vFilter: 'All', acting: 'Process engineer', vComment: '', vConfirm: false, open:null, screen:'pipes', tplId:'discrete', view:null, sel:null, autonomy:2, prog:{}, gate:{}, held:{}, runFilter:'All', floorTab:'Assets', inboxSel:'i1', inboxChoice:{}, inboxDone:{}, catFilter:'All', bTpl:null, bStages:null, bSel:0, published:false };
+
+  tplById(id) { return TEMPLATES.find(t => t.id === id) || TEMPLATES[0]; }
+  defProg(t) { return Math.max(1, Math.floor(t.cols.length * 0.55)); }
+
+  buildNodes(t) {
+    const s = this.state, p = s.prog[t.id] ?? this.defProg(t);
+    const auto = s.autonomy === 3, released = !!s.gate[t.id + p], held = s.held[t.id + p];
+    const nodes = []; let outsPrev = ['Customer demand', 'Spec rev C'];
+    t.cols.forEach((col, c) => {
+      const outsHere = [];
+      col.forEach((name, r) => {
+        const id = t.id + '-' + c + '-' + r, cat = catOf(name);
+        let st = c < p ? (c === p - 1 && r === 0 ? 'alert' : 'done') : c === p ? (r === 0 ? (held ? 'held' : released ? 'done' : auto ? 'running' : 'approval') : 'running') : 'queued';
+        if (p >= t.cols.length) st = 'done';
+        const S = STATUS[st], start = 480 + c * 38 + r * 6;
+        const pct = st === 'running' ? Math.round(rnd(id, 35, 80)) : st === 'queued' ? 0 : 100;
+        const yld = st === 'queued' ? '—' : rnd(id + 'y', 94.5, 99.8).toFixed(1) + '%';
+        const tput = st === 'queued' ? '—' : Math.round(rnd(id + 't', 80, 460)) + ' u/h';
+        const dur = Math.round(rnd(id + 'd', 14, 52));
+        const qOff = (c - p) * 40 + dur;
+        const out = cat.out + (1000 + hsh(id) % 9000);
+        const metrics = cat.met.map(([label, target, lo, hi, u], i) => {
+          // Values sit inside the target; only the deviation stage's first metric is pushed past its limit.
+          // The mark is then derived by actually comparing the displayed value with the target.
+          const v = metricValue(target, lo, hi, rnd(id + label, 0, 1), st === 'alert' && i === 0);
+          const shown = Number.isInteger(v) ? String(v) : Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(0);
+          const pass = meetsTarget(parseFloat(shown), target);
+          return { label, target, actual: st === 'queued' ? '—' : shown + u, mark: st === 'queued' ? '' : pass ? '✓ within' : '▲ out of target', color: pass ? 'var(--color-neutral-700)' : ALARM };
+        });
+        const nd = st === 'queued' ? 1 : st === 'running' ? 2 : 3;
+        const decisions = cat.dec.slice(0, nd).map(([action, reason], i) => ({ time: st === 'queued' ? 'plan' : fmt(start + 6 + i * 11), min: start + 6 + i * 11, agent: cat.agent, action: st === 'queued' ? 'Pre-allocated: ' + action.toLowerCase() : action, reason, conf: rnd(id + i, 0.8, 0.97).toFixed(2) }));
+        if (c === p && r === 0 && released && !held) decisions.unshift({ time: fmt(NOW), min: NOW, agent: cat.agent, action: 'Gate released after sign-off', reason: 'Signed off by a person under ' + LEVELS[s.autonomy][0] + '; output passed to the next stage.', conf: '—' });
+        if (st === 'running' && r === 0 && auto) decisions.unshift({ time: fmt(NOW - 3), min: NOW - 3, agent: cat.agent, action: 'Auto-approved quality gate', reason: 'All checks within policy at L4; plant manager notified.', conf: '0.92' });
+        const alerts = st === 'alert' ? [{ sev: 'Medium', text: cat.alert }] : st === 'held' ? [{ sev: 'Hold', text: 'Stage held by operator at the approval gate. Agent has paused downstream scheduling.' }] : [];
+        const prevName = c > 0 ? t.cols[c - 1].join(' & ') : 'intake';
+        const outcome = {
+          done: c === p && r === 0 && released ? `${out} released to the next stage after sign-off by the ${cat.role.toLowerCase()}. ${Math.round(rnd(id + 'u', 120, 480))} units processed at ${yld} yield in ${dur} min.` : `${out} released to the next stage. ${Math.round(rnd(id + 'u', 120, 480))} units processed at ${yld} yield in ${dur} min; ${nd} agent decisions, no human intervention needed.`,
+          alert: `Completed with a deviation. ${cat.alert} ${out} released after the correction was verified.`,
+          running: `In progress, ${pct}% complete at ${tput}. ${cat.agent} is executing on ${cat.res}; expected to finish at ${fmt(NOW + Math.round(dur * (100 - pct) / 100))}.`,
+          approval: `Stage work is complete and ${out} is staged. The ${cat.agent.toLowerCase()} recommends release; sign-off required from the ${cat.role.toLowerCase()} under the current autonomy level.`,
+          held: `Held at the approval gate by an operator. Downstream stages are paused until the hold is cleared.`,
+          queued: `Queued. Starts after ${prevName}, around ${fmt(NOW + qOff)}. Capacity is pre-allocated on ${cat.res}.`,
+        }[st];
+        const outcomeShort = { done: `${out} released`, alert: 'Released after correction', running: `${pct}% · ${tput}`, approval: 'Ready · needs sign-off', held: 'Held by operator', queued: `Starts ~${fmt(NOW + qOff)}` }[st];
+        const timeLabel = st === 'queued' ? 'Starts' : st === 'running' ? 'ETA' : 'Duration';
+        const timeVal = st === 'queued' ? fmt(NOW + qOff) : st === 'running' ? fmt(NOW + Math.round(dur * (100 - pct) / 100)) : dur + ' min';
+        outsHere.push(out);
+        nodes.push({ id, name, c, r, st, cat, num: String(c + 1).padStart(2, '0') + (col.length > 1 ? String.fromCharCode(97 + r) : ''),
+          statusLabel: S.label, ring: S.ring, fill: S.fill, markRadius: S.r, tagBorder: S.tb, tagBg: S.tbg, tagInk: S.ti, bar: S.bar, seg: S.seg,
+          isDone: st === 'done', agent: cat.agent, resource: cat.res, pct, yield: yld, throughput: tput, timeLabel, timeVal, outcome, outcomeShort,
+          metrics, decisions, decisionCount: decisions.length, alerts, hasAlerts: alerts.length > 0, alertCount: alerts.length,
+          inputs: outsPrev.slice(0, 3), outputs: st === 'queued' ? [out + ' (planned)'] : [out, 'Genealogy record'],
+          isGate: st === 'approval', gateRole: cat.role, gateText: `${metrics.filter(m => m.mark.indexOf('✓') === 0).length} of ${metrics.length} checks within tolerance. Agent recommends release with confidence ${rnd(id + 'g', 0.86, 0.95).toFixed(2)}. At L4 this gate would pass automatically.`,
+          kpis: [{ label: timeLabel, value: timeVal }, { label: 'Yield', value: yld }, { label: 'Throughput', value: tput }, { label: 'Progress', value: pct + '%' }],
+          numColor: st === 'queued' ? 'var(--color-neutral-500)' : st === 'running' || st === 'approval' ? 'var(--color-accent-700)' : 'var(--color-text)',
+        });
+      });
+      outsPrev = outsHere;
+    });
+    return { nodes, p };
+  }
+
+  setTpl(id) { this.setState({ tplId: id, sel: null, open: null }); }
+  go(screen) { this.setState({ screen, sel: null }); }
+  initBuilder(id) {
+    const t = this.tplById(id);
+    const bStages = t.cols.flat().map((name, i) => { const c = catOf(name); return { key: 'k' + i + name, name, resource: c.res, mode: c.k === 'qa' ? 'Approve' : 'Auto', criteria: c.met.map(m => m[0] + ' ' + m[1]).join('; '), timeout: 60, escalate: c.role }; });
+    this.setState({ bTpl: id, bStages, bSel: 0, published: false });
+  }
+  updB(patch) { this.setState(s => ({ bStages: s.bStages.map((x, i) => i === s.bSel ? { ...x, ...patch } : x), published: false })); }
+
+  renderVals() {
+    const s = this.state, P = this.props;
+    const view = s.view || P.defaultView || 'flow';
+    const t = this.tplById(s.tplId);
+    const { nodes, p } = this.buildNodes(t);
+    nodes.forEach(n => {
+      const on = s.sel === n.id;
+      n.border = on ? ACC : (n.st === 'running' || n.st === 'approval') ? 'var(--color-accent-400)' : n.st === 'alert' || n.st === 'held' ? ALARM : DIV;
+      n.shadow = on ? '0 0 0 1px var(--color-accent), var(--shadow-md)' : 'none';
+      n.rowBg = on ? 'color-mix(in srgb, var(--color-accent) 7%, transparent)' : 'transparent';
+      n.onClick = () => this.setState({ sel: n.id });
+    });
+    const cols = t.cols.map((col, c) => {
+      const next = nodes.filter(n => n.c === c + 1);
+      const e = next.some(n => n.st === 'queued') ? 'var(--color-neutral-400)' : next.some(n => n.st === 'running' || n.st === 'approval') ? ACC : 'var(--color-neutral-800)';
+      return { nodes: nodes.filter(n => n.c === c), notLast: c < t.cols.length - 1, edge: e };
+    });
+    const linked = (a, b) => { if (b.c !== a.c + 1) return false; const la = t.cols[a.c].length, lb = t.cols[b.c].length; return la === lb && la > 1 ? a.r === b.r : true; };
+    const FW = 180, FR = 112, top0 = t.loop ? 84 : 36;
+    const maxRf = Math.max(...t.cols.map(c => c.length));
+    const fw = 80 + (t.cols.length - 1) * FW + 80, fh = Math.max(top0 + maxRf * FR + 40, 420);
+    const fnodes = nodes.map(n => {
+      const cx = 80 + n.c * FW, cy = top0 + ((maxRf - t.cols[n.c].length) / 2 + n.r) * FR + 30;
+      const on = s.open === n.id, st = n.st;
+      return { ...n, cx, cy, left: cx - 22, top: cy - 22, lblLeft: cx - 75, lblTop: cy + 28,
+        bs: st === 'queued' ? 'dashed' : 'solid', cr: st === 'approval' || st === 'held' ? '12px' : '50%',
+        cfill: st === 'done' ? 'var(--color-neutral-900)' : st === 'running' ? 'var(--color-accent-100)' : 'var(--color-bg)',
+        cink: st === 'done' ? 'var(--color-bg)' : st === 'queued' ? 'var(--color-neutral-600)' : st === 'alert' || st === 'held' ? ALARM : 'var(--color-accent-800)',
+        halo: on ? '0 0 0 5px color-mix(in srgb, var(--color-accent) 30%, transparent)' : st === 'running' ? '0 0 0 6px var(--color-accent-100)' : 'none',
+        onToggle: e => { e.stopPropagation(); this.setState(x => ({ open: x.open === n.id ? null : n.id })); } };
+    });
+    const fedges = [];
+    fnodes.forEach(a => fnodes.filter(b => linked(a, b)).forEach(b => {
+      const x1 = a.cx + 24, x2 = b.cx - 24, mx = (x1 + x2) / 2, q = b.st === 'queued', act = b.st === 'running' || b.st === 'approval';
+      fedges.push({ d: `M${x1} ${a.cy} C${mx} ${a.cy} ${mx} ${b.cy} ${x2} ${b.cy}`, stroke: q ? 'var(--color-neutral-400)' : act ? ACC : 'var(--color-neutral-800)', sw: act ? 2.2 : 1.6, dash: q ? '3 5' : 'none' });
+    }));
+    let floop = null;
+    if (t.loop) {
+      const fa = fnodes.find(n => n.c === t.loop[0]), fb = fnodes.find(n => n.c === t.loop[1]);
+      const ty = Math.min(...fnodes.filter(n => n.c >= t.loop[1] && n.c <= t.loop[0]).map(n => n.cy)) - 22, by = ty - 58;
+      floop = { d: `M${fa.cx} ${fa.cy - 26} C${fa.cx} ${by} ${fb.cx} ${by} ${fb.cx} ${fb.cy - 28} M${fb.cx - 5} ${fb.cy - 34} L${fb.cx} ${fb.cy - 26} L${fb.cx + 5} ${fb.cy - 34}`, lx: (fa.cx + fb.cx) / 2, ly: by + 14, label: 'Rework loop · 2 units returned' };
+    }
+    const on = fnodes.find(n => n.id === s.open);
+    const card = on ? { ...on, x: on.cx + 40 + 310 < fw ? on.cx + 40 : Math.max(8, on.cx - 40 - 310), y: Math.max(8, Math.min(on.cy - 70, fh - 400)), lastDec: on.decisions[0] || { action: '—', reason: '' }, alertSev: on.alerts[0] ? on.alerts[0].sev : '', alertText: on.alerts[0] ? on.alerts[0].text : '', onOpen: () => this.setState({ sel: on.id }) } : null;
+    const legend = ['done', 'running', 'approval', 'alert', 'queued'].map(k => ({ label: STATUS[k].label, ring: STATUS[k].ring, fill: k === 'done' ? 'var(--color-neutral-900)' : k === 'running' ? 'var(--color-accent-100)' : 'transparent', r: k === 'approval' ? '3px' : '50%', bs: k === 'queued' ? 'dashed' : 'solid' }));
+    // graph layout
+    const CW = 236, RH = 124, NW = 184, NH = 100, maxR = Math.max(...t.cols.map(c => c.length));
+    const H0 = maxR * RH + 40, gh = H0 + (t.loop ? 90 : 20), gw = 40 + t.cols.length * CW;
+    const pos = n => ({ x: 30 + n.c * CW, y: 20 + (H0 - t.cols[n.c].length * RH) / 2 + n.r * RH + (RH - NH) / 2 });
+    const gnodes = nodes.map(n => ({ ...n, ...pos(n) }));
+    const edges = [];
+    gnodes.forEach(a => gnodes.filter(b => linked(a, b)).forEach(b => {
+      const x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x, y2 = b.y + NH / 2, mx = (x1 + x2) / 2;
+      const q = b.st === 'queued';
+      edges.push({ d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, stroke: q ? 'var(--color-neutral-400)' : (b.st === 'running' || b.st === 'approval') ? ACC : 'var(--color-neutral-800)', dash: q ? '4 4' : 'none' });
+    }));
+    let loop = null;
+    if (t.loop) {
+      const f = gnodes.find(n => n.c === t.loop[0]), to = gnodes.find(n => n.c === t.loop[1]);
+      const fx = f.x + NW / 2, fy = f.y + NH, tx = to.x + NW / 2, ty = to.y + NH, by = Math.max(fy, ty) + 70;
+      loop = { d: `M${fx} ${fy} C${fx} ${by} ${tx} ${by} ${tx} ${ty + 6} M${tx - 5} ${ty + 12} L${tx} ${ty + 4} L${tx + 5} ${ty + 12}`, lx: (fx + tx) / 2, ly: by - 17, label: 'Rework loop · 2 units returned' };
+    }
+    const sel = nodes.find(n => n.id === s.sel) || null;
+    // stats
+    const doneN = nodes.filter(n => ['done', 'alert'].includes(n.st));
+    const yProd = doneN.reduce((a, n) => a * parseFloat(n.yield) / 100, 1);
+    const run = nodes.find(n => n.st === 'running') || [...doneN].pop();
+    const decCount = nodes.reduce((a, n) => a + (n.st === 'queued' ? 0 : n.decisionCount), 0) + 26;
+    const gates = nodes.filter(n => n.st === 'approval').length;
+    const runDone = nodes.every(n => n.st === 'done' || n.st === 'alert'), DUE = 17 * 60, etaMin = NOW + Math.max(1, t.cols.length - p) * 40 + 30;
+    const stats = [
+      { label: 'Progress', value: `${doneN.length}/${nodes.length}`, sub: 'stages complete', color: INK },
+      { label: 'Rolled yield', value: (yProd * 100).toFixed(1) + '%', sub: 'across completed stages', color: INK },
+      { label: 'Throughput', value: run ? run.throughput.replace(' u/h', '') : '—', sub: run && run.st === 'running' ? 'units / hour, live' : 'units / hour, last stage', color: INK },
+      { label: 'Run ETA', value: runDone ? 'Done' : fmt(etaMin), sub: runDone ? 'all stages complete' : etaMin <= DUE ? 'due 17:00 · on track' : 'due 17:00 · at risk', color: !runDone && etaMin > DUE ? ALARM : INK },
+      { label: 'Agent decisions', value: String(decCount), sub: '2 escalated to people', color: 'var(--color-accent-700)' },
+      { label: 'Gates pending', value: String(gates), sub: gates ? 'needs sign-off' : 'none waiting', color: gates ? 'var(--color-accent-700)' : INK },
+    ];
+    const stream = nodes.filter(n => n.st !== 'queued').flatMap(n => n.decisions).sort((a, b) => b.min - a.min).slice(0, 6);
+    const inboxOpenCount = INBOX.filter(i => !s.inboxDone[i.id]).length;
+    const vv = this.valVals(t, p, nodes);
+    const navItems = [['pipes', 'Pipelines'], ['valid', 'Validation'], ['templates', 'Templates'], ['runs', 'Run history'], ['floor', 'Floor & fleet'], ['inbox', 'Approvals'], ['builder', 'Builder']].map(([k, label]) => ({
+      label, icon: ICONS[k], count: k === 'inbox' ? inboxOpenCount : k === 'valid' ? vv.vNeedsCount : 0,
+      bg: s.screen === k ? 'var(--color-accent-100)' : 'transparent', color: s.screen === k ? 'var(--color-accent-800)' : INK,
+      onClick: () => { if (k === 'builder' && !s.bStages) this.initBuilder(s.tplId); this.go(k); },
+    }));
+    const segOn = on => ({ color: on ? 'var(--color-accent-700)' : INK, shadow: on ? 'inset 0 0 0 1px var(--color-accent)' : 'none' });
+    const viewItems = [['flow', 'Flow'], ['graph', 'Graph'], ['ledger', 'Ledger']].map(([k, label]) => ({ label, ...segOn(view === k), onClick: () => this.setState({ view: k }) }));
+    const autonomyItems = LEVELS.map((l, i) => ({ name: l[0], bg: i <= s.autonomy ? ACC : 'transparent', onClick: () => this.setState({ autonomy: i }) }));
+    // templates
+    const catsAll = ['All', ...new Set(TEMPLATES.map(x => x.cat))];
+    const catItems = catsAll.map(c => ({ label: c, border: s.catFilter === c ? ACC : DIV, color: s.catFilter === c ? 'var(--color-accent-700)' : INK, onClick: () => this.setState({ catFilter: c }) }));
+    const tplCards = TEMPLATES.filter(x => s.catFilter === 'All' || x.cat === s.catFilter).map(x => ({
+      ...x, stageCount: x.cols.flat().length, gateCount: x.cols.flat().filter(n => catOf(n).k === 'qa').length,
+      chain: x.cols.map((c, i) => ({ label: c.join(' + '), notLast: i < x.cols.length - 1 })),
+      onRun: () => this.setState({ tplId: x.id, screen: 'pipes', sel: null }),
+      onEdit: () => { this.initBuilder(x.id); this.setState({ tplId: x.id, screen: 'builder' }); },
+    }));
+    // runs
+    const OUT = { Completed: 'done', Running: 'running', Failed: 'alert', Aborted: 'queued' };
+    // Runs are laid out back-to-back on one timeline ending at the live run (today 08:00), so no run starts in the future.
+    // R-2417 is the live run: its name, stage strip, yield and decisions come from the pipeline above.
+    const DAYS = ['Today', 'Yesterday', 'Tue', 'Mon', 'Sun', 'Sat', 'Fri', 'Thu'];
+    const dur = m => Math.floor(m / 60) + ' h ' + String(Math.round(m % 60)).padStart(2, '0') + ' m';
+    const colState = c => { const ns = nodes.filter(n => n.c === c), has = k => ns.some(n => n.st === k);
+      return has('held') ? 'held' : has('approval') ? 'approval' : has('running') ? 'running' : has('queued') ? 'queued' : has('alert') ? 'alert' : 'done'; };
+    let cursor = 480;
+    const runsAll = Array.from({ length: 16 }, (_, i) => {
+      const id = 'R-' + (2417 - i);
+      if (i === 0) {
+        const outcome = runDone ? 'Completed' : 'Running', S = STATUS[OUT[outcome]];
+        const gatesSigned = Object.keys(s.gate).filter(k => k.indexOf(t.id) === 0 && s.gate[k]).length;
+        return { id, tplName: t.name, started: 'Today 08:00', duration: dur(NOW - 480), segs: t.cols.map((_, c) => STATUS[colState(c)].seg),
+          yield: (yProd * 100).toFixed(1) + '%', decisions: decCount, interventions: gatesSigned + Object.keys(s.held).filter(k => k.indexOf(t.id) === 0 && s.held[k]).length, outcome,
+          tagBorder: S.tb, tagBg: S.tbg, tagInk: S.ti, onClick: () => this.setState({ screen: 'pipes', sel: null }) };
+      }
+      const tt = TEMPLATES[(i * 7 + 3) % TEMPLATES.length];
+      const outcome = i === 4 || i === 11 ? 'Failed' : i === 8 ? 'Aborted' : 'Completed';
+      const n = tt.cols.length, fail = Math.floor(rnd(id, 2, n - 1));
+      const segs = tt.cols.map((_, c) => STATUS[outcome === 'Completed' ? (c === fail && i % 3 === 0 ? 'alert' : 'done') : (c < fail ? 'done' : c === fail ? 'alert' : 'queued')].seg);
+      const minutes = Math.round(rnd(id + 'h', 180, 540)) * (outcome === 'Completed' ? 1 : 0.6), end = cursor - Math.round(rnd(id + 'g', 20, 150)), start = end - minutes;
+      cursor = start;
+      const day = Math.floor(start / 1440), S = STATUS[OUT[outcome]];
+      return { id, tplName: tt.name, started: DAYS[Math.min(DAYS.length - 1, -day)] + ' ' + fmt(start - day * 1440), duration: dur(minutes), segs,
+        yield: outcome === 'Aborted' ? '—' : rnd(id + 'y', 91, 99).toFixed(1) + '%', decisions: Math.round(rnd(id + 'd', 30, 140)), interventions: outcome === 'Failed' ? Math.round(rnd(id, 3, 7)) : Math.round(rnd(id + 'i', 0, 3)), outcome,
+        tagBorder: S.tb, tagBg: S.tbg, tagInk: S.ti, onClick: () => this.setState({ tplId: tt.id, screen: 'pipes', sel: null }) };
+    });
+    const runFilters = ['All', 'Completed', 'Running', 'Failed'].map(f => ({ label: f, ...segOn(s.runFilter === f), onClick: () => this.setState({ runFilter: f }) }));
+    const runsList = runsAll.filter(r => s.runFilter === 'All' || r.outcome === s.runFilter);
+    // floor
+    const zones = ZONES.map(([name, list]) => ({ name, summary: `${list.filter(a => a[2] === 'Running').length} of ${list.length} running`, assets: list.map(([nm, type, status, job, util, oee, ag]) => { const S = STATUS[ASTAT[status]]; return { name: nm, type, status, job, util, oee, agent: ag + ' agent', tagBorder: S.tb, tagBg: S.tbg, tagInk: S.ti, bar: S.bar, border: status === 'Degraded' ? ALARM : status === 'Gate' ? ACC : DIV }; }) }));
+    const agents = AGENTS.map(([name, scope, level, task, decisions, escalations, conf]) => ({ name, scope, level: 'Autonomy ' + level, task, decisions, escalations, conf }));
+    const floorTabs = ['Assets', 'Agents'].map(f => ({ label: f, ...segOn(s.floorTab === f), onClick: () => this.setState({ floorTab: f }) }));
+    // inbox
+    const inboxList = INBOX.map(i => { const done = s.inboxDone[i.id]; const S = STATUS[done ? 'done' : i.kind === 'Exception' ? 'alert' : 'approval'];
+      return { ...i, bg: s.inboxSel === i.id ? 'color-mix(in srgb, var(--color-accent) 8%, transparent)' : 'transparent', opacity: done ? 0.6 : 1, stateLine: done ? done.label : i.sev, tagBorder: S.tb, tagBg: S.tbg, tagInk: S.ti, kind: done ? 'Resolved' : i.kind, onClick: () => this.setState({ inboxSel: i.id }) }; });
+    const ib = INBOX.find(i => i.id === s.inboxSel), choice = s.inboxChoice[ib.id] ?? ib.opts.findIndex(o => o[2]), ibDone = s.inboxDone[ib.id];
+    const inb = { ...ib, severity: ib.sev, evidence: ib.ev.map(([label, value]) => ({ label, value })), open: !ibDone, closed: !!ibDone, resolution: ibDone ? ibDone.text : '',
+      options: ib.opts.map(([label, detail, rec], k) => ({ label, detail, recommended: !!rec, border: k === choice ? ACC : DIV, shadow: k === choice ? 'inset 0 0 0 1px var(--color-accent)' : 'none', dot: k === choice ? ACC : 'transparent', onClick: () => !ibDone && this.setState(st => ({ inboxChoice: { ...st.inboxChoice, [ib.id]: k } })) })) };
+    // builder
+    const bs = s.bStages || [];
+    const bStages = bs.map((x, i) => ({ ...x, num: String(i + 1).padStart(2, '0'), notLast: i < bs.length - 1, border: i === s.bSel ? ACC : DIV, shadow: i === s.bSel ? '0 0 0 1px var(--color-accent)' : 'none',
+      modeBorder: x.mode === 'Auto' ? 'var(--color-accent-300)' : x.mode === 'Approve' ? ACC : 'var(--color-neutral-500)', modeInk: x.mode === 'Manual' ? 'var(--color-neutral-800)' : 'var(--color-accent-800)', onClick: () => this.setState({ bSel: i }) }));
+    const bSelO = bStages[s.bSel] || null;
+    const palette = ['Order intake', 'Material sourcing', 'Machining', 'Assembly', 'Heat treatment', 'Quality inspection', 'Functional test', 'Packaging', 'Dispatch', 'Maintenance check'].map(name => ({ name, agent: catOf(name).agent,
+      onClick: () => { const c = catOf(name); this.setState(st => { const arr = [...(st.bStages || [])]; const at = Math.min(arr.length, st.bSel + 1); arr.splice(at, 0, { key: 'n' + Date.now(), name, resource: c.res, mode: c.k === 'qa' ? 'Approve' : 'Auto', criteria: c.met.map(m => m[0] + ' ' + m[1]).join('; '), timeout: 60, escalate: c.role }); return { bStages: arr, bSel: at, published: false }; }); } }));
+    const move = d => this.setState(st => { const arr = [...st.bStages], j = st.bSel + d; if (j < 0 || j >= arr.length) return null; [arr[st.bSel], arr[j]] = [arr[j], arr[st.bSel]]; return { bStages: arr, bSel: j, published: false }; });
+    const modeItems = Object.keys(MODES).map(m => ({ label: m, ...segOn(bSelO && bSelO.mode === m), onClick: () => this.updB({ mode: m }) }));
+
+    return {
+      ...vv, validateSel: () => sel && this.newFromNode(sel, t, sel.isGate ? t.id + p : null), validateCard: () => card && this.newFromNode(card, t, card.isGate ? t.id + p : null),
+      alarm: ALARM, navItems, templates: TEMPLATES, tplId: s.tplId, tpl: t, runId: 'R-2417',
+      onTplSelect: e => this.setTpl(e.target.value),
+      isPipes: s.screen === 'pipes', isTemplates: s.screen === 'templates', isRuns: s.screen === 'runs', isFloor: s.screen === 'floor', isInbox: s.screen === 'inbox', isBuilder: s.screen === 'builder',
+      isFlow: view === 'flow', isGraph: view === 'graph', isLedger: view === 'ledger', viewItems,
+      detailed: (P.cardDensity ?? 'detailed') === 'detailed', showStream: P.showStream ?? true,
+      autonomyItems, autonomyName: LEVELS[s.autonomy][0], autonomyDesc: LEVELS[s.autonomy][1], stats, cols, nodes, nodeCount: nodes.length, stream,
+      graph: { w: gw, h: gh, nodes: gnodes, edges, loop }, flow: { w: fw, h: Math.max(fh, card ? card.y + 470 : 0), nodes: fnodes, edges: fedges, loop: floop }, card, legend,
+      closeCard: () => this.setState({ open: null }), stop: e => e.stopPropagation(),
+      sel, closeDrawer: () => this.setState({ sel: null }),
+      approveGate: () => this.setState(st => ({ gate: { ...st.gate, [t.id + p]: true }, held: { ...st.held, [t.id + p]: false } })),
+      holdGate: () => this.setState(st => ({ held: { ...st.held, [t.id + p]: true } })),
+      // A pending or held gate stops the run: Step run opens the gate instead of skipping past it.
+      stepRun: () => { const g = nodes.find(n => n.c === p && (n.st === 'approval' || n.st === 'held')); if (g) { this.setState({ sel: g.id }); return; } this.setState(st => ({ prog: { ...st.prog, [t.id]: Math.min(t.cols.length, p + 1) }, sel: null })); },
+      openBuilder: () => { if (s.bTpl !== s.tplId || !s.bStages) this.initBuilder(s.tplId); this.go('builder'); },
+      templateCount: TEMPLATES.length, catItems, tplCards,
+      runFilters, runsList, floorTabs, floorAssets: s.floorTab === 'Assets', floorAgents: s.floorTab === 'Agents', zones, agents,
+      inboxList, inb, inboxOpen: inboxOpenCount, inboxDone: INBOX.length - inboxOpenCount,
+      resolveInbox: () => this.setState(st => ({ inboxDone: { ...st.inboxDone, [ib.id]: { label: 'Approved', text: `Approved: “${ib.opts[choice][0]}”. ${ib.agent} is executing; the decision is recorded in the ${this.tplById(ib.tpl).name.toLowerCase()} run log.` } } })),
+      rejectInbox: () => this.setState(st => ({ inboxDone: { ...st.inboxDone, [ib.id]: { label: 'Rejected · held', text: `Rejected and held. ${ib.agent} paused the affected stage and notified the owner.` } } })),
+      openInboxStage: () => this.setState({ tplId: ib.tpl, screen: 'pipes', sel: null }),
+      bStages, bSel: bSelO, palette, resources: RESOURCES, roles: ROLES, modeItems, modeHelp: bSelO ? MODES[bSelO.mode] : '',
+      bMoveL: () => move(-1), bMoveR: () => move(1),
+      bRemove: () => this.setState(st => ({ bStages: st.bStages.filter((_, i) => i !== st.bSel), bSel: Math.max(0, st.bSel - 1), published: false })),
+      bSetName: e => this.updB({ name: e.target.value }), bSetRes: e => this.updB({ resource: e.target.value }), bSetCrit: e => this.updB({ criteria: e.target.value }),
+      bSetTimeout: e => this.updB({ timeout: e.target.value }), bSetEsc: e => this.updB({ escalate: e.target.value }),
+      resetBuilder: () => this.initBuilder(s.tplId), publish: () => this.setState({ published: true }), publishLabel: s.published ? 'Published ✓' : 'Publish pipeline',
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Ordo autonomy policy. Versioned: any change bumps `version`.
+# The guard evaluates every action an agent proposes against this file. Its hash is recorded
+# with every decision (and, when configured, checked against OrdoPolicyRegistry on-chain).
+id: default
+version: 3
+confidenceThreshold: 0.7
+defaultRole: manager
+tools:
+  hold_stage:            # stop a stage at its gate
+    autoFrom: L3
+  reassign_stage:        # move a stage to another asset of the same kind
+    autoFrom: L3
+  open_work_order:       # starts a Predictive maintenance run for the asset
+    autoFrom: L4
+    role: manager
+  request_inspection:    # raise inspection sampling on an asset
+    autoFrom: L3
+    role: manager
+  notify_operator:       # an instruction a person carries out on the machine
+    autoFrom: L2

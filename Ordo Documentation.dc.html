@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/styles.css">
+<script src="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/_ds_bundle.js"></script>
+<script src="./doc-page.js"></script>
+<style>:root{--font-heading:"IBM Plex Sans",system-ui,sans-serif;--font-body:"IBM Plex Sans",system-ui,sans-serif}doc-page:not(:defined){visibility:hidden}body{margin:0}a{color:#7d5411}a:hover{color:#5a3b0a}</style>
+</helmet>
+<doc-page margin="0.75in" style="font-family:var(--font-body);color:var(--color-text);font-size:14.5px;line-height:1.6">
+  <div slot="footer" style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-neutral-700);padding-top:8px;border-top:1px solid var(--color-divider)"><span>Ordo · Product &amp; architecture documentation</span><span>v1.0 · October 2026</span></div>
+
+  <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:6px">Ordo · v1.0 · October 2026</div>
+  <h1 style="font-size:34px;font-weight:600;line-height:1.15;margin:0 0 12px;letter-spacing:-0.01em">Ordo: autonomous manufacturing orchestration</h1>
+  <p style="font-size:16px;line-height:1.6;color:var(--color-neutral-800);margin:0 0 22px">Product, architecture and validation documentation. Covers the concepts, the seven screens of the console, the system architecture, the data model, the validation and sign-off workflow, integrations, security and deployment.</p>
+
+  <table class="table" style="font-size:13px;margin-bottom:28px">
+    <thead><tr><th style="width:38px">§</th><th>Section</th><th>Covers</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Overview</td><td>What Ordo does and for whom</td></tr>
+      <tr><td>2</td><td>Core concepts</td><td>Pipelines, stages, node states, agents, autonomy levels, gates, validation</td></tr>
+      <tr><td>3</td><td>Screens</td><td>UI mockups and behavior of each screen</td></tr>
+      <tr><td>4</td><td>System architecture</td><td>Layers, services, key flows</td></tr>
+      <tr><td>5</td><td>Data model</td><td>Entities and relationships</td></tr>
+      <tr><td>6</td><td>Validation &amp; sign-off workflow</td><td>States, rules, e-signatures, audit</td></tr>
+      <tr><td>7</td><td>Agent decision model</td><td>How an agent action is proposed, checked and recorded</td></tr>
+      <tr><td>8</td><td>Integrations &amp; API</td><td>Enterprise systems, shop-floor protocols, endpoints and events</td></tr>
+      <tr><td>9</td><td>Security &amp; compliance</td><td>Roles, identity, records, retention</td></tr>
+      <tr><td>10</td><td>Deployment</td><td>Cloud, edge, availability</td></tr>
+      <tr><td>A</td><td>Pipeline template library</td><td>The 15 shipped templates</td></tr>
+      <tr><td>B</td><td>Glossary</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">1 · Overview</h2>
+  <p>Ordo coordinates production work across machines, robots, vehicles and people. A production process is modelled as a <strong>pipeline</strong>: a directed graph of <strong>stages</strong> that can branch into parallel work and merge back. Software <strong>agents</strong> run each stage against live plant data: they plan, assign resources, adjust parameters and decide when a stage is complete. Every decision is logged with its reason and a confidence score.</p>
+  <p>People stay in control through three mechanisms. The <strong>autonomy level</strong> sets how much agents may do without asking. <strong>Approval gates</strong> stop a pipeline at points where a person must sign off. <strong>Validation packages</strong> require a process engineer to prove that a stage, process change or new pipeline works, with measured checks and attached evidence, before quality and management sign it into use.</p>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>Role</th><th>Primary use of Ordo</th></tr></thead>
+    <tbody>
+      <tr><td>Operator</td><td>Executes manual stages, records manual checks, raises holds</td></tr>
+      <tr><td>Process engineer</td><td>Builds pipelines, prepares validation packages, attaches proof</td></tr>
+      <tr><td>Quality engineer</td><td>Reviews checks and evidence, signs quality gates, requests changes</td></tr>
+      <tr><td>Plant manager</td><td>Final approval, sets autonomy level per line, handles escalations</td></tr>
+      <tr><td>Administrator</td><td>Users, roles, sites, connectors, policies</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">2 · Core concepts</h2>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">2.1 Pipeline and stage</h3>
+  <p>A pipeline is a template plus a run. The <strong>template</strong> defines stages, their order, parallel branches, rework loops, the agent and resource for each stage, its success criteria, timeout and escalation role. A <strong>run</strong> is one execution of a template against an order or batch, identified as <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">R-2417</code>.</p>
+  <p>Stages in the same column run in parallel and are numbered with a letter suffix (<code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">02a</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">02b</code>). When two adjacent columns have the same number of parallel stages, each lane continues on its own; otherwise lanes merge into the next stage. A rework loop sends units from a later stage back to an earlier one.</p>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">2.2 Node states</h3>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>State</th><th>Node mark</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Queued</td><td>Dashed grey circle</td><td>Waiting on upstream stages; capacity pre-allocated</td></tr>
+      <tr><td>Running</td><td>Gold circle with halo</td><td>Agent executing; progress, throughput and ETA live</td></tr>
+      <tr><td>Awaiting approval</td><td>Gold rounded square</td><td>Work complete; a person must release the gate</td></tr>
+      <tr><td>Held by operator</td><td>Red rounded square</td><td>Gate held; downstream scheduling paused</td></tr>
+      <tr><td>Done · deviation</td><td>Red ring</td><td>Completed after an in-stage correction; deviation logged</td></tr>
+      <tr><td>Completed</td><td>Solid dark circle</td><td>Output released to the next stage</td></tr>
+    </tbody>
+  </table>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">2.3 Agents</h3>
+  <p>Eight domain agents are deployed per site. Each is scoped to a set of stage types and resources.</p>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>Agent</th><th>Scope</th><th>Typical decisions</th></tr></thead>
+    <tbody>
+      <tr><td>Planning</td><td>Orders, capacity</td><td>Merge orders, reserve capacity, flag due-date risk</td></tr>
+      <tr><td>Supply</td><td>Materials, AGVs</td><td>Substitute approved parts, dispatch replenishment, quarantine lots</td></tr>
+      <tr><td>Scheduler</td><td>Machining cells</td><td>Split batches, swap tools early, resequence jobs</td></tr>
+      <tr><td>Line</td><td>Assembly</td><td>Rebalance stations, recalibrate tools, pause feeders</td></tr>
+      <tr><td>Process</td><td>Thermal, chemical</td><td>Adjust setpoints, extend holds, hold batch for sampling</td></tr>
+      <tr><td>Vision QA</td><td>Inspection, release</td><td>Raise sampling, route units to rework, release lots</td></tr>
+      <tr><td>Logistics</td><td>Packing, shipping</td><td>Consolidate shipments, reprioritize pallets</td></tr>
+      <tr><td>Maintenance</td><td>Asset health</td><td>Open predictive work orders, schedule downtime, reserve spares</td></tr>
+    </tbody>
+  </table>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">2.4 Autonomy levels</h3>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>Level</th><th>Agents may</th><th>People must</th></tr></thead>
+    <tbody>
+      <tr><td>L1 · Assist</td><td>Monitor and suggest</td><td>Start every stage transition</td></tr>
+      <tr><td>L2 · Recommend</td><td>Plan and prepare actions</td><td>Confirm each decision</td></tr>
+      <tr><td>L3 · Supervised</td><td>Execute within guardrails</td><td>Sign quality gates and out-of-policy events</td></tr>
+      <tr><td>L4 · Autonomous</td><td>Execute end to end, including in-policy gates</td><td>Receive notifications; may intervene at any time</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:10px">Autonomy is set per line and can be lowered for a single stage. A validated stage can be promoted one level (for example L3 → L4) as the outcome of an approved validation package.</p>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">2.5 Gates and validation packages</h3>
+  <p>A <strong>gate</strong> is a stop point inside a run. It can be released directly (Approve), held (Hold), or released through a validation package. A <strong>validation package</strong> is a formal record that proves a stage, process change, pilot, machine qualification or proof of concept meets stated acceptance criteria. It contains scope, checks, evidence, a signature chain and an audit trail. Section 6 describes the workflow.</p>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text);break-before:page">3 · Screens</h2>
+  <p>The console has seven screens, reached from the left navigation. Counts beside Validation and Approvals show items waiting on the current user.</p>
+
+  <figure style="margin:18px 0 22px">
+    <img src="mockups/01-pipeline-flow.png" alt="Pipelines, Flow view" style="width:100%;display:block;border:1px solid var(--color-divider)">
+    <figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.1 · Pipelines, Flow view. Stages as nodes with branches, merges and a rework loop.</figcaption>
+  </figure>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">3.1 Pipelines</h3>
+  <p>The header shows the run, template selector, view switch (Flow, Graph, Ledger), <em>Step run</em> and <em>Edit in builder</em>. <em>Step run</em> advances the run one column; it stops at a gate that is awaiting approval or held and opens that gate instead. Approving a gate completes its stage. Below it, the autonomy control and six run metrics: progress, rolled yield, live throughput, run ETA, agent decisions and pending gates. The decision stream at the bottom lists the latest agent decisions with reason and confidence.</p>
+  <ul>
+    <li><strong>Flow</strong>: each stage is a numbered node. Edge color follows the downstream state: dark for completed, gold for active, dashed grey for queued.</li>
+    <li><strong>Graph</strong>: the same graph with compact cards on a dot grid, for dense pipelines.</li>
+    <li><strong>Ledger</strong>: one row per stage with the full outcome text, timing, yield and throughput, for reading and printing.</li>
+  </ul>
+  <figure style="margin:18px 0 22px">
+    <img src="mockups/02-pipeline-node-block.png" alt="Node block open" style="width:100%;display:block;border:1px solid var(--color-divider)">
+    <figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.2 · Clicking a node opens its block: outcome, timing, yield, output, latest decision, and Approve / Hold / Validate on a gate.</figcaption>
+  </figure>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0 22px">
+    <figure style="margin:0"><img src="mockups/03-pipeline-graph.png" alt="Graph view" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.3 · Graph view</figcaption></figure>
+    <figure style="margin:0"><img src="mockups/04-pipeline-ledger.png" alt="Ledger view" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.4 · Ledger view</figcaption></figure>
+  </div>
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:start;margin:18px 0 22px">
+    <figure style="margin:0"><img src="mockups/05-stage-detail-panel.png" alt="Stage detail panel" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.5 · Stage detail panel</figcaption></figure>
+    <div>
+      <h3 style="font-size:16px;font-weight:600;margin:0 0 6px">3.2 Stage detail panel</h3>
+      <p style="margin-top:0"><em>Full details</em> on a node block opens the side panel, which holds everything known about the stage:</p>
+      <ul>
+        <li>Status, agent and assigned resource</li>
+        <li>Outcome summary</li>
+        <li>Human approval gate with Approve, Hold and <em>Validate with evidence</em></li>
+        <li>Timing, yield, throughput, progress</li>
+        <li>Quality metrics against targets</li>
+        <li>Inputs and outputs (lot genealogy)</li>
+        <li>Alerts and exceptions</li>
+        <li>Decision log: time, action, reason, agent, confidence</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px;break-before:page">3.3 Validation</h3>
+  <p>The left list shows all validation packages with status, what each is waiting on, and progress through the six steps. Filters: All, Needs me, In review, Closed. <em>New from current pipeline</em> creates a package from the active gate or running stage.</p>
+  <p>The workspace has a step tracker (Draft → Agent pre-check → Submitted → QE review → Approval → Released), a readiness bar for the owner, and five numbered sections: Scope &amp; acceptance, Validation checks, Proof &amp; evidence, Sign-off, and Audit trail. <em>Acting as</em> switches the signed-in role for demonstration.</p>
+  <figure style="margin:18px 0 22px">
+    <img src="mockups/06-validation-draft.png" alt="Validation draft" style="width:100%;display:block;border:1px solid var(--color-divider)">
+    <figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.6 · Validation package in draft: pre-check pending, manual checks with Pass / Fail, required evidence slots to attach.</figcaption>
+  </figure>
+  <figure style="margin:18px 0 22px">
+    <img src="mockups/07-validation-review-signoff.png" alt="Validation review" style="width:100%;display:block;border:1px solid var(--color-divider)">
+    <figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.7 · Proof of concept in review: agent assessment, attached evidence, signature chain and the electronic signature form for the quality engineer.</figcaption>
+  </figure>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px;break-before:page">3.4 Templates</h3>
+  <p>The library of 15 pipeline templates, filterable by category. Each card lists its stage chain (parallel stages joined with “+”), stage and gate counts, and offers <em>Run pipeline</em> or <em>Customize</em> (opens the builder). Appendix A lists all templates.</p>
+  <figure style="margin:18px 0 22px"><img src="mockups/08-templates.png" alt="Templates" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.8 · Pipeline templates</figcaption></figure>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px">3.5 Run history</h3>
+  <p>Runs from the last seven days with start, duration, a per-stage outcome strip, yield, agent decisions, human interventions and outcome. Filter by outcome; click a row to open its pipeline.</p>
+  <figure style="margin:18px 0 22px"><img src="mockups/09-run-history.png" alt="Run history" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.9 · Run history</figcaption></figure>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px;break-before:page">3.6 Floor &amp; fleet</h3>
+  <p><strong>Assets</strong> groups every machine, robot, vehicle and station by zone with status, current job, utilization, OEE and owning agent. <strong>Agents</strong> shows each agent's scope, autonomy level, current task, decisions today, escalations and average confidence.</p>
+  <figure style="margin:18px 0 16px"><img src="mockups/10-floor-assets.png" alt="Floor assets" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.10 · Floor &amp; fleet, Assets</figcaption></figure>
+  <figure style="margin:18px 0 22px"><img src="mockups/11-floor-agents.png" alt="Agents" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.11 · Floor &amp; fleet, Agents</figcaption></figure>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px;break-before:page">3.7 Approvals &amp; exceptions</h3>
+  <p>The operational inbox for quick decisions raised by agents during a run: quality gates, supplier substitutions, capacity calls and equipment exceptions. Each item shows the agent's evidence, the options it considered with the recommended one marked, and its confidence. <em>Approve selected option</em>, <em>Reject &amp; hold</em>, or open the stage in its pipeline. Decisions that need formal proof go to Validation instead.</p>
+  <figure style="margin:18px 0 22px"><img src="mockups/12-approvals-exceptions.png" alt="Approvals" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.12 · Approvals &amp; exceptions</figcaption></figure>
+
+  <h3 style="font-size:16px;font-weight:600;margin:24px 0 6px">3.8 Pipeline builder</h3>
+  <p>Edit a template's stages: add from the palette, reorder, remove. For the selected stage set the name, assigned resource, execution mode (Auto, Approve, Manual), success criteria, timeout and escalation role. <em>Publish pipeline</em> creates a new template version.</p>
+  <figure style="margin:18px 0 22px"><img src="mockups/13-pipeline-builder.png" alt="Builder" style="width:100%;display:block;border:1px solid var(--color-divider)"><figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 3.13 · Pipeline builder</figcaption></figure>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text);break-before:page">4 · System architecture</h2>
+  <p>Ordo is organised in five layers. Shop-floor equipment (L1) connects through an on-premise edge gateway (L2) to a cloud data platform (L3). The orchestration core (L4) reads plant state, runs agents and pipelines, and writes decisions and signatures back to the data platform. The experience layer (L5) serves the console, notifications and public API. Enterprise systems connect at L3/L4 through versioned connectors.</p>
+  <figure style="margin:18px 0 22px">
+    <img src="mockups/00-architecture.png" alt="System architecture diagram" style="width:100%;display:block;border:1px solid var(--color-divider)">
+    <figcaption style="font-size:12px;color:var(--color-neutral-700);margin-top:6px">Figure 4.1 · Ordo system architecture. Gold outlines mark Ordo core services; the audit ledger is outlined in black.</figcaption>
+  </figure>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">4.1 Services</h3>
+  <table class="table" style="font-size:12.5px">
+    <thead><tr><th>Layer</th><th>Service</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>L5</td><td>Web console</td><td>All screens in section 3; live updates over WebSocket</td></tr>
+      <tr><td>L5</td><td>Notification service</td><td>Email, chat, andon boards, mobile push for gates, escalations, sign-off requests</td></tr>
+      <tr><td>L5</td><td>API gateway</td><td>REST and GraphQL, event stream, webhooks; auth and rate limits</td></tr>
+      <tr><td>L4</td><td>Pipeline engine</td><td>Executes stage DAGs with branches, merges, loops, retries and timeouts; durable run state</td></tr>
+      <tr><td>L4</td><td>Agent runtime</td><td>Hosts the eight domain agents; supplies them plant state and models</td></tr>
+      <tr><td>L4</td><td>Policy &amp; autonomy guard</td><td>Allows, escalates or blocks every proposed action by autonomy level and guardrails</td></tr>
+      <tr><td>L4</td><td>Validation service</td><td>Packages, pre-checks, evidence completeness, readiness rules</td></tr>
+      <tr><td>L4</td><td>Approval &amp; e-signature</td><td>Gate releases and ordered signature chains with meaning, re-authentication and reason</td></tr>
+      <tr><td>L4</td><td>Scheduler &amp; capacity</td><td>Assigns stages to assets, balances load, forecasts ETA</td></tr>
+      <tr><td>L3</td><td>Event bus</td><td>Ordered per-site topics for telemetry, run events and decisions</td></tr>
+      <tr><td>L3</td><td>Time-series store</td><td>High-rate machine and sensor signals</td></tr>
+      <tr><td>L3</td><td>Plant state model</td><td>Assets, lots, genealogy, current run state</td></tr>
+      <tr><td>L3</td><td>Evidence store</td><td>Uploaded and generated files; content-hashed and versioned</td></tr>
+      <tr><td>L3</td><td>Audit ledger</td><td>Append-only, hash-chained record of decisions, signatures and changes</td></tr>
+      <tr><td>L3</td><td>Model registry</td><td>Versioned agent and prediction models with evaluation results</td></tr>
+      <tr><td>L2</td><td>Edge gateway</td><td>Protocol adapters, store-and-forward, local safe-stop if cloud link drops</td></tr>
+    </tbody>
+  </table>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">4.2 Key flows</h3>
+  <ol>
+    <li><strong>Sense.</strong> Machines publish signals through the edge gateway to the event bus. The plant state model updates in near real time.</li>
+    <li><strong>Decide.</strong> An agent proposes an action with reason and confidence. The policy guard allows, escalates or blocks it.</li>
+    <li><strong>Act.</strong> Allowed actions flow down as job orders, setpoints and AGV missions. The pipeline engine advances the stage when its success criteria are met.</li>
+    <li><strong>Validate &amp; sign.</strong> At a gate, the validation service assembles checks and evidence. People sign in sequence and the gate releases.</li>
+  </ol>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text);break-before:page">5 · Data model</h2>
+  <table class="table" style="font-size:12.5px">
+    <thead><tr><th>Entity</th><th>Key fields</th><th>Relationships</th></tr></thead>
+    <tbody>
+      <tr><td>Site / Line</td><td>id, name, timezone, autonomy level</td><td>has many Assets, Runs</td></tr>
+      <tr><td>Pipeline template</td><td>id, name, category, version, status</td><td>has many Stage definitions</td></tr>
+      <tr><td>Stage definition</td><td>name, column, lane, agent, resource, mode, criteria, timeout, escalation role</td><td>belongs to Template; edges to next stages; optional loop target</td></tr>
+      <tr><td>Run</td><td>id, template version, order ref, started, ETA, status</td><td>has many Stage runs</td></tr>
+      <tr><td>Stage run</td><td>state, progress, yield, throughput, start, end</td><td>has Decisions, Alerts, Metrics, Inputs, Outputs</td></tr>
+      <tr><td>Decision</td><td>time, agent, action, reason, confidence, policy result</td><td>belongs to Stage run; ledger entry</td></tr>
+      <tr><td>Asset</td><td>id, type, zone, status, utilization, OEE</td><td>assigned to Stage runs</td></tr>
+      <tr><td>Agent</td><td>id, scope, autonomy level, model version</td><td>makes Decisions</td></tr>
+      <tr><td>Gate</td><td>stage run, required role, status</td><td>optionally released by a Validation package</td></tr>
+      <tr><td>Validation package</td><td>id, type, title, owner, status, objective, acceptance, sample plan, window, outcome on approval</td><td>has Checks, Evidence, Signatures, Audit entries; links to Template, Stage, Gate</td></tr>
+      <tr><td>Check</td><td>criterion, method, target, result, source (agent/manual), status</td><td>belongs to Validation package</td></tr>
+      <tr><td>Evidence</td><td>name, required/optional/agent-generated, file ref, hash, uploader, time</td><td>belongs to Validation package; file in Evidence store</td></tr>
+      <tr><td>Signature</td><td>role, meaning, signer, time, comment, auth method</td><td>ordered chain on Validation package</td></tr>
+      <tr><td>Audit entry</td><td>time, actor, action, payload hash, previous hash</td><td>append-only, chained</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">6 · Validation &amp; sign-off workflow</h2>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">6.1 Package types</h3>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>Type</th><th>Used to prove</th><th>Typical outcome on approval</th></tr></thead>
+    <tbody>
+      <tr><td>Stage validation</td><td>A stage on a specific run meets its criteria</td><td>Gate released; stage may move up an autonomy level</td></tr>
+      <tr><td>Process change</td><td>A changed parameter, recipe or profile is safe</td><td>Change becomes the line default</td></tr>
+      <tr><td>Pilot validation</td><td>A new recipe or method works across pilot batches</td><td>Added to approved list</td></tr>
+      <tr><td>Proof of concept</td><td>A new pipeline or part replacement is viable</td><td>New pipeline published at L2</td></tr>
+      <tr><td>Operational qualification</td><td>A new or repaired asset performs like existing ones</td><td>Asset joins the agent pool</td></tr>
+    </tbody>
+  </table>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">6.2 Steps</h3>
+  <ol>
+    <li><strong>Draft.</strong> The process engineer defines objective, acceptance criteria, sample plan and trial window. Checks are seeded from the stage's success criteria.</li>
+    <li><strong>Agent pre-check.</strong> The owning agent fills in every automated check from run data, attaches generated evidence (logs, SPC charts, reports), and writes an assessment with key figures and confidence.</li>
+    <li><strong>Submit.</strong> The engineer records manual checks (Pass / Fail), attaches required evidence and signs as <em>Performed by</em>.</li>
+    <li><strong>QE review.</strong> The quality engineer signs as <em>Reviewed by</em>, or requests changes / rejects with a mandatory comment.</li>
+    <li><strong>Approval.</strong> The plant manager signs as <em>Approved by</em>.</li>
+    <li><strong>Released.</strong> The outcome is applied (gate released, autonomy promoted, change made default) and recorded in the ledger.</li>
+  </ol>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">6.3 Rules</h3>
+  <ul>
+    <li><em>Sign &amp; submit</em> is enabled only when the pre-check has run, every check is recorded, no check has failed and all required evidence is attached.</li>
+    <li>Only the role at the current step may sign. Each signature states its meaning and requires the reviewer to confirm they reviewed the checks and evidence.</li>
+    <li>Request changes and Reject require a comment. A returned package goes back to Draft for its owner; all later signatures are cleared on resubmit.</li>
+    <li>Re-running the pre-check after changes refreshes automated results and the assessment.</li>
+    <li>Files are hashed on upload. A changed file is a new version; earlier versions stay in the record.</li>
+    <li>Every action (create, attach, remove, check, sign, return, release) writes an audit entry.</li>
+  </ul>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text);break-before:page">7 · Agent decision model</h2>
+  <p>Every agent action follows the same path, so it can be explained and replayed.</p>
+  <ol>
+    <li><strong>Observe.</strong> The agent reads plant state, recent telemetry and model predictions for its scope.</li>
+    <li><strong>Propose.</strong> It forms an action (for example “Split batch across CNC-04 and CNC-05”), a plain-language reason referencing the data, and a confidence between 0 and 1.</li>
+    <li><strong>Check policy.</strong> The policy guard compares the action with the autonomy level, stage mode, guardrails (limits on setpoints, cost, quantity, safety) and confidence threshold. Result: allow, escalate to a role, or block.</li>
+    <li><strong>Execute or escalate.</strong> Allowed actions are dispatched. Escalated actions appear in Approvals with the alternatives the agent considered.</li>
+    <li><strong>Record.</strong> Action, reason, confidence, policy result and outcome are written to the decision log and audit ledger.</li>
+  </ol>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">8 · Integrations &amp; API</h2>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>System</th><th>Direction</th><th>Data</th></tr></thead>
+    <tbody>
+      <tr><td>ERP</td><td>In / out</td><td>Orders, BOMs, inventory, costs; confirmations back</td></tr>
+      <tr><td>MES</td><td>In / out</td><td>Work orders, routings, counts, genealogy</td></tr>
+      <tr><td>QMS</td><td>Out</td><td>Deviations, CAPA triggers, approved validation records</td></tr>
+      <tr><td>CMMS</td><td>In / out</td><td>Maintenance work orders, spares</td></tr>
+      <tr><td>WMS</td><td>In / out</td><td>Stock locations, picks, kit status</td></tr>
+      <tr><td>PLM</td><td>In</td><td>Drawings, revisions, engineering change requests</td></tr>
+      <tr><td>Identity provider</td><td>In</td><td>SSO (SAML / OIDC), groups mapped to roles</td></tr>
+      <tr><td>Shop floor</td><td>In / out</td><td>OPC UA, MQTT / Sparkplug B, Modbus TCP, MTConnect</td></tr>
+    </tbody>
+  </table>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">8.1 Representative endpoints</h3>
+  <pre style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.6;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:4px;padding:12px 14px;white-space:pre-wrap;margin:0">GET    /v1/runs/{runId}                      run, stages, live metrics
+POST   /v1/runs                              start a run from a template version
+POST   /v1/runs/{runId}/stages/{id}/approve  release a gate
+POST   /v1/runs/{runId}/stages/{id}/hold     hold a gate
+GET    /v1/templates                         list templates
+POST   /v1/templates/{id}/versions           publish a builder draft
+POST   /v1/validations                       create a package
+POST   /v1/validations/{id}/precheck         run agent pre-check
+POST   /v1/validations/{id}/evidence         attach a file (multipart)
+POST   /v1/validations/{id}/signatures       sign / request changes / reject
+GET    /v1/audit?entity={type}:{id}          audit entries</pre>
+  <h3 style="font-size:16px;font-weight:600;margin:18px 0 6px">8.2 Events</h3>
+  <p><code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">run.started</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">stage.state_changed</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">agent.decision</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">gate.awaiting</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">alert.raised</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">validation.submitted</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">validation.signed</code>, <code style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">validation.released</code>. Delivered on the event stream and as webhooks.</p>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">9 · Security &amp; compliance</h2>
+  <ul>
+    <li><strong>Identity and roles.</strong> SSO through the corporate identity provider. Role-based access per site and line; signing rights are bound to roles.</li>
+    <li><strong>Electronic signatures.</strong> Each signature records signer, role, meaning, time and comment, and requires re-authentication. Designed to support regulated environments such as 21 CFR Part 11 and EU GMP Annex 11; qualification remains the customer's responsibility.</li>
+    <li><strong>Records.</strong> Audit ledger is append-only and hash-chained. Evidence files are content-hashed and versioned. Retention is configurable per site.</li>
+    <li><strong>Network.</strong> OT network is segmented; edge gateways connect outbound only over mutual TLS. Safety PLCs are read-only to Ordo.</li>
+    <li><strong>Safety.</strong> Agents never bypass machine safety systems. If the cloud link drops, the edge gateway completes the current safe step and holds.</li>
+  </ul>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">10 · Deployment</h2>
+  <table class="table" style="font-size:13px">
+    <thead><tr><th>Component</th><th>Where it runs</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>L3–L5 services</td><td>Cloud (single-tenant) or customer data center</td><td>Containerised; horizontally scaled</td></tr>
+      <tr><td>Edge gateway</td><td>On-premise, per plant</td><td>Two-node cluster; store-and-forward buffer</td></tr>
+      <tr><td>Agent models</td><td>Cloud, with cached copies at the edge</td><td>Versioned in the model registry</td></tr>
+      <tr><td>Console</td><td>Browser</td><td>Desktop-first; tablet for floor use</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text);break-before:page">Appendix A · Pipeline template library</h2>
+  <table class="table" style="font-size:12px">
+    <thead><tr><th>Template</th><th>Category</th><th>Stages (parallel joined with +)</th></tr></thead>
+    <tbody>
+      <tr><td>Discrete assembly</td><td>Discrete</td><td>Order intake → Material sourcing + Tooling prep → Machining + Fixture build → Sub-assembly → Final assembly + Documentation pack → Quality inspection → Packaging → Dispatch</td></tr>
+      <tr><td>Batch chemical process</td><td>Process</td><td>Demand planning → Raw material receiving → Weighing &amp; dispensing → Mixing → Reaction → QC sampling → Filling → Labeling → Batch release</td></tr>
+      <tr><td>Machining job shop</td><td>Fabrication</td><td>Quote &amp; order → CAM programming + Stock procurement → Program simulation + Stock cutting → Fixture setup → CNC milling → Deburr &amp; finish → CMM inspection → Ship</td></tr>
+      <tr><td>Injection molding</td><td>Discrete</td><td>Order intake → Resin drying + Mold setup → Molding → Trim &amp; degate → Visual inspection → Pack</td></tr>
+      <tr><td>Electronics SMT line</td><td>Electronics</td><td>Work order → Component kitting + Stencil prep → Solder paste print → Pick &amp; place → Reflow → AOI inspection + X-ray sampling → Functional test → Box build</td></tr>
+      <tr><td>Food &amp; beverage batch</td><td>Process</td><td>Production plan → Ingredient receiving + Packaging receiving → Blending + Packaging QC → Heat treatment → Cooling → Filling → Lab release → Palletize &amp; ship</td></tr>
+      <tr><td>Pharma GMP batch</td><td>Regulated</td><td>Batch record issue → Dispensing + Equipment cleaning → Granulation → Drying → Compression → In-process QC + Coating prep → Coating → QA release</td></tr>
+      <tr><td>Additive manufacturing</td><td>Fabrication</td><td>Build prep → Powder QC + Nesting → Print → Depowder → Heat treat + Build report → Support removal → CT scan inspection → Ship</td></tr>
+      <tr><td>Sheet metal fabrication</td><td>Fabrication</td><td>Order intake → Nesting → Laser cutting + Tube cutting → Press brake bending + Tube bending → Welding → Powder coat → Final inspection → Dispatch</td></tr>
+      <tr><td>Surface finishing</td><td>Process</td><td>Receive parts → Pre-treatment → Primer → Paint booth → Cure oven → Film-thickness QC → Unload &amp; pack</td></tr>
+      <tr><td>Warehouse &amp; kitting</td><td>Logistics</td><td>Demand signal → Pick → Kitting + Labeling → Kit verification → Line delivery</td></tr>
+      <tr><td>Predictive maintenance</td><td>Maintenance</td><td>Anomaly detection → Diagnosis → Spare parts reservation + Downtime scheduling → Repair → Verification run → Return to service</td></tr>
+      <tr><td>Engineer-to-order</td><td>Lifecycle</td><td>Customer request → Engineering design → Design review → Procurement + Fabrication + Software config → Long-lead receiving + Machining + Controls test → Assembly → Factory acceptance test → Delivery</td></tr>
+      <tr><td>New product introduction</td><td>Lifecycle</td><td>Design release → Process planning → Pilot build → First article inspection → Capability study → Ramp to rate</td></tr>
+      <tr><td>Rework &amp; recall</td><td>Quality</td><td>Defect report → Containment + Customer notice → Root-cause analysis + Stock sweep → Rework → Re-inspection → Close-out</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-size:22px;font-weight:600;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--color-text)">Appendix B · Glossary</h2>
+  <table class="table" style="font-size:13px">
+    <tbody>
+      <tr><td style="width:170px;font-weight:600">AOI</td><td>Automated optical inspection</td></tr>
+      <tr><td style="font-weight:600">CMM</td><td>Coordinate measuring machine</td></tr>
+      <tr><td style="font-weight:600">Cpk</td><td>Process capability index; ≥ 1.33 is a common minimum</td></tr>
+      <tr><td style="font-weight:600">Gate</td><td>A stop point in a run that needs a human release</td></tr>
+      <tr><td style="font-weight:600">Genealogy</td><td>The record of which input lots produced which output lots</td></tr>
+      <tr><td style="font-weight:600">OEE</td><td>Overall equipment effectiveness: availability × performance × quality</td></tr>
+      <tr><td style="font-weight:600">Rolled yield</td><td>Product of the yields of all completed stages</td></tr>
+      <tr><td style="font-weight:600">Takt</td><td>Available time divided by demand; the required pace per unit</td></tr>
+      <tr><td style="font-weight:600">Validation package</td><td>Formal record of scope, checks, evidence and signatures proving a stage or change works</td></tr>
+    </tbody>
+  </table>
+</doc-page>
+</x-dc>
+</body>
+</html>

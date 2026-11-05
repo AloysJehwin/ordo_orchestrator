@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/styles.css">
+<script src="_ds/classical-37de7c0a-2557-4acc-a265-cd5cc07bdafa/_ds_bundle.js"></script>
+<style>:root{--font-heading:"IBM Plex Sans",system-ui,sans-serif;--font-body:"IBM Plex Sans",system-ui,sans-serif}body{margin:0;background:#f3f2f2}a{color:#7d5411}a:hover{color:#5a3b0a}</style>
+</helmet>
+<div id="arch" style="width:1600px;box-sizing:border-box;padding:48px 56px 44px;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);display:flex;flex-direction:column;gap:26px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px;padding-bottom:18px;border-bottom:1px solid var(--color-text)">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--color-accent-700)">Ordo · System architecture · v1.0</div>
+      <h1 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-0.01em">Autonomous manufacturing orchestration</h1>
+      <p style="margin:0;font-size:14px;color:var(--color-neutral-800);max-width:820px;line-height:1.5">Agents run pipelines of production stages against live plant data. People set the autonomy level, approve gates and validate changes with evidence. Every decision and signature lands in an append-only audit ledger.</p>
+    </div>
+    <div style="display:flex;gap:18px;font-size:12px;color:var(--color-neutral-800)">
+      <span style="display:flex;align-items:center;gap:8px"><span style="width:22px;height:0;border-top:1.5px solid var(--color-text)"></span>Commands / control</span>
+      <span style="display:flex;align-items:center;gap:8px"><span style="width:22px;height:0;border-top:1.5px dashed var(--color-text)"></span>Telemetry / events</span>
+      <span style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;box-sizing:border-box;border:1.5px solid var(--color-accent);border-radius:3px"></span>Ordo core service</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:190px 1fr 230px;gap:22px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);padding-bottom:6px;border-bottom:1px solid var(--color-divider)">People</div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Operator</span><span style="font-size:12px;color:var(--color-neutral-700)">Executes manual stages, records checks</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Process engineer</span><span style="font-size:12px;color:var(--color-neutral-700)">Builds pipelines, prepares validations</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Quality engineer</span><span style="font-size:12px;color:var(--color-neutral-700)">Reviews evidence, signs gates</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Plant manager</span><span style="font-size:12px;color:var(--color-neutral-700)">Final approval, sets autonomy</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Administrator</span><span style="font-size:12px;color:var(--color-neutral-700)">Users, roles, sites, policies</span></div>
+      <div style="margin-top:6px;padding:10px 12px;border-left:1.5px solid var(--color-text);font-size:12px;line-height:1.5;color:var(--color-neutral-800)">HTTPS + WebSocket to the Experience layer. SSO via the corporate identity provider.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:0">
+      <div style="border:1px solid var(--color-divider);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600"><span style="color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-right:10px">L5</span>Experience</span><span style="font-size:12px;color:var(--color-neutral-700)">Web console · notifications · API</span></div>
+        <div style="display:grid;grid-template-columns:2.4fr 1fr 1fr;gap:10px">
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:13.5px;font-weight:600">Ordo web console</span>
+            <div style="display:flex;flex-wrap:wrap;gap:5px"><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Pipelines</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Validation</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Templates</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Run history</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Floor &amp; fleet</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Approvals</span><span style="font-size:11.5px;padding:2px 7px;border:1px solid var(--color-divider);border-radius:3px">Builder</span></div>
+          </div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Notification service</span><span style="font-size:12px;color:var(--color-neutral-700)">Email, Teams/Slack, andon boards, mobile push</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">API gateway</span><span style="font-size:12px;color:var(--color-neutral-700)">REST + GraphQL, WebSocket stream, webhooks</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:120px;padding:6px 0;font-size:11.5px;color:var(--color-neutral-700)"><span style="display:flex;flex-direction:column;align-items:center">↓<span>actions, approvals, signatures</span></span><span style="display:flex;flex-direction:column;align-items:center"><span>live run state, decisions</span>↑</span></div>
+
+      <div style="border:1.5px solid var(--color-accent);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600"><span style="color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-right:10px">L4</span>Orchestration core</span><span style="font-size:12px;color:var(--color-neutral-700)">Stateless services, horizontally scaled</span></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Pipeline engine</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Executes stage DAGs: branches, merges, rework loops, retries, timeouts. Durable state per run.</span></div>
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Agent runtime</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Hosts 8 domain agents: planning, supply, scheduler, line, process, vision QA, logistics, maintenance.</span></div>
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Policy &amp; autonomy guard</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Checks every agent action against autonomy level L1–L4, limits and guardrails before it executes.</span></div>
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Validation service</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Validation packages: acceptance criteria, agent pre-check, manual checks, evidence completeness.</span></div>
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Approval &amp; e-signature</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Gate approvals and multi-role sign-off chains; signature meaning, re-authentication, reasons.</span></div>
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Scheduler &amp; capacity</span><span style="font-size:12px;line-height:1.45;color:var(--color-neutral-800)">Assigns stages to assets, balances load, resequences on disruption, forecasts ETA.</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:120px;padding:6px 0;font-size:11.5px;color:var(--color-neutral-700)"><span style="display:flex;flex-direction:column;align-items:center">↓<span>decisions, run events, evidence</span></span><span style="display:flex;flex-direction:column;align-items:center"><span>plant state, history, models</span>↑</span></div>
+
+      <div style="border:1px solid var(--color-divider);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600"><span style="color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-right:10px">L3</span>Data platform</span><span style="font-size:12px;color:var(--color-neutral-700)">Single source of truth for plant and run state</span></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Event bus</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Ordered topics per site</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Time-series store</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Sensor &amp; machine signals</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Plant state model</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Assets, lots, genealogy</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Evidence store</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Files, hashed, versioned</span></div>
+          <div style="border:1.5px solid var(--color-text);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Audit ledger</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Append-only, tamper-evident</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Model registry</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Agent &amp; prediction models</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:120px;padding:6px 0;font-size:11.5px;color:var(--color-neutral-700)"><span style="display:flex;flex-direction:column;align-items:center">↓<span>setpoints, job orders, AGV missions</span></span><span style="display:flex;flex-direction:column;align-items:center"><span style="border-bottom:1px dashed var(--color-neutral-600)">telemetry, alarms, counts</span>↑</span></div>
+
+      <div style="border:1px solid var(--color-divider);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600"><span style="color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-right:10px">L2</span>Edge &amp; connectivity</span><span style="font-size:12px;color:var(--color-neutral-700)">Runs on-premise, one gateway cluster per plant</span></div>
+        <div style="display:grid;grid-template-columns:1.3fr 1.3fr 1fr 1fr;gap:10px">
+          <div style="border:1.5px solid var(--color-accent);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Ordo edge gateway</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Local agent cache, safe-stop if cloud link drops</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Protocol adapters</span><span style="font-size:11.5px;color:var(--color-neutral-700)">OPC UA · MQTT/Sparkplug · Modbus · MTConnect</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Store &amp; forward</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Buffers during outages</span></div>
+          <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:600">Safety interlock bridge</span><span style="font-size:11.5px;color:var(--color-neutral-700)">Read-only to safety PLCs</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;padding:6px 0;font-size:11.5px;color:var(--color-neutral-700)"><span style="display:flex;flex-direction:column;align-items:center">↕<span>OT network · segmented, outbound-only to cloud</span></span></div>
+
+      <div style="border:1px solid var(--color-divider);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:var(--color-surface)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600"><span style="color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-right:10px">L1</span>Shop floor</span><span style="font-size:12px;color:var(--color-neutral-700)">Existing equipment, no changes required</span></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">PLCs &amp; controllers</div>
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">CNC &amp; machine cells</div>
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">Robots &amp; cobots</div>
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">AGVs / AMRs</div>
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">Vision, CMM, test rigs</div>
+          <div style="border:1px solid var(--color-divider);background:var(--color-bg);border-radius:4px;padding:9px 12px;font-size:13px;font-weight:500">Sensors &amp; IIoT</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700);padding-bottom:6px;border-bottom:1px solid var(--color-divider)">Enterprise systems</div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">ERP</span><span style="font-size:12px;color:var(--color-neutral-700)">Orders, BOMs, costs, inventory</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">MES</span><span style="font-size:12px;color:var(--color-neutral-700)">Work orders, routings, counts</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">QMS</span><span style="font-size:12px;color:var(--color-neutral-700)">Deviations, CAPA, specs</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">CMMS</span><span style="font-size:12px;color:var(--color-neutral-700)">Maintenance work orders, spares</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">WMS</span><span style="font-size:12px;color:var(--color-neutral-700)">Stock locations, picks</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">PLM</span><span style="font-size:12px;color:var(--color-neutral-700)">Drawings, revisions, ECRs</span></div>
+      <div style="border:1px solid var(--color-divider);border-radius:4px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">Identity provider</span><span style="font-size:12px;color:var(--color-neutral-700)">SSO (SAML / OIDC), groups</span></div>
+      <div style="margin-top:6px;padding:10px 12px;border-left:1.5px solid var(--color-text);font-size:12px;line-height:1.5;color:var(--color-neutral-800)">Integration hub connects to L3/L4 through versioned connectors and the event bus.</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+    <div style="padding:12px 16px 12px 0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Cross-cutting</span><span style="font-size:13.5px;font-weight:600">Identity &amp; RBAC</span></div>
+    <div style="padding:12px 16px;border-left:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Observability</span><span style="font-size:12px;color:var(--color-neutral-700)">Logs, traces, agent metrics</span></div>
+    <div style="padding:12px 16px;border-left:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Secrets &amp; keys</span><span style="font-size:12px;color:var(--color-neutral-700)">KMS, signing keys</span></div>
+    <div style="padding:12px 16px;border-left:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Multi-site tenancy</span><span style="font-size:12px;color:var(--color-neutral-700)">Org → site → line isolation</span></div>
+    <div style="padding:12px 16px;border-left:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px"><span style="font-size:13.5px;font-weight:600">Compliance</span><span style="font-size:12px;color:var(--color-neutral-700)">E-records, e-signatures, retention</span></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-neutral-700)">Key flows</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">
+      <div style="display:flex;gap:10px"><span style="font-size:22px;font-weight:500;color:var(--color-accent-700);font-variant-numeric:tabular-nums;line-height:1">1</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Sense</span><span style="font-size:12.5px;line-height:1.5;color:var(--color-neutral-800)">Machines publish signals through the edge gateway to the event bus; the plant state model updates in near real time.</span></div></div>
+      <div style="display:flex;gap:10px"><span style="font-size:22px;font-weight:500;color:var(--color-accent-700);font-variant-numeric:tabular-nums;line-height:1">2</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Decide</span><span style="font-size:12.5px;line-height:1.5;color:var(--color-neutral-800)">An agent proposes an action with its reason and confidence. The policy guard allows, escalates or blocks it.</span></div></div>
+      <div style="display:flex;gap:10px"><span style="font-size:22px;font-weight:500;color:var(--color-accent-700);font-variant-numeric:tabular-nums;line-height:1">3</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Act</span><span style="font-size:12.5px;line-height:1.5;color:var(--color-neutral-800)">Allowed actions flow down as job orders and setpoints; the pipeline engine advances the stage on its success criteria.</span></div></div>
+      <div style="display:flex;gap:10px"><span style="font-size:22px;font-weight:500;color:var(--color-accent-700);font-variant-numeric:tabular-nums;line-height:1">4</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">Validate &amp; sign</span><span style="font-size:12.5px;line-height:1.5;color:var(--color-neutral-800)">At gates, the validation service bundles checks and evidence; people sign in sequence and the gate releases.</span></div></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
