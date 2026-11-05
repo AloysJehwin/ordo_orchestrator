@@ -6,7 +6,7 @@ import { EXIT, SessionGoneError, UsageError } from "./errors.js";
 import { createTerminal } from "./io.js";
 import { runInterview } from "./interview.js";
 import { BIN_NAME, PACKAGE_NAME, VERSION } from "./meta.js";
-import { createMockTransport, MOCK_MODEL } from "./mock-router.js";
+import { createMockTransport, MOCK_AUDIO_MODEL, MOCK_MODEL } from "./mock-router.js";
 import { openInBrowser } from "./open-url.js";
 import { createOrdoClient, OrdoApiError } from "./ordo-api.js";
 import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, waitForSignature } from "./poll.js";
@@ -19,8 +19,10 @@ export function usage() {
 
 Record proof of work on an Ordo stage. Copy the command from the stage in the Ordo
 console ("Contribute proof of work"). The interview runs through the 0G Private
-Computer Router in private mode (TEE providers only). Evidence files are hashed on
-this machine and never uploaded.
+Computer Router in private mode (TEE providers only). It shows you what the stage's
+machine captured and records whether you confirm or dispute it. Evidence files are
+hashed on this machine; Ordo gets only the hashes. A photo or voice note goes to the
+0G model only if you say yes for that file.
 
 Options:
   --api <url>     Use this Ordo API address instead of the one in the token
@@ -134,6 +136,7 @@ export async function main(options = {}) {
         baseUrl: "http://mock.invalid/v1",
         apiKey: "mock",
         model: MOCK_MODEL,
+        audioModel: MOCK_AUDIO_MODEL,
         transport: createMockTransport(session),
       });
     } else {
@@ -150,7 +153,7 @@ export async function main(options = {}) {
 
     printBanner(terminal, session, { mock: mock ? (forcedMock ? "forced" : "ordo") : false, model: router.model });
     phase = "interview";
-    const interview = await runInterview({ session, router, terminal, cwd });
+    const interview = await runInterview({ session, router, terminal, client, cwd });
     if (interview.outcome === "quit") {
       terminal.print("");
       terminal.print("Stopped. Nothing was submitted.");
@@ -164,6 +167,8 @@ export async function main(options = {}) {
       measurements: interview.record.measurements,
       notes: interview.record.notes,
       evidence: interview.record.evidence,
+      confirmations: interview.record.confirmations,
+      voiceNotes: interview.record.voiceNotes,
       transcript: interview.transcript,
       receipts: interview.receipts,
     };
@@ -242,7 +247,8 @@ function routerConfig(session) {
   if (!baseUrl.startsWith("https:") && !isLoopback(baseUrl)) {
     throw new OrdoApiError("Ordo gave a Router address that is not https; refusing to send the Router key over plain http.", 200);
   }
-  return { baseUrl, apiKey: r.apiKey, model: r.model };
+  const audioModel = typeof r.audioModel === "string" && r.audioModel ? r.audioModel : null;
+  return { baseUrl, apiKey: r.apiKey, model: r.model, audioModel };
 }
 
 /**
@@ -269,6 +275,12 @@ function printBanner(terminal, session, { mock, model }) {
         )
       : `${model}  ${style.dim("0G Private Computer, private mode (TEE providers only)")}`,
   );
+  if (stage.machine) row("Machine", `${stage.machine.name ?? stage.machine.id}${stage.machine.answers ? "" : style.dim("  (no running body: it cannot be asked questions)")}`);
+  const outcomes = stage.outcomes ?? [];
+  if (outcomes.length) {
+    const captured = outcomes.filter((o) => o.captured).length;
+    row("Outcomes", `${outcomes.length}${style.dim(`  ${captured} captured by the machine, to review with you`)}`);
+  }
   if (session.expiresAt) row("Expires", formatExpiry(session.expiresAt));
   terminal.print("");
   terminal.print(style.dim("Answer in your own words. /show prints what is recorded, /quit stops without sending."));

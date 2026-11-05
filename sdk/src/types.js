@@ -16,6 +16,48 @@
  */
 
 /**
+ * What the stage's machine read from one outcome's media through 0G (its on-board agent).
+ * @typedef {object} MachineReading
+ * @property {string} summary
+ * @property {number} [value]
+ * @property {string} [anomaly]
+ * @property {string} [requestId]
+ * @property {string} [model]
+ * @property {string} [provider]
+ * @property {boolean | null} [teeVerified]
+ */
+
+/**
+ * The newest file the machine captured for an outcome.
+ * @typedef {object} OutcomeOutput
+ * @property {number} version
+ * @property {number} versions
+ * @property {string} mime
+ * @property {number} size
+ * @property {string} sha256      "sha256:<hex>"
+ * @property {boolean} hasPreview  A keyframe (video), spectrogram (audio) or chart image.
+ * @property {number} value        The value the machine read, in the metric's unit.
+ * @property {string} device       The machine's signing address.
+ * @property {MachineReading | null} analysis
+ */
+
+/**
+ * One outcome of the stage: media its machine captures, with the number read from it.
+ * @typedef {object} Outcome
+ * @property {string} key
+ * @property {string} label
+ * @property {"thermal" | "image" | "audio" | "video" | "spectrum" | "document"} media
+ * @property {string} [mediaLabel]
+ * @property {string} instrument
+ * @property {boolean} required
+ * @property {{ label: string, unit: string, op: string, target: number, targetMax?: number }} metric
+ * @property {boolean | null} ok        The metric against its target; null until measured.
+ * @property {boolean} captured
+ * @property {string | null} capturedAt
+ * @property {OutcomeOutput | null} output
+ */
+
+/**
  * @typedef {object} Stage
  * @property {string} runId
  * @property {string} [orderRef]
@@ -25,6 +67,8 @@
  * @property {string} [state]
  * @property {Criterion[]} criteria
  * @property {Parameter[]} parameters
+ * @property {Outcome[]} [outcomes]
+ * @property {{ id: string, name: string | null, answers: boolean } | null} [machine]  The machine running the stage; answers: Ordo can relay questions to it.
  */
 
 /**
@@ -32,6 +76,7 @@
  * @property {string} baseUrl
  * @property {string} apiKey
  * @property {string} model
+ * @property {string | null} [audioModel]  Speech to text for voice notes (whisper-large-v3), when the session's key allows it.
  * @property {string} [trustMode]
  * @property {"mainnet" | "testnet" | "mock"} [network] "mock": the Ordo deployment has no Router key
  */
@@ -78,6 +123,31 @@
  * @property {string} name
  * @property {string} sha256
  * @property {number} size
+ * @property {string} [mediaType]  Detected from the file's first bytes, else its extension.
+ * @property {{ model: string, requestId: string | null, kind: "vision" | "transcription" }} [analyzedBy]  Set when the contributor let a 0G model read the file.
+ */
+
+/**
+ * The contributor's verdict on what the machine captured for one outcome.
+ * @typedef {object} Confirmation
+ * @property {string} outcome
+ * @property {string | null} sha256    The file they reviewed; null when nothing was captured.
+ * @property {"confirm" | "dispute" | "unsure"} verdict
+ * @property {number} [observed]       The value they observed for the metric.
+ * @property {string} note
+ */
+
+/**
+ * A voice note transcribed through 0G.
+ * @typedef {object} VoiceNote
+ * @property {string} name
+ * @property {string} sha256
+ * @property {number} size
+ * @property {string} mediaType
+ * @property {string} transcript
+ * @property {string} model
+ * @property {string | null} requestId
+ * @property {string} at
  */
 
 /**
@@ -101,6 +171,7 @@
  * @property {string} responseSha256
  * @property {Record<string, string>} headers
  * @property {unknown} [trace]
+ * @property {"transcription"} [kind]     Set on a voice note's speech-to-text call; chat turns have none.
  */
 
 /**
@@ -109,6 +180,8 @@
  * @property {Measurement[]} measurements
  * @property {Note[]} notes
  * @property {Evidence[]} evidence
+ * @property {Confirmation[]} confirmations
+ * @property {VoiceNote[]} voiceNotes
  * @property {TranscriptEntry[]} transcript
  * @property {Receipt[]} receipts
  */
@@ -128,10 +201,15 @@
  */
 
 /**
- * An OpenAI-compatible chat message, as sent to the Router.
+ * A part of a multimodal message: text, or an image as a data URL.
+ * @typedef {{ type: "text", text: string } | { type: "image_url", image_url: { url: string, detail?: "auto" | "low" | "high" } }} ContentPart
+ */
+
+/**
+ * An OpenAI-compatible chat message, as sent to the Router. A user message may carry content parts (images).
  * @typedef {object} ChatMessage
  * @property {"system" | "user" | "assistant" | "tool"} role
- * @property {string | null} [content]
+ * @property {string | ContentPart[] | null} [content]
  * @property {ToolCall[]} [tool_calls]
  * @property {string} [tool_call_id]
  */

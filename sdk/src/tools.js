@@ -1,18 +1,29 @@
 // The tools the interviewer model can call, and the record they build.
-/** @import { Stage, Measurement, Note, Evidence } from "./types.js" */
+/** @import { Stage, Session, Measurement, Note, Evidence, Confirmation, VoiceNote, Receipt } from "./types.js" */
+/** @import { MediaQueue } from "./media.js" */
+/** @import { OrdoClient } from "./ordo-api.js" */
+/** @import { TranscriptionResult } from "./router.js" */
+import { readFile } from "node:fs/promises";
+import { sha256Hex } from "./canonical.js";
 import { EvidenceError, hashEvidence, formatBytes, MAX_EVIDENCE_BYTES } from "./evidence.js";
+import { isImage, isVoiceNote, MAX_AUDIO_BYTES, MAX_IMAGE_BYTES, mediaTypeOf, readHead } from "./media.js";
+import { askMachine, confirmOutcome, outcomeToolDefinitions, pendingOutcomes, reviewOutcome } from "./outcome-tools.js";
+import { describeRouterError } from "./router.js";
 
 /**
  * @typedef {object} ContributionRecord
  * @property {Measurement[]} measurements
  * @property {Note[]} notes
  * @property {Evidence[]} evidence
+ * @property {Confirmation[]} confirmations  The contributor's verdicts on the machine's outcomes.
+ * @property {VoiceNote[]} voiceNotes
+ * @property {Record<string, { sha256: string, version: number }>} reviewed  Outcomes shown to the model, by key (kept here, not sent).
  * @property {string} summary
  */
 
 /** @returns {ContributionRecord} */
 export function createRecord() {
-  return { measurements: [], notes: [], evidence: [], summary: "" };
+  return { measurements: [], notes: [], evidence: [], confirmations: [], voiceNotes: [], reviewed: {}, summary: "" };
 }
 
 /**
@@ -100,7 +111,7 @@ export function toolDefinitions(stage) {
       function: {
         name: "attach_evidence",
         description:
-          "Attach an evidence file from the contributor's machine (path as they typed it, relative to their working directory or absolute). The file is hashed locally and never uploaded; only its name, size and SHA-256 are recorded.",
+          "Attach an evidence file from the contributor's machine (path as they typed it, relative to their working directory or absolute). The file is hashed locally; Ordo gets only its name, size, type and SHA-256. For a photo, the terminal asks the contributor whether to show it to you (it then follows as an image); for a voice note, whether to transcribe it (the transcript comes back in the result). Other files stay hash-only.",
         parameters: {
           type: "object",
           properties: { path: { type: "string" } },
@@ -109,12 +120,13 @@ export function toolDefinitions(stage) {
         },
       },
     },
+    ...outcomeToolDefinitions(stage),
     {
       type: "function",
       function: {
         name: "finish",
         description:
-          "Submit the record once the contributor has agreed to your summary. The terminal asks them to confirm before anything is sent.",
+          "Submit the record once the contributor has agreed to your summary. The terminal asks them to confirm before anything is sent. When the stage has outcomes, every required one the machine captured must first be reviewed and confirmed or disputed.",
         parameters: {
           type: "object",
           properties: {
@@ -136,6 +148,14 @@ export function toolDefinitions(stage) {
  * @property {(summary: string) => Promise<boolean>} confirmFinish
  * @property {(line: string) => void} [announce]  Shows the contributor what was recorded.
  * @property {number} [maxEvidenceBytes]
+ * @property {(question: string) => Promise<boolean>} [consent]  Asks the contributor yes or no (default no) before a file goes to a model.
+ * @property {MediaQueue} [media]  Images for the model, sent after this round's tool results.
+ * @property {{ model: string, audioModel?: string | null, transcribe?: (input: { bytes: Uint8Array, filename: string }) => Promise<TranscriptionResult> }} [router]
+ * @property {Pick<OrdoClient, "output" | "askMachine">} [client]
+ * @property {(receipt: Receipt) => void} [addReceipt]  Keeps the receipt of a 0G call made by a tool (a transcription).
+ * @property {(line: string) => void} [inform]  Shows the contributor something verbatim: a transcript, the machine's answer.
+ * @property {() => Promise<void>} [refreshOutcomes]  Reloads what the machine captured, before finishing.
+ * @property {string} [saveDir]  Where review_outcome saves the machine's media for the contributor to open.
  */
 
 /**
@@ -169,10 +189,16 @@ export async function runTool(name, argsJson, ctx) {
       return addNote(args, ctx, announce);
     case "attach_evidence":
       return attachEvidence(args, ctx, announce);
+    case "review_outcome":
+      return reviewOutcome(args, ctx, announce);
+    case "confirm_outcome":
+      return confirmOutcome(args, ctx, announce);
+    case "ask_machine":
+      return askMachine(args, ctx);
     case "finish":
       return finish(args, ctx);
     default:
-      return fail(`Unknown tool "${name}". Available tools: record_measurement, note, attach_evidence, finish.`);
+      return fail(`Unknown tool "${name}". Available tools: ${/** @type {any[]} */ (toolDefinitions(ctx.stage)).map((t) => t.function.name).join(", ")}.`);
   }
 }
 
@@ -252,18 +278,134 @@ function addNote(args, ctx, announce) {
  */
 async function attachEvidence(args, ctx, announce) {
   if (typeof args.path !== "string" || !args.path.trim()) return fail("path is required.");
+  /** @type {import("./evidence.js").HashedEvidence} */
+  let file;
   try {
-    const file = await hashEvidence(args.path, { cwd: ctx.cwd, maxBytes: ctx.maxEvidenceBytes ?? MAX_EVIDENCE_BYTES });
-    const duplicate = ctx.record.evidence.find((e) => e.sha256 === file.sha256);
-    if (duplicate) {
-      return ok({ alreadyAttached: true, name: duplicate.name, size: duplicate.size, sha256: duplicate.sha256 });
-    }
-    ctx.record.evidence.push({ name: file.name, sha256: file.sha256, size: file.size });
-    announce(`hashed ${file.name} (${formatBytes(file.size)}) sha256 ${file.sha256.slice(0, 16)}…  (the file stays on this machine)`);
-    return ok({ name: file.name, size: file.size, sha256: file.sha256, uploaded: false });
+    file = await hashEvidence(args.path, { cwd: ctx.cwd, maxBytes: ctx.maxEvidenceBytes ?? MAX_EVIDENCE_BYTES });
   } catch (err) {
     if (err instanceof EvidenceError) return fail(err.message);
     throw err;
+  }
+  const type = mediaTypeOf(await readHead(file.path).catch(() => new Uint8Array()), file.name);
+  let entry = ctx.record.evidence.find((e) => e.sha256 === file.sha256);
+  if (entry) {
+    // already hashed: a photo or voice note the model has not read yet may still be shown or transcribed
+    const again = !entry.analyzedBy && (isImage(entry.mediaType) || isVoiceNote(entry.mediaType));
+    if (!again) return ok({ alreadyAttached: true, name: entry.name, size: entry.size, sha256: entry.sha256, ...(entry.analyzedBy ? { analyzedBy: entry.analyzedBy.kind } : {}) });
+  } else {
+    entry = { name: file.name, sha256: file.sha256, size: file.size };
+    if (type) entry.mediaType = type;
+    ctx.record.evidence.push(entry);
+    announce(`hashed ${file.name} (${formatBytes(file.size)}) sha256 ${file.sha256.slice(0, 16)}…  (the file stays on this machine)`);
+  }
+  /** @type {Record<string, unknown>} */
+  const result = { name: entry.name, size: entry.size, sha256: entry.sha256, mediaType: type ?? null, uploaded: false };
+  if (isImage(type)) Object.assign(result, await showImage(file, entry, /** @type {string} */ (type), ctx, announce));
+  else if (isVoiceNote(type)) Object.assign(result, await transcribeNote(file, entry, /** @type {string} */ (type), ctx, announce));
+  return ok(result);
+}
+
+/**
+ * Read a file again and check it is still the one that was hashed.
+ * @param {import("./evidence.js").HashedEvidence} file
+ */
+async function readHashed(file) {
+  const bytes = new Uint8Array(await readFile(file.path));
+  return sha256Hex(bytes) === file.sha256 ? bytes : null;
+}
+
+/**
+ * A photo goes to the chat model only if the contributor says yes, for this file.
+ * @param {import("./evidence.js").HashedEvidence} file
+ * @param {Evidence} entry
+ * @param {string} type
+ * @param {ToolContext} ctx
+ * @param {(line: string) => void} announce
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function showImage(file, entry, type, ctx, announce) {
+  const model = ctx.router?.model ?? "the interviewer model";
+  if (!ctx.media || !ctx.consent) return { shownToModel: false };
+  if (file.size > MAX_IMAGE_BYTES) {
+    announce(`${file.name} is ${formatBytes(file.size)}, over the ${formatBytes(MAX_IMAGE_BYTES)} the model is shown; only its hash is kept`);
+    return { shownToModel: false, note: `Too large to show you (${formatBytes(file.size)}; the limit is ${formatBytes(MAX_IMAGE_BYTES)}). Its hash is recorded. If you need to see it, ask the contributor for a smaller copy.` };
+  }
+  if (!ctx.media.fits(file.size)) {
+    return { shownToModel: false, note: "Too many images for one request. Attach it again after you have answered; it will not be hashed twice." };
+  }
+  const yes = await ctx.consent(`Show ${file.name} (${formatBytes(file.size)}) to the interviewer model ${model}? It goes only to the 0G TEE provider; Ordo gets its hash.`);
+  if (!yes) return { shownToModel: false, note: "The contributor chose not to show it to you; only its hash is recorded." };
+  const bytes = await readHashed(file);
+  if (!bytes) return { shownToModel: false, note: "The file changed after it was hashed. Ask the contributor to attach it again." };
+  ctx.media.add(
+    `Evidence photo ${file.name} (sha256 ${file.sha256.slice(0, 12)}…), shown with the contributor's consent. Describe what you see; take no value from it unless the contributor states it.`,
+    bytes,
+    type,
+  );
+  entry.analyzedBy = { model, requestId: null, kind: "vision" };
+  announce(`showing ${file.name} to ${model} (you agreed)`);
+  return { shownToModel: true, note: "The image follows these tool results." };
+}
+
+/**
+ * A voice note is transcribed through 0G only if the contributor says yes, for this file.
+ * @param {import("./evidence.js").HashedEvidence} file
+ * @param {Evidence} entry
+ * @param {string} type
+ * @param {ToolContext} ctx
+ * @param {(line: string) => void} announce
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function transcribeNote(file, entry, type, ctx, announce) {
+  const model = ctx.router?.audioModel;
+  const transcribe = ctx.router?.transcribe;
+  if (!model || !transcribe || !ctx.consent) return { transcribed: false, note: "This session has no speech-to-text model, so the voice note was not transcribed. Its hash is recorded; ask the contributor to say what it contains." };
+  if (file.size > MAX_AUDIO_BYTES) {
+    announce(`${file.name} is ${formatBytes(file.size)}, over the ${formatBytes(MAX_AUDIO_BYTES)} that can be transcribed; only its hash is kept`);
+    return { transcribed: false, note: `Too long to transcribe (${formatBytes(file.size)}; the limit is ${formatBytes(MAX_AUDIO_BYTES)}). Its hash is recorded.` };
+  }
+  const yes = await ctx.consent(`Transcribe ${file.name} (${formatBytes(file.size)}) with ${model} on 0G Private Computer (TEE)? The transcript goes into your record; the audio never reaches Ordo.`);
+  if (!yes) return { transcribed: false, note: "The contributor chose not to transcribe it; only its hash is recorded." };
+  const bytes = await readHashed(file);
+  if (!bytes) return { transcribed: false, note: "The file changed after it was hashed. Ask the contributor to attach it again." };
+  /** @type {TranscriptionResult} */
+  let t;
+  try {
+    t = await transcribe({ bytes, filename: file.name });
+  } catch (err) {
+    return { transcribed: false, error: describeRouterError(err, model) };
+  }
+  ctx.addReceipt?.(t.receipt);
+  entry.analyzedBy = { model, requestId: t.receipt.requestId, kind: "transcription" };
+  ctx.record.voiceNotes.push({ name: file.name, sha256: file.sha256, size: file.size, mediaType: type, transcript: t.text.slice(0, 20_000), model, requestId: t.receipt.requestId, at: new Date().toISOString() });
+  announce(`transcribed ${file.name} with ${model}${t.receipt.requestId ? ` (0G request ${t.receipt.requestId})` : ""}`);
+  ctx.inform?.(`“${t.text}”`);
+  return {
+    transcribed: true,
+    transcript: t.text,
+    requestId: t.receipt.requestId,
+    note: "This is the contributor's voice note. Read back any value you take from it, and record it only once they confirm.",
+  };
+}
+
+/**
+ * Once the model has answered a request that carried images, the photos it was shown have a request id.
+ * @param {ContributionRecord} record
+ * @param {string | null} requestId
+ */
+export function settleVision(record, requestId) {
+  for (const e of record.evidence) {
+    if (e.analyzedBy?.kind === "vision" && e.analyzedBy.requestId === null) e.analyzedBy.requestId = requestId;
+  }
+}
+
+/**
+ * Photos queued for the model but never sent (the interview ended first) were not read by it.
+ * @param {ContributionRecord} record
+ */
+export function unsentVision(record) {
+  for (const e of record.evidence) {
+    if (e.analyzedBy?.kind === "vision" && e.analyzedBy.requestId === null) delete e.analyzedBy;
   }
 }
 
@@ -277,6 +419,19 @@ async function finish(args, ctx) {
     return fail("summary is required: two to four sentences the contributor agreed to.");
   }
   const summary = args.summary.trim().slice(0, 4000);
+  // the machine may have captured more since the interview started: reload, then check every required outcome has a verdict
+  if (ctx.refreshOutcomes) await ctx.refreshOutcomes().catch(() => {});
+  const missing = pendingOutcomes(ctx.stage, ctx.record);
+  if (missing.length) {
+    return {
+      result: {
+        ok: false,
+        error: `Not finished: the contributor has not confirmed or disputed ${missing.map((o) => `"${o.label}"`).join(", ")}. Show each with review_outcome, ask them, and record their verdict with confirm_outcome (confirm or dispute; "unsure" is not enough for a required outcome).`,
+        missing: missing.map((o) => o.key),
+      },
+      finished: false,
+    };
+  }
   const confirmed = await ctx.confirmFinish(summary);
   if (!confirmed) {
     return {

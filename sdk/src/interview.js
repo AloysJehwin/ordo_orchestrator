@@ -4,10 +4,15 @@
 /** @import { RouterClient } from "./router.js" */
 /** @import { Terminal } from "./io.js" */
 /** @import { ContributionRecord } from "./tools.js" */
+/** @import { OrdoClient } from "./ordo-api.js" */
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { formatBytes } from "./evidence.js";
+import { contentText, createMediaQueue, stripImages } from "./media.js";
+import { targetText } from "./outcome-tools.js";
 import { buildSystemPrompt, KICKOFF } from "./prompt.js";
 import { describeRouterError } from "./router.js";
-import { createRecord, measurables, runTool, toolDefinitions } from "./tools.js";
+import { createRecord, measurables, runTool, settleVision, toolDefinitions, unsentVision } from "./tools.js";
 
 /** Tool rounds in a row without hearing from the contributor before we stop and ask them. */
 const MAX_TOOL_ROUNDS = 8;
@@ -23,14 +28,15 @@ const MAX_TOOL_ROUNDS = 8;
 /**
  * @param {{
  *   session: Session,
- *   router: Pick<RouterClient, "chat" | "model">,
+ *   router: Pick<RouterClient, "chat" | "model"> & Partial<Pick<RouterClient, "audioModel" | "transcribe">>,
  *   terminal: Terminal,
+ *   client?: Pick<OrdoClient, "output" | "askMachine" | "getSession">,
  *   cwd?: string,
  *   maxEvidenceBytes?: number,
  * }} options
  * @returns {Promise<InterviewResult>}
  */
-export async function runInterview({ session, router, terminal, cwd = process.cwd(), maxEvidenceBytes }) {
+export async function runInterview({ session, router, terminal, client, cwd = process.cwd(), maxEvidenceBytes }) {
   const { style } = terminal;
   const stage = session.stage;
   const record = createRecord();
@@ -39,6 +45,9 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
   /** @type {Receipt[]} */
   const receipts = [];
   const tools = toolDefinitions(stage);
+  // images for the model (the machine's media, photos the contributor agreed to show) ride after the tool results
+  const media = createMediaQueue();
+  const saveDir = path.join(tmpdir(), `ordo-pow-${String(session.sessionId ?? "session").replace(/[^\w-]/g, "_")}`);
   /** @type {ChatMessage[]} */
   const messages = [
     { role: "system", content: buildSystemPrompt(session) },
@@ -81,13 +90,44 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
     }
   }
 
+  /**
+   * Ask the contributor yes or no before a file of theirs goes to a model. Anything but y or yes is no.
+   * @param {string} question
+   */
+  async function consent(question) {
+    for (;;) {
+      const answer = await terminal.ask(`${style.yellow("?")} ${question} [y/N] `);
+      if (answer === null) {
+        inputEnded = true;
+        return false;
+      }
+      const text = answer.trim().toLowerCase();
+      if (text === "/show") {
+        terminal.print(formatRecord(record, stage, style));
+        continue;
+      }
+      return text === "y" || text === "yes";
+    }
+  }
+
+  /** The machine may capture more while we talk: reload its outcomes before finishing. */
+  async function refreshOutcomes() {
+    if (!client || !stage.outcomes?.length) return;
+    const fresh = await client.getSession();
+    if (Array.isArray(fresh.stage.outcomes)) stage.outcomes = fresh.stage.outcomes;
+  }
+
   /** @param {string} summary */
   async function confirmFinish(summary) {
     terminal.print("");
     terminal.print(style.bold("Review before sending"));
     terminal.print(`  ${style.bold("Summary")}  ${summary}`);
     terminal.print(formatRecord(record, stage, style));
-    terminal.print(style.dim("  Your answers, this summary and the evidence hashes go to Ordo. Evidence files stay on this machine."));
+    terminal.print(
+      style.dim(
+        "  Your answers, this summary, your verdicts and the evidence hashes go to Ordo. Your files stay on this machine; a photo or voice note you agreed to share went only to the 0G model.",
+      ),
+    );
     for (;;) {
       const answer = await terminal.ask(`Submit this record to Ordo? [y/N] `);
       if (answer === null) {
@@ -111,6 +151,8 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
 
   /** @param {string} line */
   const announce = (line) => terminal.print(style.green(`  ✓ ${line}`));
+  /** @param {string} line */
+  const inform = (line) => terminal.print(style.dim(`  ↳ ${line}`));
 
   for (;;) {
     terminal.thinking();
@@ -128,6 +170,9 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
       continue;
     }
     receipts.push(result.receipt);
+    // the model has seen the images in this request: they become placeholders, so later requests stay small
+    settleVision(record, result.receipt.requestId);
+    stripImages(messages);
     if (result.receipt.teeVerified === false && !warnedTee) {
       warnedTee = true;
       terminal.warn("Warning: the 0G Router reports that the provider's TEE signature on an answer did not verify. The receipt records this; Ordo will flag it.");
@@ -135,7 +180,7 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
     const message = result.message;
     messages.push(message);
 
-    const content = message.content?.trim();
+    const content = contentText(message.content).trim();
     if (content) {
       terminal.print("");
       terminal.print(style.cyan(content));
@@ -162,6 +207,14 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
           confirmFinish,
           announce,
           maxEvidenceBytes,
+          consent,
+          media,
+          router,
+          client,
+          addReceipt: (receipt) => void receipts.push(receipt),
+          inform,
+          refreshOutcomes,
+          saveDir,
         });
         results.set(call.id, outcome.result);
         if (outcome.finished) finished = true;
@@ -172,8 +225,13 @@ export async function runInterview({ session, router, terminal, cwd = process.cw
       for (const call of calls) {
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(results.get(call.id) ?? { ok: false }) });
       }
-      if (finished) return done("finished");
+      const images = media.take();
+      if (finished) {
+        if (images) unsentVision(record);
+        return done("finished");
+      }
       if (inputEnded || quitRequested) return done("quit");
+      if (images) messages.push(images);
       if (toolRounds < MAX_TOOL_ROUNDS) continue;
       terminal.print(style.dim("  (The interviewer is taking many steps; please answer or type /show.)"));
     }
@@ -210,15 +268,42 @@ export function formatRecord(record, stage, style) {
     .map((x) => x.key);
   if (missing.length) lines.push(style.dim(`    not recorded: ${missing.join(", ")}`));
 
+  const outcomes = stage.outcomes ?? [];
+  if (outcomes.length) {
+    lines.push(style.bold("  Outcomes") + style.dim("  (captured by the machine; your verdicts)"));
+    const width = Math.min(32, Math.max(...outcomes.map((o) => o.label.length)));
+    for (const o of outcomes) {
+      const c = record.confirmations.find((x) => x.outcome === o.key);
+      const read = o.output ? `read ${o.output.value}${o.metric.unit ? ` ${o.metric.unit}` : ""}, target ${targetText(o.metric)}` : "not captured yet";
+      const verdict = !c
+        ? o.output && o.required
+          ? style.yellow("not reviewed")
+          : style.dim("no verdict")
+        : c.verdict === "confirm"
+          ? style.green("confirmed")
+          : c.verdict === "dispute"
+            ? style.yellow(`disputed${c.observed !== undefined ? `: observed ${c.observed}${o.metric.unit ? ` ${o.metric.unit}` : ""}` : ""}`)
+            : "unsure";
+      lines.push(`    ${o.label.padEnd(width)}  ${style.dim(read)}  ${verdict}${c?.note ? style.dim(`  (${c.note})`) : ""}`);
+    }
+  }
+
   lines.push(style.bold("  Notes"));
   if (record.notes.length) for (const n of record.notes) lines.push(`    - ${n.text}`);
   else lines.push(style.dim("    none yet"));
 
-  lines.push(style.bold("  Evidence") + style.dim("  (hashed here; files are not uploaded)"));
+  lines.push(style.bold("  Evidence") + style.dim("  (hashed here; Ordo gets only the hashes)"));
   if (record.evidence.length) {
-    for (const e of record.evidence) lines.push(`    ${e.name}  ${formatBytes(e.size)}  sha256 ${e.sha256}`);
+    for (const e of record.evidence) {
+      const read = e.analyzedBy ? style.dim(e.analyzedBy.kind === "vision" ? `  shown to ${e.analyzedBy.model}` : `  transcribed by ${e.analyzedBy.model}`) : "";
+      lines.push(`    ${e.name}  ${formatBytes(e.size)}  sha256 ${e.sha256}${read}`);
+    }
   } else {
     lines.push(style.dim("    none"));
+  }
+  if (record.voiceNotes.length) {
+    lines.push(style.bold("  Voice notes"));
+    for (const v of record.voiceNotes) lines.push(`    ${v.name}: ${style.dim(`“${v.transcript.length > 160 ? `${v.transcript.slice(0, 159)}…` : v.transcript}”`)}`);
   }
   return lines.join("\n");
 }

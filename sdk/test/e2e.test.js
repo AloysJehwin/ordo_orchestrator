@@ -142,7 +142,7 @@ describe("through the Router", () => {
         ["Pressed 20 housings on press 3", "One part re-pressed"],
       );
       for (const n of payload.notes) assert.ok(!Number.isNaN(Date.parse(n.at)));
-      assert.deepEqual(payload.evidence, [{ name: "run-log.csv", sha256: sha256(EVIDENCE), size: Buffer.byteLength(EVIDENCE) }]);
+      assert.deepEqual(payload.evidence, [{ name: "run-log.csv", sha256: sha256(EVIDENCE), size: Buffer.byteLength(EVIDENCE), mediaType: "text/csv" }]);
       assert.deepEqual(
         payload.transcript.filter((/** @type {any} */ t) => t.role === "user").map((/** @type {any} */ t) => t.content),
         ["Pressed 20 housings on press 3.", "41.5 kN", "run-log.csv", "One part re-pressed."],
@@ -295,7 +295,7 @@ describe("with the mock interviewer (ORDO_POW_MOCK_ROUTER=1)", () => {
         payload.notes.map((/** @type {any} */ n) => n.text),
         ["Work done: Ran the press fit batch", "Not measured: Visual check"],
       );
-      assert.deepEqual(payload.evidence, [{ name: "run-log.csv", sha256: sha256(EVIDENCE), size: Buffer.byteLength(EVIDENCE) }]);
+      assert.deepEqual(payload.evidence, [{ name: "run-log.csv", sha256: sha256(EVIDENCE), size: Buffer.byteLength(EVIDENCE), mediaType: "text/csv" }]);
       assert.equal(payload.summary, "Ran the press fit batch; 2 measurements recorded; 1 evidence file attached.");
       assert.ok(payload.receipts.length > 5);
       for (const [k, r] of payload.receipts.entries()) {

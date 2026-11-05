@@ -1,4 +1,4 @@
-// Client for the 0G Private Computer Router (OpenAI-compatible chat completions).
+// Client for the 0G Private Computer Router (OpenAI-compatible chat completions, and speech to text for voice notes).
 //
 // Every request goes out in private trust mode (TEE providers only) with verify_tee: true.
 // Every successful response yields a receipt: the response key (ZG-Res-Key header, falling
@@ -68,10 +68,17 @@ export class RouterError extends Error {
  */
 
 /**
+ * @typedef {object} TranscriptionResult
+ * @property {string} text
+ * @property {Receipt} receipt
+ */
+
+/**
  * @param {{
  *   baseUrl: string,
  *   apiKey: string,
  *   model: string,
+ *   audioModel?: string | null,
  *   transport?: Transport,
  *   sleep?: (ms: number) => Promise<void>,
  *   onRetry?: (error: RouterError, delayMs: number) => void,
@@ -83,24 +90,29 @@ export function createRouterClient({
   baseUrl,
   apiKey,
   model,
+  audioModel = null,
   transport = fetchTransport,
   sleep = defaultSleep,
   onRetry = () => {},
   timeoutMs = TIMEOUT_MS,
   verifyTee = true,
 }) {
-  const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const root = baseUrl.replace(/\/+$/, "");
+  const url = `${root}/chat/completions`;
+  // speech to text takes a JSON body with the audio in file_base64; verify_tee is a query parameter on this endpoint
+  const transcriptionUrl = `${root}/audio/transcriptions${verifyTee ? "?verify_tee=true" : ""}`;
 
   /**
    * One round trip, no retry.
    * @param {string} bodyText
+   * @param {string} [target]
    */
-  async function once(bodyText) {
+  async function once(bodyText, target = url) {
     /** @type {TransportResponse} */
     let res;
     try {
       res = await transport({
-        url,
+        url: target,
         headers: {
           authorization: `Bearer ${apiKey}`,
           "content-type": "application/json",
@@ -118,8 +130,26 @@ export function createRouterClient({
     return res;
   }
 
+  /**
+   * One request, retried once on 429, 5xx or a network failure.
+   * @param {string} bodyText
+   * @param {string} [target]
+   */
+  async function withRetry(bodyText, target = url) {
+    try {
+      return await once(bodyText, target);
+    } catch (err) {
+      if (!(err instanceof RouterError) || !err.retryable) throw err;
+      const delay = Math.min(err.retryAfterMs ?? (err.status === 429 ? 5_000 : 2_000), MAX_RETRY_DELAY_MS);
+      onRetry(err, delay);
+      await sleep(delay);
+      return once(bodyText, target);
+    }
+  }
+
   return {
     model,
+    audioModel,
 
     /**
      * @param {{ messages: ChatMessage[], tools: unknown[] }} input
@@ -133,16 +163,7 @@ export function createRouterClient({
       const bodyText = canonicalJson(requestBody);
       const requestSha256 = sha256Hex(bodyText);
 
-      let res;
-      try {
-        res = await once(bodyText);
-      } catch (err) {
-        if (!(err instanceof RouterError) || !err.retryable) throw err;
-        const delay = Math.min(err.retryAfterMs ?? (err.status === 429 ? 5_000 : 2_000), MAX_RETRY_DELAY_MS);
-        onRetry(err, delay);
-        await sleep(delay);
-        res = await once(bodyText);
-      }
+      const res = await withRetry(bodyText);
 
       const responseSha256 = sha256Hex(res.body);
       /** @type {Record<string, any>} */
@@ -163,6 +184,31 @@ export function createRouterClient({
         finishReason: typeof choice.finish_reason === "string" ? choice.finish_reason : null,
         receipt,
       };
+    },
+
+    /**
+     * Transcribe a voice note with the session's speech-to-text model, in private mode. The receipt binds the exact
+     * request (the audio included) and response bytes, like a chat turn's, and keeps the Router's request id.
+     * @param {{ bytes: Uint8Array, filename: string }} input
+     * @returns {Promise<TranscriptionResult>}
+     */
+    async transcribe({ bytes, filename }) {
+      if (!audioModel) throw new RouterError("This session has no speech-to-text model.", { status: 403 });
+      const bodyText = canonicalJson({ model: audioModel, file_base64: Buffer.from(bytes).toString("base64"), filename, response_format: "json" });
+      const requestSha256 = sha256Hex(bodyText);
+      const res = await withRetry(bodyText, transcriptionUrl);
+      const responseSha256 = sha256Hex(res.body);
+      /** @type {Record<string, any>} */
+      let data;
+      try {
+        data = JSON.parse(Buffer.from(res.body).toString("utf8"));
+      } catch {
+        throw new RouterError("The 0G Router sent a transcription that is not JSON.", { status: res.status });
+      }
+      if (typeof data?.text !== "string") throw new RouterError("The 0G Router's transcription has no text.", { status: res.status });
+      const receipt = buildReceipt({ data, headers: res.headers, model: audioModel, requestSha256, responseSha256 });
+      receipt.kind = "transcription";
+      return { text: data.text.trim(), receipt };
     },
   };
 }

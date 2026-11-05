@@ -1,5 +1,15 @@
 // Client for the Ordo proof-of-work session API.
 /** @import { Session, SessionStatus, FinishPayload, FinishResult } from "./types.js" */
+
+/**
+ * The machine's answer to a question, relayed by Ordo.
+ * @typedef {object} MachineAnswer
+ * @property {string} answer
+ * @property {string | null} requestId  The 0G request behind the answer; null when the machine runs without one.
+ * @property {string | null} model
+ * @property {string} at
+ * @property {{ id: string, name: string | null }} [machine]
+ */
 import { USER_AGENT } from "./meta.js";
 
 const TIMEOUT_MS = 30_000;
@@ -36,19 +46,18 @@ export function createOrdoClient({ apiBaseUrl, secret, fetchImpl = fetch, timeou
    * @param {"GET" | "POST"} method
    * @param {string} path
    * @param {unknown} [body]
-   * @returns {Promise<unknown>}
+   * @param {string} [accept]
    */
-  async function request(method, path, body) {
+  async function send(method, path, body, accept = "application/json") {
     /** @type {Record<string, string>} */
     const headers = {
       authorization: `Bearer ${secret}`,
-      accept: "application/json",
+      accept,
       "user-agent": USER_AGENT,
     };
     if (body !== undefined) headers["content-type"] = "application/json";
-    let res;
     try {
-      res = await fetchImpl(`${apiBaseUrl}${path}`, {
+      return await fetchImpl(`${apiBaseUrl}${path}`, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -57,6 +66,16 @@ export function createOrdoClient({ apiBaseUrl, secret, fetchImpl = fetch, timeou
     } catch (err) {
       throw new OrdoApiError(`Could not reach Ordo at ${origin} (${networkReason(err)}).`, 0);
     }
+  }
+
+  /**
+   * @param {"GET" | "POST"} method
+   * @param {string} path
+   * @param {unknown} [body]
+   * @returns {Promise<unknown>}
+   */
+  async function request(method, path, body) {
+    const res = await send(method, path, body);
     const text = await res.text().catch(() => "");
     /** @type {unknown} */
     let data = null;
@@ -91,6 +110,42 @@ export function createOrdoClient({ apiBaseUrl, secret, fetchImpl = fetch, timeou
       }
       data.stage.criteria = Array.isArray(data.stage.criteria) ? data.stage.criteria : [];
       data.stage.parameters = Array.isArray(data.stage.parameters) ? data.stage.parameters : [];
+      data.stage.outcomes = Array.isArray(data.stage.outcomes) ? data.stage.outcomes : [];
+      return data;
+    },
+
+    /**
+     * A file the stage's machine captured for an outcome, or its preview (a video's keyframe, an audio spectrogram, a chart).
+     * @param {string} key
+     * @param {"file" | "preview"} [which]
+     * @param {number} [version]
+     * @returns {Promise<{ bytes: Uint8Array, mime: string }>}
+     */
+    async output(key, which = "file", version) {
+      const path = `/v1/pow/session/outputs/${encodeURIComponent(key)}${which === "preview" ? "/preview" : ""}${version ? `?version=${version}` : ""}`;
+      const res = await send("GET", path, undefined, "*/*");
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let detail = "";
+        try {
+          detail = errorDetail(JSON.parse(text));
+        } catch {
+          detail = "";
+        }
+        throw new OrdoApiError(`Ordo answered ${res.status}${detail ? `: ${detail}` : ""}.`, res.status);
+      }
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      return { bytes, mime: (res.headers.get("content-type") ?? "application/octet-stream").split(";")[0]?.trim() ?? "application/octet-stream" };
+    },
+
+    /**
+     * Ask the stage's machine about its run; Ordo relays the question to its body, which answers through 0G.
+     * @param {string} question
+     * @returns {Promise<MachineAnswer>}
+     */
+    async askMachine(question) {
+      const data = /** @type {MachineAnswer} */ (await request("POST", "/v1/pow/session/ask-machine", { question }));
+      if (typeof data.answer !== "string") throw new OrdoApiError("Ordo relayed no answer from the machine.", 200);
       return data;
     },
 
