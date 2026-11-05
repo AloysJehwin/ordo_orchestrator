@@ -1,0 +1,19 @@
+# One-click deploy on Render (Blueprint): https://render.com/docs/blueprint-spec
+# Long-running process + Server-Sent Events, so it runs as a web service, not serverless.
+services:
+  - type: web
+    name: ordo
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: LLM_PROVIDER
+        value: offline
+      - key: TICK_MS
+        value: "1000"
+      - key: DATA_DIR
+        value: memory
+      - key: LEDGER_SIGNING_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

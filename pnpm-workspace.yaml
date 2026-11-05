@@ -1,0 +1,10 @@
+packages:
+  - server
+  - web
+  - contracts
+  - sdk
+
+# @x402/hedera pins an older Hiero SDK; keep one copy (the server's) so its transactions and ours are the same classes.
+overrides:
+  "@x402/hedera>@hiero-ledger/sdk": 2.90.1
+  "@x402/hedera>@hiero-ledger/proto": 2.32.0

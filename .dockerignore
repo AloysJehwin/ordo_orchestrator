@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+.data
+**/.data
+.git
+mockups
+*.dc.html
+contracts/artifacts
+contracts/deployments
+test-results
+playwright-report

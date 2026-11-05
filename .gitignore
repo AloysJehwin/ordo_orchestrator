@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.data/
+*.log
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+coverage/
+contracts/artifacts/
+contracts/deployments/*.json
+.vercel
+.vercel/
+.DS_Store
+.idea/
