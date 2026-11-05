@@ -163,9 +163,22 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   /** Where the console is, for links the terminal agent prints: the public URL, else the origin this request came to. */
   const origin = (c: Context) => publicBase(sys.cfg) ?? `${c.req.header("x-forwarded-proto") ?? new URL(c.req.url).protocol.replace(":", "")}://${host(c)}`;
   const powSecret = (c: Context) => (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  app.get("/v1/pow/session", async (c) => c.json(await sys.contributions.sessionInfo(powSecret(c))));
+  app.get("/v1/pow/session", async (c) => c.json(await sys.contributions.sessionInfo(powSecret(c), sys.bodies)));
   app.post("/v1/pow/session/finish", async (c) => c.json(await sys.contributions.finish(powSecret(c), await body(c, FinishBody), origin(c))));
   app.get("/v1/pow/session/status", async (c) => c.json(await sys.contributions.status(powSecret(c), origin(c))));
+  // the media the stage's machine captured for one outcome (or its preview), so the interviewer can show it to the contributor
+  for (const which of ["file", "preview"] as const) {
+    app.get(`/v1/pow/session/outputs/:key${which === "preview" ? "/preview" : ""}`, async (c) => {
+      const v = c.req.query("version");
+      const f = await sys.contributions.sessionOutput(powSecret(c), c.req.param("key"), which, v && /^\d{1,6}$/.test(v) ? Number(v) : undefined);
+      return new Response(f.bytes, { headers: { "content-type": f.mime, "content-disposition": `attachment; filename="${f.name}"`, "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+    });
+  }
+  // the interviewer asks the stage's machine about its run; its body answers through 0G
+  app.post("/v1/pow/session/ask-machine", async (c) => {
+    const b = await body(c, z.object({ question: z.string().trim().min(3).max(1000) }));
+    return c.json(await sys.contributions.askMachine(powSecret(c), b.question, sys.bodies));
+  });
   // a signed proof of work, for anyone with the link: commitments and receipts, never the values
   app.get("/v1/public/contributions/:id", async (c) => {
     const id = c.req.param("id");
@@ -711,6 +724,29 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     return c.get("access").level >= 3 ? sys.contributions.view(sid(c), id, 3) : v;
   };
   site.get("/contributions/:id", async (c) => c.json(await contributionFor(c, c.req.param("id"))));
+  // the outcome cards of a proof of work: what the stage's machine captured and the contributor's verdicts on it, for
+  // its author (who reviewed the media through the session) and level 3; the files are the versions the record binds
+  const boundFor = async (c: Context<Env>, id: string) => {
+    const v = await contributionFor(c, id);
+    if (v.contributor.userId !== me(c).user.id && c.get("access").level < 3) throw new HttpError(403, "The machine's media needs level 3");
+    return v;
+  };
+  site.get("/contributions/:id/outcomes", async (c) => {
+    const v = await boundFor(c, c.req.param("id"));
+    const run = await sys.engine.view(sid(c), v.runId);
+    const stage = run.stages.find((s) => s.code === v.stageCode);
+    if (!stage) throw new HttpError(404, "Stage not found");
+    return c.json({ outcomes: await sys.outputs.forStage(sid(c), run.id, stage, 3), bound: v.outcomes });
+  });
+  for (const which of ["file", "preview"] as const) {
+    site.get(`/contributions/:id/outputs/:key/${which}`, async (c) => {
+      const v = await boundFor(c, c.req.param("id"));
+      const o = v.outcomes.find((x) => x.outcome === c.req.param("key"));
+      if (!o?.version) throw new HttpError(404, "This proof of work binds no file for that outcome");
+      const f = await sys.outputs.file(sid(c), v.runId, v.stageCode, o.outcome, which, o.version);
+      return new Response(f.bytes, { headers: { "content-type": f.mime, "content-disposition": `inline; filename="${f.name}"`, "cache-control": "private, max-age=300", "x-content-type-options": "nosniff" } });
+    });
+  }
   site.post("/contributions/:id/sign-request", async (c) => {
     const b = await body(c, z.object({ chainId: z.number().int().positive() }));
     return c.json(await sys.contributions.signRequest(sid(c), me(c).user, c.req.param("id"), b.chainId));

@@ -484,4 +484,13 @@ CREATE TABLE resource_waivers (run_id TEXT NOT NULL, stage_code TEXT NOT NULL, s
   reason TEXT NOT NULL, signature_id TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (run_id, stage_code));
 `,
   },
+  {
+    version: 31,
+    name: "proof of work binds the machine's media: the contributor's verdicts, and the machine's answers",
+    sql: `
+ALTER TABLE contributions ADD COLUMN outcomes_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE contributions ADD COLUMN disputes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE contribution_sessions ADD COLUMN machine_qa_json TEXT;
+`,
+  },
 ];

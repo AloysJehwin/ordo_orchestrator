@@ -435,6 +435,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   );
   contributions.replicas = validation.replicas ?? null;
   outputs.replicas = validation.replicas ?? null;
+  contributions.outputs = outputs;
   const selection = new Selection(db, engine, rec, sigs, trust, contributions, now);
   const cases = new Cases(db, engine, rec, sigs, trust, selection, contributions, now);
   agentLicenses.memory = agentMemory;
