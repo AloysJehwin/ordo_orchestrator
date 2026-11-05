@@ -6,6 +6,7 @@ import type { AssetKind } from "../../server/src/domain/types.js";
 import { Gateway } from "../../server/src/edge/gateway.js";
 import { BODY_PROFILES } from "../../server/src/edge/profiles.js";
 import { BrainError, type Brain, type Situation } from "./brain.js";
+import { Purchasing } from "./buy.js";
 import { uploadOutput, type Analysis } from "./edge.js";
 import { EpisodeLog, type NewEntry } from "./episode.js";
 import type { CaptureSpec, Rendered } from "./media/capture.js";
@@ -32,6 +33,8 @@ export interface BodyConfig {
   brain: Brain | null;
   /** the machine's own Hedera account (never its key) */
   hedera: { network: string; accountId: string } | null;
+  /** the machine account's key: it signs only the machine's x402 payments for what its stages consume */
+  machineKey: string | null;
 }
 
 /** How often a capture reads out of spec on its first attempt, and on an attempt after the agent adjusted the process. */
@@ -94,6 +97,7 @@ export class Body {
   readonly gw: Gateway;
   readonly log: EpisodeLog;
   readonly process: Process;
+  readonly buying: Purchasing;
   mode: "running" | "safe_stopped" = "running";
   private works = new Map<string, Work>();
   private fails = 0;
@@ -102,12 +106,25 @@ export class Body {
   private lastError = "";
   private stopped = false;
   private saved: Saved | null = null;
+  /** the stage the machine is working this tick */
+  private working: { runId: string; stage: string } | null = null;
 
   constructor(readonly cfg: BodyConfig) {
     this.saved = this.load();
     this.process = new Process(BODY_PROFILES[cfg.kind], cfg.seed, this.saved, Date.now);
     this.gw = new Gateway({ url: cfg.url, key: cfg.key, assetId: cfg.asset, source: { kind: "feed", read: () => this.process.read() }, log: (l) => console.log(l) });
     this.log = new EpisodeLog({ seed: cfg.seed, asset: cfg.asset, machine: cfg.kind, device: this.gw.account.address }, cfg.dataDir);
+    this.buying = new Purchasing({
+      url: cfg.url,
+      asset: cfg.asset,
+      kind: cfg.kind,
+      account: cfg.hedera && cfg.machineKey ? { ...cfg.hedera, key: cfg.machineKey } : null,
+      brain: cfg.brain,
+      gw: this.gw,
+      working: () => this.working,
+      add: (e) => this.add(e),
+      log: (l) => console.log(l),
+    });
   }
 
   get device() {
@@ -122,7 +139,7 @@ export class Body {
     const ff = await ffmpegPath();
     this.log.add({ kind: "start", seed: this.cfg.seed, asset: this.cfg.asset, machine: this.cfg.kind, device: this.device, brain: this.cfg.brain ? "0g" : "none", model: this.cfg.brain?.model ?? null, ffmpeg: ff, hedera: this.cfg.hedera?.accountId ?? null });
     console.log(`body ${this.cfg.asset} (${this.cfg.kind}) device ${this.device}: ${this.cfg.brain ? `0G brain ${this.cfg.brain.model}` : "no 0G brain (ZG_ROUTER_URL/KEY unset): runs without an agent"}; video ${ff ? `via ${ff}` : "skipped (no ffmpeg)"}`);
-    if (this.cfg.hedera) console.log(`machine account ${this.cfg.hedera.accountId} on ${this.cfg.hedera.network}`);
+    if (this.cfg.hedera) console.log(`machine account ${this.cfg.hedera.accountId} on ${this.cfg.hedera.network}${this.buying.enabled ? ": buys ahead over x402" : ""}`);
     while (!this.stopped) {
       const t0 = Date.now();
       try {
@@ -139,6 +156,7 @@ export class Body {
 
   async stop() {
     this.stopped = true;
+    await this.buying.settle();
     await this.reports(true).catch(() => undefined);
     this.save();
   }
@@ -175,6 +193,7 @@ export class Body {
     }
     const running = [...open.values()].filter((s) => s.state === "running").sort((a, b) => a.startedAt - b.startedAt);
     const st = running[0] ?? null;
+    this.working = st ? { runId: st.runId, stage: st.stage } : null;
     // time only runs for the stage being worked
     for (const w of this.works.values()) if (w.key !== (st && keyOf(st))) w.lastTick = Date.now();
 
@@ -188,6 +207,8 @@ export class Body {
     if (this.mode === "running") {
       if (st) await this.work(this.workFor(st));
       else this.process.execution = [...open.values()].some((s) => s.state === "held") ? "FEED_HOLD" : "READY";
+      // buying ahead runs beside the loop, about once a minute (and when a stage starts)
+      void this.buyAhead(false);
     }
 
     await this.gw.observe();
@@ -230,17 +251,20 @@ export class Body {
     this.process.beginStage(new Rng(this.cfg.seed, this.cfg.asset, st.runId, st.stage, "stage"));
     this.add({ kind: "stage", event: prior ? "resumed" : "started", runId: st.runId, stage: st.stage, name: st.name, quantity: st.quantity });
     console.log(`${prior ? "resuming" : "working"} ${key} ${st.name} (${st.quantity} units, ${st.outcomes.length} outcome(s))`);
-    void this.buyAhead(st);
+    this.working = { runId: st.runId, stage: st.stage };
+    void this.buyAhead(true);
     return w;
   }
 
   /**
-   * Buying ahead: the resources the stages after this one consume (`st.upcoming`) are bought from vendors over x402,
-   * paid from the machine's own Hedera account (MACHINE_ACCOUNT_ID), before those stages start. The purchasing module
-   * (server/src/edge/purchasing.ts) is written separately; until it is wired in here, this does nothing.
+   * Buying ahead: the resources the stages after this one consume, and those of its own stage waiting to start, are
+   * bought from vendors over x402, paid from the machine's own Hedera account (MACHINE_ACCOUNT_ID), before those stages
+   * start; what is over budget is asked of the org's treasury as a top-up (buy.ts). When a stage starts and about once
+   * a minute while the body runs; never two cycles at once, never while it is safe-stopped, never throwing.
    */
-  private async buyAhead(st: EdgeStage): Promise<void> {
-    void st;
+  private async buyAhead(now: boolean): Promise<void> {
+    if (this.mode !== "running" || this.stopped) return;
+    await this.buying.run(now);
   }
 
   private async work(w: Work) {

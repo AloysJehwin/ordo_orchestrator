@@ -5,7 +5,9 @@ import type { CaptureSpec } from "./media/capture.js";
 
 /**
  * One line of a body's episode log. Every perception and decision carries the 0G request it came from; every capture
- * carries what it was rendered from, so `body replay` renders the same files again.
+ * carries what it was rendered from, so `body replay` renders the same files again. A purchase is filed under the stage
+ * the machine was working when it bought (`forStage` is the stage that consumes it), so the stage's decision trail
+ * includes what its machine bought ahead and every top-up it asked the treasury for.
  */
 export type Entry = { t: string; runId?: string; stage?: string } & (
   | { kind: "start"; seed: string; asset: string; machine: AssetKind; device: string; brain: "0g" | "none"; model: string | null; ffmpeg: string | null; hedera: string | null }
@@ -14,10 +16,38 @@ export type Entry = { t: string; runId?: string; stage?: string } & (
   | { kind: "perception"; outcome: string; attempt: number; value: number | null; summary: string; anomaly: string | null; requestId: string | null; provider: string | null; teeVerified: boolean | null; model: string | null; ms: number }
   | { kind: "decision"; action: "continue" | "adjust" | "hold"; reason: string; signal: string | null; recapture: string | null; applied: string; requestId: string | null; provider: string | null; teeVerified: boolean | null; model: string | null; ms: number }
   | { kind: "hold"; reason: string; hold: "safe_stop" | "agent"; accepted: boolean; error?: string }
+  | ({ kind: "purchase"; event: "bought" | "skipped" | "over_budget"; forStage: string; resource: string } & PurchaseDetail)
   | { kind: "brain_error"; error: string; consecutive: number }
   | { kind: "brain_back"; requestId: string | null }
   | { kind: "note"; text: string }
 );
+/** What a purchase entry says, by its event: what was bought and the transfer, why it was not, or the top-up asked for. */
+export interface PurchaseDetail {
+  label?: string;
+  qty?: number;
+  unit?: string;
+  amountTinybar?: string;
+  vendorId?: string;
+  sku?: string;
+  purchaseId?: string;
+  txId?: string | null;
+  txUrl?: string | null;
+  /** bought above the stage's maxPrice, within a top-up a manager approved */
+  approved?: boolean;
+  /** skipped: why; over budget: price_above_max or balance_short */
+  reason?: string;
+  detail?: string;
+  /** over budget: the justification sent with the top-up request, and the 0G request behind it (null without a brain) */
+  reasoning?: string;
+  valueAtRisk?: string | null;
+  requestId?: string | null;
+  provider?: string | null;
+  teeVerified?: boolean | null;
+  model?: string | null;
+  /** the top-up Ordo scheduled from the org's treasury, or why it did not */
+  topUp?: { id: string; status: string; scheduleId: string | null; total: string } | null;
+  error?: string;
+}
 type Body<E> = E extends unknown ? Omit<E, "t"> : never;
 export type NewEntry = Body<Entry>;
 

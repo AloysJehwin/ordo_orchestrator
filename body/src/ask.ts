@@ -20,6 +20,13 @@ function plainAnswer(body: Body, question: string): string {
     `This machine runs without a 0G brain, so this answer is read straight from its episode log, not reasoned by an agent.`,
     `It has worked ${stages.length} stage(s) since it started and captured ${captures.length} output(s); ${holds.length} hold(s).`,
   ];
+  const buys = entries.filter((e): e is Extract<Entry, { kind: "purchase" }> => e.kind === "purchase");
+  const bought = buys.filter((b) => b.event === "bought");
+  const asked = buys.filter((b) => b.event === "over_budget");
+  if (buys.length)
+    lines.push(
+      `It bought ${bought.length} resource(s) ahead over x402${bought.length ? ` (latest: ${bought.slice(-4).map((b) => `${b.qty ?? "?"} of ${b.resource} for ${b.forStage}, tx ${b.txId ?? "pending"}`).join("; ")})` : ""}, and asked the treasury for ${asked.length} top-up(s)${asked.length ? ` (latest: ${asked.slice(-3).map((a) => `${a.resource} for ${a.forStage}, ${a.reason}: ${a.topUp ? `${a.topUp.status} ${a.topUp.id}` : `refused: ${a.error ?? ""}`}`).join("; ")})` : ""}.`,
+    );
   if (shown.length) lines.push(`${about.length ? "Captures of what you asked about" : "Latest captures"}: ${shown.map((c) => `${c.runId}/${c.stage} ${c.outcome.label} attempt ${c.attempt} = ${c.value}${c.outcome.metric.unit ? ` ${c.outcome.metric.unit}` : ""}${c.uploaded ? "" : c.skipped ? ` (skipped: ${c.skipped})` : " (not uploaded)"} at ${new Date(c.capturedAt * 1000).toISOString()}`).join("; ")}.`);
   return lines.join(" ");
 }

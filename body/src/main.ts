@@ -13,7 +13,8 @@ const USAGE = `ordo-body: a virtual machine's body.
 
 Environment: ORDO_URL, BODY_KEY, BODY_ASSET, BODY_PROFILE, BODY_SEED; optional BODY_ASK_PORT, BODY_ASK_TOKEN,
 BODY_ASK_HOST, BODY_DATA_DIR, BODY_STAGE_S, BODY_TICK_S, BODY_DECIDE_S, BODY_FFMPEG, ZG_ROUTER_URL, ZG_ROUTER_KEY,
-ZG_ROUTER_MODEL, ZG_ROUTER_TRUST_MODE, HEDERA_NETWORK, MACHINE_ACCOUNT_ID.`;
+ZG_ROUTER_MODEL, ZG_ROUTER_TRUST_MODE, HEDERA_NETWORK, MACHINE_ACCOUNT_ID, MACHINE_ACCOUNT_KEY (the machine's own account, which buys what its
+next stages consume over x402).`;
 
 function need(name: string): string {
   const v = process.env[name]?.trim();
@@ -53,6 +54,7 @@ async function run() {
     failLimit: int("BODY_FAIL_LIMIT", 3, 1),
     brain,
     hedera: accountId ? { network: process.env.HEDERA_NETWORK?.trim() || "testnet", accountId } : null,
+    machineKey: process.env.MACHINE_ACCOUNT_KEY?.trim() || null,
   });
   const port = process.env.BODY_ASK_PORT ? Number(process.env.BODY_ASK_PORT) : null;
   if (port) {
