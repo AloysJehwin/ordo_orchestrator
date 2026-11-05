@@ -186,7 +186,10 @@ const Env = z.object({
   /** The body bundle a local body runs (pnpm --filter @ordo/body build). Unset: body/dist/body.mjs in this checkout */
   BODY_BUNDLE: z.string().optional(),
   /** How long a body's simulated process takes over one stage, in seconds */
-  BODY_STAGE_S: z.coerce.number().int().min(10).max(24 * 3600).default(120),
+  BODY_STAGE_S: z.coerce.number().int().min(10).max(24 * 3600).default(30),
+  // seconds between a body's agent decisions while a stage runs, and between its buying-ahead cycles (demo pace)
+  BODY_DECIDE_S: z.coerce.number().int().min(5).max(3600).default(10),
+  BODY_BUY_S: z.coerce.number().int().min(5).max(3600).default(10),
 });
 
 export type Config = z.infer<typeof Env>;

@@ -28,6 +28,8 @@ export interface BodyConfig {
   tickS: number;
   /** seconds between the agent's decisions while a stage runs */
   decideS: number;
+  /** seconds between buying-ahead cycles (one also runs when a stage starts) */
+  buyS?: number;
   /** consecutive 0G failures before a safe stop */
   failLimit: number;
   brain: Brain | null;
@@ -115,6 +117,7 @@ export class Body {
     this.gw = new Gateway({ url: cfg.url, key: cfg.key, assetId: cfg.asset, source: { kind: "feed", read: () => this.process.read() }, log: (l) => console.log(l) });
     this.log = new EpisodeLog({ seed: cfg.seed, asset: cfg.asset, machine: cfg.kind, device: this.gw.account.address }, cfg.dataDir);
     this.buying = new Purchasing({
+      ...(cfg.buyS ? { everyMs: cfg.buyS * 1000 } : {}),
       url: cfg.url,
       asset: cfg.asset,
       kind: cfg.kind,

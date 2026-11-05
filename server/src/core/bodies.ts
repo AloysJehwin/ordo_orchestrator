@@ -32,6 +32,10 @@ export interface BodyEnv {
   BODY_DATA_DIR?: string;
   /** how long the simulated process takes over one stage, in seconds */
   BODY_STAGE_S?: string;
+  /** seconds between the agent's decisions while a stage runs */
+  BODY_DECIDE_S?: string;
+  /** seconds between buying-ahead cycles */
+  BODY_BUY_S?: string;
   /** the 0G Router, in Ordo's trust mode: a per-start key Ordo mints and revokes on stop. Unset: the body runs without a brain, labelled so */
   ZG_ROUTER_URL?: string;
   ZG_ROUTER_KEY?: string;

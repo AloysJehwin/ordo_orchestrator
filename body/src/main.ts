@@ -51,6 +51,7 @@ async function run() {
     stageS: int("BODY_STAGE_S", 120, 5),
     tickS: int("BODY_TICK_S", 5, 1),
     decideS: int("BODY_DECIDE_S", 30, 5),
+    buyS: int("BODY_BUY_S", 60, 5),
     failLimit: int("BODY_FAIL_LIMIT", 3, 1),
     brain,
     hedera: accountId ? { network: process.env.HEDERA_NETWORK?.trim() || "testnet", accountId } : null,

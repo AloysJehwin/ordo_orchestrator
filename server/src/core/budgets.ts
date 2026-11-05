@@ -611,7 +611,7 @@ export class Budgets {
     } else {
       // an approval in flight is read back every few seconds, a waiting one now and then (anyone may relay it), and
       // every schedule right after its expiry
-      const next = Math.min(now + (r.status === "approving" ? 5_000 : 120_000), Date.parse(r.expires_at) + EXPIRY_GRACE_MS + 1_000);
+      const next = Math.min(now + (r.status === "approving" ? 5_000 : 15_000), Date.parse(r.expires_at) + EXPIRY_GRACE_MS + 1_000);
       await this.db.query("UPDATE budget_schedules SET next_check_at = $1 WHERE id = $2", [new Date(next).toISOString(), r.id]);
     }
   }
