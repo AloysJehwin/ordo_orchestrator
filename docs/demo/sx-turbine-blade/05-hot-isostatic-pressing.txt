@@ -1,0 +1,29 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 05 Hot isostatic pressing
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Hold temperature: 1300 °C
+- Hold pressure: 103 MPa
+- Vessel wall temperature: 42 °C
+- Oxygen in process argon: 2.1 ppm
+- Residual porosity: 0.02 %
+- Compressor ultrasound level: 31 dBµV
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- HIP cycle temperature chart (hip_temperature): I observed 1300 °C. Held 4 h at temperature.
+- HIP cycle pressure chart (hip_pressure): I observed 103 MPa. Pressure stable through the hold.
+- Vessel shell thermal map (vessel_thermal): I observed 42 °C. Vessel wall cool; cooling water flowing.
+- Process argon purity (argon_gc): I observed 2.1 ppm. Argon cylinder bank lot AR-7720.
+- Witness coupon porosity micrograph (coupon_porosity): I observed 0.02 %. Witness coupon nearly fully dense.
+- Gas compressor acoustic check (compressor_audio): I observed 31 dBµV. Compressor quiet; no valve chatter.
+
+NOTES
+- Consumables: process argon bank AR-7720.
+- Blades loaded in the standard fixture; HIP run number 2611-07.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

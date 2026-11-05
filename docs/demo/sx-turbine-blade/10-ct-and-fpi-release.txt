@@ -1,0 +1,29 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 10 CT and FPI release
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Minimum airfoil wall: 0.78 mm
+- Inclusions over 0.25 mm: 0 count
+- Relevant linear indications: 0 count
+- Rhenium content (PMI): 3 wt%
+- TBC disbond area: 0.6 mm²
+- Resonance deviation from reference: 0.7 %
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- CT wall-thickness report (ct_wall): I observed 0.78 mm. Thinnest wall near the tip cap.
+- CT slice indications (ct_indications): I observed 0 count. No inclusion over 0.25 mm.
+- Root FPI indications under UV-A (root_fpi): I observed 0 count. No relevant linear indications on the root.
+- Alloy verification XRF (pmi_xrf): I observed 3 wt%. Alloy confirmed CMSX-4.
+- TBC flash thermography (tbc_flash): I observed 0.6 mm². One tiny disbond near the platform, well under the limit.
+- Resonant acoustic inspection (ram_resonance): I observed 0.7 %. Resonances match the reference blade.
+
+NOTES
+- All blades in the batch inspected; none rejected.
+- Release paperwork ready for the manager's approval.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

@@ -1,0 +1,27 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 03 Shell dewax and firing
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Dewax steam pressure: 7.1 bar
+- Shell firing temperature: 1050 °C
+- Shell cracks over 0.5 mm: 0 count
+- Resonance shift vs. master shell: 1.4 %
+- Residual carbon: 180 ppm
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Steam dewax autoclave log (dewax_log): I observed 7.1 bar. Pressurised to 7.1 bar in 6 s; no wax boil-out cracks.
+- Shell firing thermal map (kiln_thermal): I observed 1050 °C. Shells soaked 2 h at temperature, even glow through the sight glass.
+- Fired shell crack inspection (shell_cracks): I observed 0 count. No crack longer than 0.5 mm on any shell.
+- Fired shell tap test (shell_tap): I observed 1.4 %. Every shell rang clear; nothing dull.
+- Residual carbon in fired shell (residual_carbon): I observed 180 ppm. Burnout complete; shells white inside.
+
+NOTES
+- Consumables: kiln gas from the plant line.
+- No shells lost in dewax or firing.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

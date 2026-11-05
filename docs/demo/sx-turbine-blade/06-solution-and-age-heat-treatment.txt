@@ -1,0 +1,27 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 06 Solution and age heat treatment
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Temperature uniformity spread: 4.2 °C
+- Gas fan quench rate: 85 °C/min
+- γ′ precipitate edge length: 0.45 µm
+- Vickers hardness: 425 HV10
+- Pump noise level: 71 dBA
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Furnace uniformity survey (furnace_tus): I observed 4.2 °C. Survey within AMS2750 class 2.
+- Gas fan quench thermal record (quench_thermal): I observed 85 °C/min. Fan quench fast and even across the load.
+- γ′ microstructure SEM (gamma_prime): I observed 0.45 µm. Cuboidal γ′, evenly aligned.
+- Witness coupon hardness (coupon_hardness): I observed 425 HV10. Average of five indents.
+- Vacuum pump acoustic signature (pump_audio): I observed 71 dBA. Pump note steady; no bearing whine.
+
+NOTES
+- Solution 1315 °C then age 1140 °C and 870 °C, per the process sheet.
+- Blades and coupon treated in the same load.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

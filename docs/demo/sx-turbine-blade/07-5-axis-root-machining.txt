@@ -1,0 +1,29 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 07 5-axis root machining
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Spindle housing temperature: 33.5 °C
+- Chatter band level: 64 dB
+- Root form deviation: 0.008 mm
+- Burn or smear marks: 0 count
+- Spindle vibration velocity: 1.6 mm/s
+- Root flank roughness Ra: 0.45 µm
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Spindle and fixture thermal map (spindle_thermal): I observed 33.5 °C. Spindle warmed up 20 min before cutting.
+- Cutting sound for chatter (chatter_audio): I observed 64 dB. No chatter on the fir-tree passes.
+- Fir-tree root CMM report (root_cmm): I observed 0.008 mm. All three lobes inside form tolerance.
+- Root flank surface image (root_surface): I observed 0 count. No burn or smear marks on the flanks.
+- Spindle vibration spectrum (spindle_vibration): I observed 1.6 mm/s. Vibration low and steady.
+- Root flank roughness (root_roughness): I observed 0.45 µm. Ra measured on both flanks; 0.45 µm is the worst.
+
+NOTES
+- Consumables: carbide form cutters, set CT-55 (new edges).
+- Coolant concentration 8 %.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

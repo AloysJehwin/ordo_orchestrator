@@ -1,0 +1,27 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 01 Wax pattern injection
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Die surface temperature: 28.4 °C
+- Core shift: 0.06 mm
+- Injection cycle time: 78 s
+- Match to reference spectrum: 98.2 %
+- Airfoil profile deviation: 0.05 mm
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Injection die thermal map (die_thermal): I observed 28.4 °C. Die faces even, no hot spot near the gate.
+- Ceramic core position radiograph (core_xray): I observed 0.06 mm. Core sits on its locators; no tilt at the tip.
+- Injection cycle recording (injection_video): I observed 78 s. Fill, pack and hold looked steady; no short shot.
+- Wax lot FTIR fingerprint (wax_ftir): I observed 98.2 %. Wax lot WX-2611-04 matches the reference spectrum.
+- Pattern dimensional report (pattern_scan): I observed 0.05 mm. Worst point at the trailing edge, still inside tolerance.
+
+NOTES
+- Consumables: filled pattern wax lot WX-2611-04, silica cores lot SC-3108.
+- Press cycle and die temperature were normal for the whole batch.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

@@ -1,0 +1,27 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 09 EB-PVD thermal barrier coat
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Substrate temperature: 1005 °C
+- Ceramic topcoat thickness: 150 µm
+- Monoclinic phase: 0.8 %
+- Spitting events: 1 count
+- Deposition chamber pressure: 0.005 mbar
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Substrate preheat thermal image (substrate_thermal): I observed 1005 °C. Preheat even across the fixture.
+- TBC cross-section micrograph (tbc_section): I observed 150 µm. Columnar topcoat, even thickness.
+- Topcoat phase XRD (ysz_xrd): I observed 0.8 %. Topcoat almost all tetragonal.
+- Electron beam pool recording (pool_video): I observed 1 count. One small spit, early in the run; none later.
+- Coater pressure and oxygen bleed log (coater_vacuum): I observed 0.005 mbar. Oxygen bleed steady through deposition.
+
+NOTES
+- Consumables: 7YSZ ingots, lot YZ-2210.
+- Bond coat inspected before coating; no defects.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

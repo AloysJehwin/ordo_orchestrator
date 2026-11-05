@@ -1,0 +1,29 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 02 Ceramic shell building
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Prime slurry viscosity: 1150 mPa·s
+- Dip-to-stucco interval: 24 s
+- Shell surface temperature: 23.1 °C
+- Stucco coverage: 99.3 %
+- ZrO2 in prime coat solids: 59.5 wt%
+- Shell wall thickness: 8.2 mm
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Prime slurry viscosity log (slurry_rheology): I observed 1150 mPa·s. Viscosity checked after 20 min of mixing, tank at 22 °C.
+- Robot dip and stucco recording (dip_video): I observed 24 s. Dip, drain and rain-sand stucco in one smooth motion.
+- Drying room shell thermal map (drying_thermal): I observed 23.1 °C. Drying room at 45 % RH, shells evenly coloured.
+- Stucco coverage image (stucco_image): I observed 99.3 %. No bare patches on the leading edge or platform.
+- Prime coat solids XRF (slurry_xrf): I observed 59.5 wt%. Solids within the prime coat spec.
+- Shell wall thickness record (shell_thickness): I observed 8.2 mm. Witness coupon measured at three points; 8.2 mm is the thinnest.
+
+NOTES
+- Consumables: prime slurry lot PS-1907, zircon stucco sand lot ZS-0412.
+- Seven coats applied, dried between coats as specified.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

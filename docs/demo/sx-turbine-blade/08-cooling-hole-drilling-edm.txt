@@ -1,0 +1,27 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 08 Cooling-hole drilling (EDM)
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Cooling airflow vs. nominal: 100.8 %
+- Recast layer thickness: 14 µm
+- Blocked or missing holes: 0 count
+- Holes below flow threshold: 0 count
+- Hole diameter deviation: 0.018 mm
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Cooling airflow test (airflow): I observed 100.8 %. Flow rig calibrated this shift.
+- Hole recast layer micrograph (recast): I observed 14 µm. Thin, even recast on the sectioned hole.
+- Hole borescope recording (hole_borescope): I observed 0 count. Every hole open and round.
+- Hot-air thermal flow check (thermal_flow): I observed 0 count. Every hole lit up under hot air.
+- Hole diameter report (hole_diameter): I observed 0.018 mm. Largest deviation on a trailing-edge hole.
+
+NOTES
+- Consumables: EDM dielectric and brass electrodes.
+- Hole pattern program revision C.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.

@@ -1,0 +1,29 @@
+Proof of work observations
+Template: Single-crystal turbine blade
+Stage: 04 Vacuum directional solidification
+
+I worked this stage and checked the machine's outcomes myself. Use these as my answers.
+
+MEASUREMENTS (record each one)
+- Pour temperature: 1530 °C
+- Withdrawal rate: 4.2 mm/min
+- Melt chamber pressure: 0.0004 mbar
+- Rhenium content: 3 wt%
+- Stray grains on airfoil: 0 count
+- Primary orientation deviation: 7.5 °
+
+OUTCOME VERDICTS
+For each outcome below, review what the machine captured. If the machine's reading is inside the outcome's target, record confirm, with my value as observed: my own check also found it in spec. If the machine's reading is outside the target, record dispute with my value and say the machine's reading is out of spec.
+- Melt and mould thermal profile (pour_thermal): I observed 1530 °C. Melt superheat steady before the pour.
+- Mould withdrawal recording (withdrawal_video): I observed 4.2 mm/min. Withdrawal smooth, no stops or jerks.
+- Melt chamber vacuum log (vacuum_log): I observed 0.0004 mbar. Leak-up rate normal before the melt.
+- Heat chemistry OES (heat_oes): I observed 3 wt%. Heat CMSX-4 lot H-48812; rhenium at nominal.
+- Macro-etch grain inspection (grain_etch): I observed 0 count. Macro-etch shows one grain over the whole airfoil.
+- Back-reflection Laue pattern (laue): I observed 7.5 °. Spots sharp; [001] within 7.5° of the blade axis.
+
+NOTES
+- Consumables: CMSX-4 master alloy heat H-48812, argon backfill.
+- All moulds knocked out and grit-blasted for etch.
+- No safety incidents during this stage.
+
+Nothing else to add. Summarize and finish.
