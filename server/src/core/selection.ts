@@ -138,6 +138,17 @@ export class Selection {
       });
       await this.engine.record(siteId, `user:${user.address}`, c.run_id, c.stage_code, { good, scrap, complete: true, note: `From proof of work ${id} by ${c.name ?? c.address}`, readings });
       closed = true;
+    } else if (st?.state === "awaiting_approval" && st.mode !== "approve" && !st.criteriaResults.some((x) => x.ok === false)) {
+      // the machine finished and every criterion it measured passed; the stage waits only for a person to confirm it
+      // (a line at L1 or L2), and selecting a proof of work for it is that confirmation. A failed criterion, or a release
+      // stage, stays with whoever its gate names.
+      const reason = `Confirmed by the proof of work ${id} of ${c.name ?? c.address}, selected by ${user.address}`;
+      if (st.gateItemId)
+        await this.db.query("UPDATE inbox_items SET status = 'approved', reason = $1, decided_by = $2, decided_at = now() WHERE id = $3 AND status = 'pending'", [reason, user.address, st.gateItemId]);
+      await this.engine.release(siteId, c.run_id, c.stage_code);
+      await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: "gate.released", runId: c.run_id, stageCode: c.stage_code, summary: `Released gate ${c.stage_code} ${st.name}`, reason, data: { contributionId: id, signatureId: sig.id } });
+      await this.engine.tickRun(siteId, c.run_id);
+      closed = true;
     }
 
     const d = await this.rec.decide(siteId, {

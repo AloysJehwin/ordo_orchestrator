@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ensRoles } from "../../src/core/names.js";
-import { boot, demote, enlist, join, promote, uid, wallet, type Client, type System } from "./helpers.js";
+import { atLevel, boot, demote, enlist, join, promote, uid, wallet, type Client, type System } from "./helpers.js";
 
 /**
  * The four roles: anyone joins an open org as a contributor, a manager promotes and demotes with a signature, and
@@ -337,6 +337,7 @@ describe("visibility: level and scope", () => {
     site = await newOrg(manager, "Glass Plant");
     lineA = (await manager.call("GET", S())).json.lines[0].id;
     lineB = await sys.plant.addLine(site, "Line B");
+    await atLevel(sys, site, "L3"); // machine stages complete on their own when in spec
     for (const l of [1, 2, 3, 4] as const) {
       at[l] = await wallet(app);
       await join(at[l], site);

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { asTyped, boot, enlist, wallet, type Client, type System } from "./helpers.js";
+import { asTyped, atLevel, boot, enlist, wallet, type Client, type System } from "./helpers.js";
 
 /**
  * A stage judged on several measured parameters, protein expression as the example: an instrument's signals over the
@@ -59,6 +59,7 @@ describe("multi-parameter stages", () => {
     operator = await wallet(app);
     qe = await wallet(app);
     site = (await admin.call("POST", "/v1/sites", { name: "Protein Lab", timezone: "UTC", lineName: "Suite 1", zones: [] })).json.id;
+    await atLevel(sys, site, "L3"); // machine stages complete on their own when in spec
     await enlist(admin, S(), operator);
     // a quality gate is released by a validator: the manager promotes the QE with a signature
     await enlist(admin, S(), qe, "validator");

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { edgeMessage } from "../../src/core/readings.js";
 import { holds, slotOf } from "../../src/core/stage-proofs.js";
 import { Gateway } from "../../src/edge/gateway.js";
-import { asTyped, boot, enlist, wallet, type Client, type System } from "./helpers.js";
+import { asTyped, atLevel, boot, enlist, wallet, type Client, type System } from "./helpers.js";
 
 /**
  * Proof of work without a chain: a machine's gateway pushes its counters and signs each finished stage's counts, an
@@ -29,6 +29,7 @@ describe("signed stage readings and stage proofs", () => {
     operator = await wallet(app);
     lead = await wallet(app);
     site = (await admin.call("POST", "/v1/sites", { name: "Edge Plant", timezone: "UTC", lineName: "L1", zones: [] })).json.id;
+    await atLevel(sys, site, "L3"); // machine stages complete on their own when in spec
     await enlist(admin, S(), operator);
     await enlist(admin, S(), lead, "manager");
     const key = generatePrivateKey();
@@ -134,6 +135,7 @@ describe("an instrument's gateway running a profile", () => {
     ({ sys, app } = await boot());
     admin = await wallet(app);
     site = (await admin.call("POST", "/v1/sites", { name: "Protein Lab", timezone: "UTC", lineName: "Suite 1", zones: [] })).json.id;
+    await atLevel(sys, site, "L3"); // machine stages complete on their own when in spec
     const key = generatePrivateKey();
     asset = (await admin.call("POST", `${S()}/assets`, { name: "BR-01 Bioreactor", kind: "process_vessel", owningAgent: "process", source: { type: "gateway", device: privateKeyToAccount(key).address }, limits: {}, idealCycleS: null })).json.id;
     // a 60 s "stage" that counts one batch; the clock starts a minute back so the first sample predates the run

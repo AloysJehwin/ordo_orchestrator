@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { boot, demote, join, promote, wallet, type Client, type System } from "./helpers.js";
+import { atLevel, boot, demote, join, promote, wallet, type Client, type System } from "./helpers.js";
 
 let sys: System;
 let app: Awaited<ReturnType<typeof boot>>["app"];
@@ -34,6 +34,8 @@ describe("accounts", () => {
     const r = await admin.call("POST", "/v1/sites", { name: "Pune Plant 1", timezone: "Asia/Kolkata", lineName: "Line 2", zones: ["Machining", "Inspection"] });
     expect(r.status).toBe(200);
     site = r.json.id;
+    // machine stages here complete on their own when in spec, as at L3
+    await atLevel(sys, site, "L3");
     const me = await admin.call("GET", "/v1/me");
     expect(me.json.memberships[0].roles).toEqual(["manager"]);
   });
@@ -207,6 +209,7 @@ describe("agents on real telemetry", () => {
   });
 
   it("changing autonomy takes one manager's signature, raising or lowering", async () => {
+    await atLevel(sys, site, "L2");
     const lineId = (await admin.call("GET", S())).json.lines[0].id;
     const change = async (who: Client, level: string) => {
       const typed = (await who.call("POST", `${S()}/lines/${lineId}/autonomy/sign-request`, { level })).json;

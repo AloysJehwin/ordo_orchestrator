@@ -94,4 +94,10 @@ export async function enlist(manager: Client, S: string, who: Client, role = "co
   return r.json as { chain: { status: string; txHash: string | null; error: string | null } | null };
 }
 
+/**
+ * Put every line of an org at an autonomy level. At L1 and L2 a person confirms each stage a machine finished; a flow
+ * that runs machine stages straight through puts its lines at L3, where they complete on their own when in spec.
+ */
+export const atLevel = (sys: System, siteId: string, level: "L1" | "L2" | "L3" | "L4") => sys.db.query("UPDATE lines SET autonomy = $1 WHERE site_id = $2", [level, siteId]);
+
 export type { System };

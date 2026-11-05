@@ -439,8 +439,13 @@ export class RunEngine {
       await this.patchData(runId, rework.to, { reworkUnits: scrap });
       await this.rec.decide(ctx.run.site_id, { agent: agentActor(spec.agent), kind: "stage.rework", runId, stageCode: row.code, summary: `${scrap} unit(s) routed back to ${rework.to} for rework` });
     }
-    const autonomous = levelRank(ctx.line.autonomy) >= 4;
-    const needsGate = spec.mode === "approve" ? !(autonomous && failed.length === 0 && unknown.length === 0) : failed.length > 0 || (spec.mode === "auto" && unknown.length > 0);
+    const level = levelRank(ctx.line.autonomy);
+    const autonomous = level >= 4;
+    // at L1 (Assist) and L2 (Recommend) people confirm each decision: a stage a machine finished waits for a person,
+    // who approves it at the gate or (a validator) selects a proof of work for it. A person who completed it has confirmed.
+    const confirmedByPerson = Boolean((JSON.parse(row.data_json) as StageData).confirmedBy?.startsWith("user:"));
+    const confirm = level <= 2 && !confirmedByPerson;
+    const needsGate = spec.mode === "approve" ? !(autonomous && failed.length === 0 && unknown.length === 0) : failed.length > 0 || (spec.mode === "auto" && unknown.length > 0) || confirm;
     if (!needsGate) {
       await this.db.query("UPDATE stage_runs SET state = 'completed', ended_at = now() WHERE run_id = $1 AND code = $2", [runId, row.code]);
       await this.rec.decide(ctx.run.site_id, {
@@ -457,7 +462,14 @@ export class RunEngine {
       return;
     }
     await this.db.query("UPDATE stage_runs SET state = 'awaiting_approval' WHERE run_id = $1 AND code = $2", [runId, row.code]);
-    await this.ensureGate(ctx, { ...row, outcome }, spec, { held: false, reason: failed.length ? `${failed.map((c) => `${c.label} ${c.actual} (target ${c.target})`).join(", ")}` : unknown.length ? `Not measured: ${unknown.map((c) => c.label).join(", ")}` : null, criteria, agent: spec.agent });
+    const reason = failed.length
+      ? `${failed.map((c) => `${c.label} ${c.actual} (target ${c.target})`).join(", ")}`
+      : unknown.length
+        ? `Not measured: ${unknown.map((c) => c.label).join(", ")}`
+        : confirm && spec.mode !== "approve"
+          ? `the line is at ${ctx.line.autonomy}, so a person confirms each stage: approve it here, or a validator selects a proof of work for it`
+          : null;
+    await this.ensureGate(ctx, { ...row, outcome }, spec, { held: false, reason, criteria, agent: spec.agent });
   }
 
   private async ensureGate(ctx: Ctx, row: StageRow, spec: StageSpec, g: { held: boolean; reason: string | null; criteria?: StageRunView["criteriaResults"]; agent: AgentKey }) {

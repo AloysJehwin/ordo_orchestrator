@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ORDO_POLICIES_ABI, ORDO_POLICIES_BYTECODE, ORDO_WORK_ORDERS_ABI, ORDO_WORK_ORDERS_BYTECODE } from "../../src/chain/ordo-contracts-abi.js";
 import { ORDO_TRUST_ABI, ORDO_TRUST_BYTECODE } from "../../src/chain/ordo-trust-abi.js";
 import type { ScheduleRail } from "../../src/core/schedules.js";
-import { boot, enlist, wallet, type Client, type System } from "./helpers.js";
+import { atLevel, boot, enlist, wallet, type Client, type System } from "./helpers.js";
 
 /**
  * Deadlines on Hedera's Schedule Service, against a real EVM (in-process). The scheduler here stands in for
@@ -115,6 +115,7 @@ beforeAll(async () => {
   for (const k of Object.keys(keys) as (keyof typeof keys)[]) people[k] = await wallet(app, keys[k]);
 
   site = (await people.admin.call("POST", "/v1/sites", { name: "Clock Plant", timezone: "UTC", lineName: "L1", zones: [] })).json.id;
+  await atLevel(sys, site, "L3"); // machine stages complete on their own when in spec
   expect((await signed(people.admin, `${S()}/chain/register/sign-request`, `${S()}/chain/register`)).json.registered).toBe(true);
   expect((await signed(people.admin, `${S()}/vendors/sign-request`, `${S()}/vendors`, { address: people.vendor.address, company: "Spindle Care", categories: "cnc", hourlyRate: "2" })).json.chain.status).toBe("done");
   expect((await enlist(people.admin, S(), people.lead, "manager"))!.chain!.status).toBe("done");

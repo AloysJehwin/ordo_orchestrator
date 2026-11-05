@@ -80,6 +80,12 @@ Which agent owns each template stage is listed in [pipeline-templates.md](pipeli
 | L3 · Supervised | Execute within guardrails | Sign quality gates and out-of-policy events |
 | L4 · Autonomous | Execute end to end, including in-policy gates | Receive notifications; may intervene at any time |
 
+On a pipeline this means:
+
+- At L1 and L2, every stage a machine finishes waits at its gate for a person. A manager approves the gate, or a validator selects a proof of work for the stage. That selection releases the gate when every criterion the machine measured passed. A failed criterion, or a release stage, stays with the role its gate names. At L1 a person also starts each next stage.
+- At L3, a machine stage completes on its own when every criterion is in spec. A failed or unmeasured criterion, or a release stage, waits for a person.
+- At L4, release stages that are in spec pass on their own as well.
+
 Autonomy is set per line and can be lowered for a single stage. A validated stage can be promoted one level (for example L3 → L4) as the outcome of an approved validation package.
 
 ### Gates and validation packages
