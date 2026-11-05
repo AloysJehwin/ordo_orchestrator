@@ -4,12 +4,15 @@ import { HttpError } from "../engine/errors.js";
 import { withOutcomeCriteria } from "../pipelines/outcomes.js";
 import { TemplateSpec, type AgentKey, type Criterion, type StageSpec, type TemplateView } from "../domain/types.js";
 import library from "../library/templates.json" with { type: "json" };
+import highValue from "../library/templates-v2.json" with { type: "json" };
 import { validateSpec } from "../pipelines/graph.js";
 import { newId } from "../plant/plant.js";
 import type { Recorder } from "./recorder.js";
 
 export const CRITERIA_BY_AGENT = library.criteriaByAgent as Record<AgentKey, Criterion[]>;
-export const CATEGORIES = [...new Set(library.templates.map((t) => t.category))];
+/** Every library template: the original sixteen, then the high-value ones whose every stage has its machine's outcomes and resources. */
+const LIBRARY = [...library.templates, ...highValue.templates] as { key: string; name: string; category: string; description: string; rework: { from: string; to: string } | null; stages: { agent: string }[] }[];
+export const CATEGORIES = [...new Set(LIBRARY.map((t) => t.category))];
 
 interface Row {
   id: string;
@@ -50,9 +53,9 @@ export class Templates {
     private rec: Recorder,
   ) {}
 
-  /** The 15 templates from the design ship as a read-only library; sites customize copies. */
+  /** The library ships read-only; sites customize copies. A template added to the library later is seeded on the next boot. */
   async ensureLibrary(): Promise<void> {
-    for (const t of library.templates) {
+    for (const t of LIBRARY) {
       const id = `tpl_${t.key}`;
       const exists = await this.db.query("SELECT 1 FROM templates WHERE id = $1", [id]);
       if (exists.rows.length) continue;

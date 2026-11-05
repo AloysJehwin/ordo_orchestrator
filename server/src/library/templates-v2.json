@@ -1,0 +1,3637 @@
+{
+  "templates": [
+    {
+      "key": "sx-turbine-blade",
+      "name": "Single-crystal turbine blade",
+      "category": "Aerospace",
+      "description": "Investment-cast single-crystal nickel-superalloy turbine blade, from wax pattern and ceramic shell through vacuum directional solidification, HIP and heat treatment to root machining, EDM cooling holes and an EB-PVD thermal barrier coat. Released on CT, root FPI and flash thermography of the coat; a coating finding loops back to strip and recoat.",
+      "rework": {
+        "from": "10",
+        "to": "09"
+      },
+      "stages": [
+        {
+          "code": "01",
+          "column": 1,
+          "name": "Wax pattern injection",
+          "agent": "line",
+          "resourceKind": "robot",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 120,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "die_thermal",
+              "label": "Injection die thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 sighted on the open injection die",
+              "metric": {
+                "label": "Die surface temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 24,
+                "targetMax": 32
+              }
+            },
+            {
+              "key": "core_xray",
+              "label": "Ceramic core position radiograph",
+              "media": "image",
+              "instrument": "YXLON Y.MU2000 real-time X-ray",
+              "metric": {
+                "label": "Core shift",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.1
+              }
+            },
+            {
+              "key": "injection_video",
+              "label": "Injection cycle recording",
+              "media": "video",
+              "instrument": "Basler ace 2 a2A1920-160uc camera over the press",
+              "metric": {
+                "label": "Injection cycle time",
+                "unit": "s",
+                "op": "<=",
+                "target": 90
+              }
+            },
+            {
+              "key": "wax_ftir",
+              "label": "Wax lot FTIR fingerprint",
+              "media": "spectrum",
+              "instrument": "Thermo Scientific Nicolet iS20 FTIR-ATR",
+              "metric": {
+                "label": "Match to reference spectrum",
+                "unit": "%",
+                "op": ">=",
+                "target": 95
+              }
+            },
+            {
+              "key": "pattern_scan",
+              "label": "Pattern dimensional report",
+              "media": "document",
+              "instrument": "Hexagon Absolute Arm 8525 with AS1 laser scanner",
+              "metric": {
+                "label": "Airfoil profile deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.08
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "pattern_wax",
+              "label": "Filled pattern wax",
+              "kind": "wax",
+              "unit": "kg",
+              "qty": 0.6,
+              "per": "unit",
+              "maxPrice": 0.9
+            },
+            {
+              "key": "ceramic_cores",
+              "label": "Silica ceramic cores",
+              "kind": "ceramic_core",
+              "unit": "pcs",
+              "qty": 1,
+              "per": "unit",
+              "maxPrice": 2.5
+            }
+          ]
+        },
+        {
+          "code": "02",
+          "column": 2,
+          "name": "Ceramic shell building",
+          "agent": "process",
+          "resourceKind": "robot",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 2880,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "slurry_rheology",
+              "label": "Prime slurry viscosity log",
+              "media": "document",
+              "instrument": "Brookfield DV2T viscometer",
+              "metric": {
+                "label": "Prime slurry viscosity",
+                "unit": "mPa·s",
+                "op": ">=",
+                "target": 800,
+                "targetMax": 1400
+              }
+            },
+            {
+              "key": "dip_video",
+              "label": "Robot dip and stucco recording",
+              "media": "video",
+              "instrument": "Axis Q1656 camera on the dip cell",
+              "metric": {
+                "label": "Dip-to-stucco interval",
+                "unit": "s",
+                "op": "<=",
+                "target": 30
+              }
+            },
+            {
+              "key": "drying_thermal",
+              "label": "Drying room shell thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A400 over the drying conveyor",
+              "metric": {
+                "label": "Shell surface temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 21,
+                "targetMax": 25
+              }
+            },
+            {
+              "key": "stucco_image",
+              "label": "Stucco coverage image",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Stucco coverage",
+                "unit": "%",
+                "op": ">=",
+                "target": 98
+              }
+            },
+            {
+              "key": "slurry_xrf",
+              "label": "Prime coat solids XRF",
+              "media": "spectrum",
+              "instrument": "Bruker S2 PUMA benchtop XRF",
+              "metric": {
+                "label": "ZrO2 in prime coat solids",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 55,
+                "targetMax": 64
+              },
+              "required": false
+            },
+            {
+              "key": "shell_thickness",
+              "label": "Shell wall thickness record",
+              "media": "document",
+              "instrument": "Mitutoyo 500-196-30 caliper on witness coupon",
+              "metric": {
+                "label": "Shell wall thickness",
+                "unit": "mm",
+                "op": ">=",
+                "target": 6,
+                "targetMax": 10
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "prime_slurry",
+              "label": "Zircon prime-coat slurry",
+              "kind": "slurry",
+              "unit": "L",
+              "qty": 1.2,
+              "per": "unit",
+              "maxPrice": 0.6
+            },
+            {
+              "key": "stucco_sand",
+              "label": "Fused alumina stucco",
+              "kind": "stucco_sand",
+              "unit": "kg",
+              "qty": 2,
+              "per": "unit",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "03",
+          "column": 3,
+          "name": "Shell dewax and firing",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "dewax_log",
+              "label": "Steam dewax autoclave log",
+              "media": "document",
+              "instrument": "Yokogawa GX20 paperless recorder on the boilerclave",
+              "metric": {
+                "label": "Dewax steam pressure",
+                "unit": "bar",
+                "op": ">=",
+                "target": 6,
+                "targetMax": 8
+              }
+            },
+            {
+              "key": "kiln_thermal",
+              "label": "Shell firing thermal map",
+              "media": "thermal",
+              "instrument": "Optris PI 1M through the kiln sight glass",
+              "metric": {
+                "label": "Shell firing temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 1000,
+                "targetMax": 1100
+              }
+            },
+            {
+              "key": "shell_cracks",
+              "label": "Fired shell crack inspection",
+              "media": "image",
+              "instrument": "Olympus DSX1000 digital microscope",
+              "metric": {
+                "label": "Shell cracks over 0.5 mm",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "shell_tap",
+              "label": "Fired shell tap test",
+              "media": "audio",
+              "instrument": "Brüel & Kjær Type 4189 microphone",
+              "metric": {
+                "label": "Resonance shift vs. master shell",
+                "unit": "%",
+                "op": "<=",
+                "target": 3
+              }
+            },
+            {
+              "key": "residual_carbon",
+              "label": "Residual carbon in fired shell",
+              "media": "spectrum",
+              "instrument": "LECO CS844 carbon/sulfur analyzer",
+              "metric": {
+                "label": "Residual carbon",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 300
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "kiln_gas",
+              "label": "Kiln natural gas",
+              "kind": "natural_gas",
+              "unit": "m3",
+              "qty": 15,
+              "per": "batch",
+              "maxPrice": 0.15
+            }
+          ]
+        },
+        {
+          "code": "04",
+          "column": 4,
+          "name": "Vacuum directional solidification",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 360,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "pour_thermal",
+              "label": "Melt and mould thermal profile",
+              "media": "thermal",
+              "instrument": "Optris PI 05M through the furnace viewport",
+              "metric": {
+                "label": "Pour temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 1500,
+                "targetMax": 1560
+              }
+            },
+            {
+              "key": "withdrawal_video",
+              "label": "Mould withdrawal recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera on the withdrawal chamber",
+              "metric": {
+                "label": "Withdrawal rate",
+                "unit": "mm/min",
+                "op": ">=",
+                "target": 3,
+                "targetMax": 6
+              }
+            },
+            {
+              "key": "vacuum_log",
+              "label": "Melt chamber vacuum log",
+              "media": "document",
+              "instrument": "Pfeiffer Vacuum PKR 361 full-range gauge",
+              "metric": {
+                "label": "Melt chamber pressure",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 0.001
+              }
+            },
+            {
+              "key": "heat_oes",
+              "label": "Heat chemistry OES",
+              "media": "spectrum",
+              "instrument": "SPECTRO SPECTROMAXx arc-spark OES",
+              "metric": {
+                "label": "Rhenium content",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 2.8,
+                "targetMax": 3.2
+              }
+            },
+            {
+              "key": "grain_etch",
+              "label": "Macro-etch grain inspection",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Stray grains on airfoil",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "laue",
+              "label": "Back-reflection Laue pattern",
+              "media": "image",
+              "instrument": "Multiwire Laboratories MWL120 real-time Laue",
+              "metric": {
+                "label": "Primary orientation deviation",
+                "unit": "°",
+                "op": "<=",
+                "target": 12
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "superalloy_bar",
+              "label": "CMSX-4 master alloy bar",
+              "kind": "nickel_superalloy",
+              "unit": "kg",
+              "qty": 3.5,
+              "per": "unit",
+              "maxPrice": 4
+            },
+            {
+              "key": "furnace_argon",
+              "label": "Argon backfill",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 2,
+              "per": "batch",
+              "maxPrice": 0.4
+            }
+          ]
+        },
+        {
+          "code": "05",
+          "column": 5,
+          "name": "Hot isostatic pressing",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 600,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "hip_temperature",
+              "label": "HIP cycle temperature chart",
+              "media": "document",
+              "instrument": "Quintus QIH 48 cycle controller log",
+              "metric": {
+                "label": "Hold temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 1290,
+                "targetMax": 1310
+              }
+            },
+            {
+              "key": "hip_pressure",
+              "label": "HIP cycle pressure chart",
+              "media": "document",
+              "instrument": "Quintus QIH 48 cycle controller log",
+              "metric": {
+                "label": "Hold pressure",
+                "unit": "MPa",
+                "op": ">=",
+                "target": 100,
+                "targetMax": 110
+              }
+            },
+            {
+              "key": "vessel_thermal",
+              "label": "Vessel shell thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the vessel exterior",
+              "metric": {
+                "label": "Vessel wall temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 60
+              }
+            },
+            {
+              "key": "argon_gc",
+              "label": "Process argon purity",
+              "media": "spectrum",
+              "instrument": "Agilent 990 Micro GC",
+              "metric": {
+                "label": "Oxygen in process argon",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "coupon_porosity",
+              "label": "Witness coupon porosity micrograph",
+              "media": "image",
+              "instrument": "Zeiss Axio Imager.M2m metallograph",
+              "metric": {
+                "label": "Residual porosity",
+                "unit": "%",
+                "op": "<=",
+                "target": 0.05
+              }
+            },
+            {
+              "key": "compressor_audio",
+              "label": "Gas compressor acoustic check",
+              "media": "audio",
+              "instrument": "SDT 340 ultrasound detector on the compressor",
+              "metric": {
+                "label": "Compressor ultrasound level",
+                "unit": "dBµV",
+                "op": "<=",
+                "target": 40
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "hip_argon",
+              "label": "HIP process argon",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 40,
+              "per": "batch",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "06",
+          "column": 6,
+          "name": "Solution and age heat treatment",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 1800,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "furnace_tus",
+              "label": "Furnace uniformity survey",
+              "media": "document",
+              "instrument": "Yokogawa GX20 with Type S thermocouples (AMS2750)",
+              "metric": {
+                "label": "Temperature uniformity spread",
+                "unit": "°C",
+                "op": "<=",
+                "target": 6
+              }
+            },
+            {
+              "key": "quench_thermal",
+              "label": "Gas fan quench thermal record",
+              "media": "thermal",
+              "instrument": "Optris PI 640 at the quench chamber window",
+              "metric": {
+                "label": "Gas fan quench rate",
+                "unit": "°C/min",
+                "op": ">=",
+                "target": 60
+              }
+            },
+            {
+              "key": "gamma_prime",
+              "label": "γ′ microstructure SEM",
+              "media": "image",
+              "instrument": "Zeiss Sigma 300 FE-SEM",
+              "metric": {
+                "label": "γ′ precipitate edge length",
+                "unit": "µm",
+                "op": ">=",
+                "target": 0.35,
+                "targetMax": 0.55
+              }
+            },
+            {
+              "key": "coupon_hardness",
+              "label": "Witness coupon hardness",
+              "media": "document",
+              "instrument": "Struers Duramin-40 hardness tester",
+              "metric": {
+                "label": "Vickers hardness",
+                "unit": "HV10",
+                "op": ">=",
+                "target": 380,
+                "targetMax": 460
+              }
+            },
+            {
+              "key": "pump_audio",
+              "label": "Vacuum pump acoustic signature",
+              "media": "audio",
+              "instrument": "PCB Piezotronics 378B02 microphone",
+              "metric": {
+                "label": "Pump noise level",
+                "unit": "dBA",
+                "op": "<=",
+                "target": 78
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "quench_argon",
+              "label": "Argon quench gas",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 25,
+              "per": "batch",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "07",
+          "column": 7,
+          "name": "5-axis root machining",
+          "agent": "scheduler",
+          "resourceKind": "cnc",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 120,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "spindle_thermal",
+              "label": "Spindle and fixture thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A400 on the machining envelope",
+              "metric": {
+                "label": "Spindle housing temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 40
+              }
+            },
+            {
+              "key": "chatter_audio",
+              "label": "Cutting sound for chatter",
+              "media": "audio",
+              "instrument": "PCB Piezotronics 130F20 microphone in the enclosure",
+              "metric": {
+                "label": "Chatter band level",
+                "unit": "dB",
+                "op": "<=",
+                "target": 72
+              }
+            },
+            {
+              "key": "root_cmm",
+              "label": "Fir-tree root CMM report",
+              "media": "document",
+              "instrument": "Zeiss PRISMO ultra CMM with VAST XT gold",
+              "metric": {
+                "label": "Root form deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.012
+              }
+            },
+            {
+              "key": "root_surface",
+              "label": "Root flank surface image",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Burn or smear marks",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "spindle_vibration",
+              "label": "Spindle vibration spectrum",
+              "media": "spectrum",
+              "instrument": "SKF Microlog Analyzer dBX",
+              "metric": {
+                "label": "Spindle vibration velocity",
+                "unit": "mm/s",
+                "op": "<=",
+                "target": 2.8
+              }
+            },
+            {
+              "key": "root_roughness",
+              "label": "Root flank roughness",
+              "media": "document",
+              "instrument": "Mitutoyo SJ-410 surface roughness tester",
+              "metric": {
+                "label": "Root flank roughness Ra",
+                "unit": "µm",
+                "op": "<=",
+                "target": 0.8
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "coolant",
+              "label": "Grinding coolant concentrate",
+              "kind": "coolant",
+              "unit": "L",
+              "qty": 2,
+              "per": "batch",
+              "maxPrice": 0.5
+            },
+            {
+              "key": "cbn_wheels",
+              "label": "CBN form grinding wheel",
+              "kind": "cutting_tools",
+              "unit": "pcs",
+              "qty": 0.02,
+              "per": "unit",
+              "maxPrice": 8
+            }
+          ]
+        },
+        {
+          "code": "08",
+          "column": 8,
+          "name": "Cooling-hole drilling (EDM)",
+          "agent": "scheduler",
+          "resourceKind": "cnc",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "airflow",
+              "label": "Cooling airflow test",
+              "media": "document",
+              "instrument": "Alicat MCR-500SLPM flow controller on the airflow rig",
+              "metric": {
+                "label": "Cooling airflow vs. nominal",
+                "unit": "%",
+                "op": ">=",
+                "target": 96,
+                "targetMax": 104
+              }
+            },
+            {
+              "key": "recast",
+              "label": "Hole recast layer micrograph",
+              "media": "image",
+              "instrument": "Zeiss Axio Imager.M2m metallograph",
+              "metric": {
+                "label": "Recast layer thickness",
+                "unit": "µm",
+                "op": "<=",
+                "target": 25
+              }
+            },
+            {
+              "key": "hole_borescope",
+              "label": "Hole borescope recording",
+              "media": "video",
+              "instrument": "Olympus IPLEX NX videoscope",
+              "metric": {
+                "label": "Blocked or missing holes",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "thermal_flow",
+              "label": "Hot-air thermal flow check",
+              "media": "thermal",
+              "instrument": "FLIR X8580 with hot-air flow fixture",
+              "metric": {
+                "label": "Holes below flow threshold",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "hole_diameter",
+              "label": "Hole diameter report",
+              "media": "document",
+              "instrument": "Zeiss O-INSPECT 543 multisensor CMM",
+              "metric": {
+                "label": "Hole diameter deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.03
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "edm_electrodes",
+              "label": "Brass EDM tube electrodes",
+              "kind": "edm_wire",
+              "unit": "m",
+              "qty": 1.5,
+              "per": "unit",
+              "maxPrice": 0.4
+            },
+            {
+              "key": "edm_dielectric",
+              "label": "Deionised EDM dielectric water",
+              "kind": "edm_dielectric",
+              "unit": "L",
+              "qty": 5,
+              "per": "batch",
+              "maxPrice": 0.2
+            }
+          ]
+        },
+        {
+          "code": "09",
+          "column": 9,
+          "name": "EB-PVD thermal barrier coat",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "substrate_thermal",
+              "label": "Substrate preheat thermal image",
+              "media": "thermal",
+              "instrument": "Optris PI 1M through the coater viewport",
+              "metric": {
+                "label": "Substrate temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 950,
+                "targetMax": 1050
+              }
+            },
+            {
+              "key": "tbc_section",
+              "label": "TBC cross-section micrograph",
+              "media": "image",
+              "instrument": "Zeiss Sigma 300 FE-SEM",
+              "metric": {
+                "label": "Ceramic topcoat thickness",
+                "unit": "µm",
+                "op": ">=",
+                "target": 125,
+                "targetMax": 175
+              }
+            },
+            {
+              "key": "ysz_xrd",
+              "label": "Topcoat phase XRD",
+              "media": "spectrum",
+              "instrument": "Bruker D8 ADVANCE diffractometer",
+              "metric": {
+                "label": "Monoclinic phase",
+                "unit": "%",
+                "op": "<=",
+                "target": 2
+              }
+            },
+            {
+              "key": "pool_video",
+              "label": "Electron beam pool recording",
+              "media": "video",
+              "instrument": "Allied Vision Mako G-319 viewport camera",
+              "metric": {
+                "label": "Spitting events",
+                "unit": "count",
+                "op": "<=",
+                "target": 3
+              }
+            },
+            {
+              "key": "coater_vacuum",
+              "label": "Coater pressure and oxygen bleed log",
+              "media": "document",
+              "instrument": "Inficon BCG450 vacuum gauge",
+              "metric": {
+                "label": "Deposition chamber pressure",
+                "unit": "mbar",
+                "op": ">=",
+                "target": 0.002,
+                "targetMax": 0.01
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "ysz_ingot",
+              "label": "7YSZ evaporation ingot",
+              "kind": "ysz_ingot",
+              "unit": "kg",
+              "qty": 1.5,
+              "per": "batch",
+              "maxPrice": 3
+            },
+            {
+              "key": "oxygen_bleed",
+              "label": "Oxygen bleed gas",
+              "kind": "oxygen",
+              "unit": "m3",
+              "qty": 0.5,
+              "per": "batch",
+              "maxPrice": 0.2
+            }
+          ]
+        },
+        {
+          "code": "10",
+          "column": 10,
+          "name": "CT and FPI release",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "ct_wall",
+              "label": "CT wall-thickness report",
+              "media": "document",
+              "instrument": "Nikon XT H 450 CT with VGSTUDIO MAX wall analysis",
+              "metric": {
+                "label": "Minimum airfoil wall",
+                "unit": "mm",
+                "op": ">=",
+                "target": 0.6
+              }
+            },
+            {
+              "key": "ct_indications",
+              "label": "CT slice indications",
+              "media": "image",
+              "instrument": "Nikon XT H 450 CT",
+              "metric": {
+                "label": "Inclusions over 0.25 mm",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "root_fpi",
+              "label": "Root FPI indications under UV-A",
+              "media": "image",
+              "instrument": "Magnaflux ZB-100F UV-A lamp with Nikon D850",
+              "metric": {
+                "label": "Relevant linear indications",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "pmi_xrf",
+              "label": "Alloy verification XRF",
+              "media": "spectrum",
+              "instrument": "Thermo Scientific Niton XL5 Plus XRF",
+              "metric": {
+                "label": "Rhenium content (PMI)",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 2.7,
+                "targetMax": 3.3
+              }
+            },
+            {
+              "key": "tbc_flash",
+              "label": "TBC flash thermography",
+              "media": "thermal",
+              "instrument": "Thermal Wave Imaging EchoTherm with FLIR X6900sc",
+              "metric": {
+                "label": "TBC disbond area",
+                "unit": "mm²",
+                "op": "<=",
+                "target": 2
+              }
+            },
+            {
+              "key": "ram_resonance",
+              "label": "Resonant acoustic inspection",
+              "media": "audio",
+              "instrument": "The Modal Shop NDT-RAM resonant acoustic system",
+              "metric": {
+                "label": "Resonance deviation from reference",
+                "unit": "%",
+                "op": "<=",
+                "target": 1.5
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "penetrant",
+              "label": "Level 4 fluorescent penetrant",
+              "kind": "penetrant",
+              "unit": "L",
+              "qty": 0.1,
+              "per": "unit",
+              "maxPrice": 1.2
+            },
+            {
+              "key": "developer",
+              "label": "Dry powder developer",
+              "kind": "developer",
+              "unit": "kg",
+              "qty": 0.05,
+              "per": "unit",
+              "maxPrice": 0.8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "cfrp-wing-spar",
+      "name": "CFRP wing spar",
+      "category": "Aerospace",
+      "description": "Carbon-fibre wing spar laid up by automated fibre placement from qualified prepreg, vacuum bagged and leak checked, autoclave cured, trimmed and released on ultrasonic C-scan. Drilling and fastening follow, and a final laser-tracker dimensional release sends fastener findings back for re-fastening.",
+      "rework": {
+        "from": "08",
+        "to": "07"
+      },
+      "stages": [
+        {
+          "code": "01",
+          "column": 1,
+          "name": "Prepreg receiving",
+          "agent": "supply",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 120,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "roll_thermal",
+              "label": "Roll thermal image on receipt",
+              "media": "thermal",
+              "instrument": "FLIR T540 on the delivered rolls",
+              "metric": {
+                "label": "Roll surface temperature on receipt",
+                "unit": "°C",
+                "op": "<=",
+                "target": -12
+              }
+            },
+            {
+              "key": "resin_ftir",
+              "label": "Resin FTIR fingerprint",
+              "media": "spectrum",
+              "instrument": "Thermo Scientific Nicolet iS20 FTIR-ATR",
+              "metric": {
+                "label": "Match to qualified resin spectrum",
+                "unit": "%",
+                "op": ">=",
+                "target": 95
+              }
+            },
+            {
+              "key": "resin_content",
+              "label": "Resin content by solvent extraction",
+              "media": "document",
+              "instrument": "Mettler Toledo XPR205 analytical balance",
+              "metric": {
+                "label": "Resin content by weight",
+                "unit": "%",
+                "op": ">=",
+                "target": 33,
+                "targetMax": 37
+              }
+            },
+            {
+              "key": "roll_surface",
+              "label": "Roll surface inspection",
+              "media": "image",
+              "instrument": "Cognex In-Sight 3800 on the unwind check",
+              "metric": {
+                "label": "Foreign objects on roll",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "unwind_video",
+              "label": "Unwind check recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera on the unwind stand",
+              "metric": {
+                "label": "Backing paper tears",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "desiccant",
+              "label": "Desiccant packs",
+              "kind": "desiccant",
+              "unit": "pcs",
+              "qty": 4,
+              "per": "batch",
+              "maxPrice": 0.05
+            }
+          ]
+        },
+        {
+          "code": "02",
+          "column": 2,
+          "name": "Automated fibre placement",
+          "agent": "line",
+          "resourceKind": "robot",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 720,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "nip_thermal",
+              "label": "Nip-point thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the AFP head",
+              "metric": {
+                "label": "Nip-point temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 30,
+                "targetMax": 45
+              }
+            },
+            {
+              "key": "tow_gaps",
+              "label": "Inline ply height map",
+              "media": "image",
+              "instrument": "LMI Gocator 2530 laser profiler on the head",
+              "metric": {
+                "label": "Gaps over 0.76 mm per ply",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "ply_angle",
+              "label": "Fibre orientation image",
+              "media": "image",
+              "instrument": "Profactor FScan fibre orientation sensor",
+              "metric": {
+                "label": "Fibre angle deviation",
+                "unit": "°",
+                "op": "<=",
+                "target": 2
+              }
+            },
+            {
+              "key": "head_video",
+              "label": "Placement head recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera on the AFP head",
+              "metric": {
+                "label": "Tow drops and misses",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "cutter_audio",
+              "label": "Tow cutter acoustics",
+              "media": "audio",
+              "instrument": "GRAS 46AE microphone on the head",
+              "metric": {
+                "label": "Cutter actuation anomalies",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              },
+              "required": false
+            },
+            {
+              "key": "laminate_thickness",
+              "label": "Debulk thickness check",
+              "media": "document",
+              "instrument": "Leica AT960 laser tracker report",
+              "metric": {
+                "label": "Laminate thickness deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.25
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "prepreg_tape",
+              "label": "IM7/8552 unidirectional prepreg tape",
+              "kind": "prepreg",
+              "unit": "kg",
+              "qty": 38,
+              "per": "unit",
+              "maxPrice": 1.2
+            },
+            {
+              "key": "peel_ply",
+              "label": "Nylon peel ply",
+              "kind": "peel_ply",
+              "unit": "m2",
+              "qty": 6,
+              "per": "unit",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "03",
+          "column": 3,
+          "name": "Vacuum bagging and leak check",
+          "agent": "line",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "leak_down",
+              "label": "Bag leak-down test",
+              "media": "document",
+              "instrument": "WIKA CPG1500 precision digital gauge",
+              "metric": {
+                "label": "Vacuum drop over 5 min",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "leak_ultrasound",
+              "label": "Bag leak ultrasonic sweep",
+              "media": "audio",
+              "instrument": "UE Systems Ultraprobe 15000",
+              "metric": {
+                "label": "Peak leak signal",
+                "unit": "dBµV",
+                "op": "<=",
+                "target": 20
+              }
+            },
+            {
+              "key": "bag_thermal",
+              "label": "Bag thermal leak sweep",
+              "media": "thermal",
+              "instrument": "FLIR T865 swept over the bag",
+              "metric": {
+                "label": "Cold-spot leak indications",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "bag_photos",
+              "label": "Bag and pleat photo record",
+              "media": "image",
+              "instrument": "Canon EOS R5 bagging photo record",
+              "metric": {
+                "label": "Bridging at radii",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "bagging_video",
+              "label": "Consumable stack recording",
+              "media": "video",
+              "instrument": "Axis Q6135-LE camera over the bagging cell",
+              "metric": {
+                "label": "Missing consumable layers",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "bagging_film",
+              "label": "Nylon vacuum bagging film",
+              "kind": "bagging_film",
+              "unit": "m2",
+              "qty": 14,
+              "per": "unit",
+              "maxPrice": 0.25
+            },
+            {
+              "key": "breather",
+              "label": "Polyester breather",
+              "kind": "breather",
+              "unit": "m2",
+              "qty": 14,
+              "per": "unit",
+              "maxPrice": 0.15
+            },
+            {
+              "key": "sealant_tape",
+              "label": "Vacuum bag sealant tape",
+              "kind": "sealant_tape",
+              "unit": "m",
+              "qty": 30,
+              "per": "unit",
+              "maxPrice": 0.05
+            }
+          ]
+        },
+        {
+          "code": "04",
+          "column": 4,
+          "name": "Autoclave cure",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 600,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "cure_dwell",
+              "label": "Lagging thermocouple dwell record",
+              "media": "document",
+              "instrument": "ASC Process Systems CPC controller with Type J TCs",
+              "metric": {
+                "label": "Dwell temperature (lagging TC)",
+                "unit": "°C",
+                "op": ">=",
+                "target": 175,
+                "targetMax": 185
+              }
+            },
+            {
+              "key": "cure_pressure",
+              "label": "Autoclave pressure record",
+              "media": "document",
+              "instrument": "ASC Process Systems CPC controller",
+              "metric": {
+                "label": "Autoclave pressure",
+                "unit": "bar",
+                "op": ">=",
+                "target": 6.5,
+                "targetMax": 7.5
+              }
+            },
+            {
+              "key": "heatup_rate",
+              "label": "Heat-up rate record",
+              "media": "document",
+              "instrument": "ASC Process Systems CPC controller",
+              "metric": {
+                "label": "Heat-up rate",
+                "unit": "°C/min",
+                "op": ">=",
+                "target": 1,
+                "targetMax": 3
+              },
+              "required": false
+            },
+            {
+              "key": "dea_cure",
+              "label": "Dielectric cure monitoring",
+              "media": "spectrum",
+              "instrument": "NETZSCH DEA 288 Ionic dielectric analyzer",
+              "metric": {
+                "label": "Degree of cure at end of dwell",
+                "unit": "%",
+                "op": ">=",
+                "target": 95
+              }
+            },
+            {
+              "key": "door_thermal",
+              "label": "Autoclave door seal thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A400 on the door ring",
+              "metric": {
+                "label": "Door seal surface temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 60
+              }
+            },
+            {
+              "key": "pump_audio",
+              "label": "Vacuum pump acoustic check",
+              "media": "audio",
+              "instrument": "SDT 340 ultrasound detector on the vacuum pump",
+              "metric": {
+                "label": "Pump bearing ultrasound",
+                "unit": "dBµV",
+                "op": "<=",
+                "target": 35
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "cure_nitrogen",
+              "label": "Autoclave pressurising nitrogen",
+              "kind": "nitrogen",
+              "unit": "m3",
+              "qty": 120,
+              "per": "batch",
+              "maxPrice": 0.08
+            },
+            {
+              "key": "autoclave_time",
+              "label": "Autoclave time",
+              "kind": "autoclave_hours",
+              "unit": "h",
+              "qty": 8,
+              "per": "batch",
+              "maxPrice": 2
+            }
+          ]
+        },
+        {
+          "code": "05",
+          "column": 5,
+          "name": "Trim",
+          "agent": "scheduler",
+          "resourceKind": "cnc",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 180,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "edge_micrograph",
+              "label": "Trimmed edge micrograph",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Edge delamination depth",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.3
+              }
+            },
+            {
+              "key": "cut_thermal",
+              "label": "Cut-zone thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the trim head",
+              "metric": {
+                "label": "Cut-zone temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 180
+              }
+            },
+            {
+              "key": "tool_audio",
+              "label": "Router sound for tool wear",
+              "media": "audio",
+              "instrument": "PCB Piezotronics 130F20 microphone in the cell",
+              "metric": {
+                "label": "Tool-wear band level",
+                "unit": "dB",
+                "op": "<=",
+                "target": 75
+              }
+            },
+            {
+              "key": "trim_tracker",
+              "label": "Trim line laser-tracker check",
+              "media": "document",
+              "instrument": "Leica AT960 laser tracker with T-Probe",
+              "metric": {
+                "label": "Trim line deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.5
+              }
+            },
+            {
+              "key": "trim_video",
+              "label": "Trim pass recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera in the router cell",
+              "metric": {
+                "label": "Fibre breakout events",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "pcd_cutters",
+              "label": "PCD router cutters",
+              "kind": "cutting_tools",
+              "unit": "pcs",
+              "qty": 2,
+              "per": "batch",
+              "maxPrice": 5
+            }
+          ]
+        },
+        {
+          "code": "06",
+          "column": 6,
+          "name": "Ultrasonic C-scan",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 360,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "cscan",
+              "label": "Through-transmission C-scan",
+              "media": "image",
+              "instrument": "Tecnatom TRITON 8000 squirter gantry",
+              "metric": {
+                "label": "Indications above 6 dB loss",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "porosity",
+              "label": "Porosity by attenuation report",
+              "media": "document",
+              "instrument": "Tecnatom TRITON 8000 squirter gantry report",
+              "metric": {
+                "label": "Porosity estimate",
+                "unit": "%",
+                "op": "<=",
+                "target": 2
+              }
+            },
+            {
+              "key": "cure_ftir",
+              "label": "Trim coupon cure FTIR",
+              "media": "spectrum",
+              "instrument": "Thermo Scientific Nicolet iS20 FTIR-ATR on a trim coupon",
+              "metric": {
+                "label": "Epoxide conversion",
+                "unit": "%",
+                "op": ">=",
+                "target": 95
+              }
+            },
+            {
+              "key": "radius_flash",
+              "label": "Radius flash thermography",
+              "media": "thermal",
+              "instrument": "Thermal Wave Imaging EchoTherm",
+              "metric": {
+                "label": "Radius delamination indications",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "scan_video",
+              "label": "Scan coverage recording",
+              "media": "video",
+              "instrument": "Axis Q1656 camera over the scan gantry",
+              "metric": {
+                "label": "Scan area coverage",
+                "unit": "%",
+                "op": ">=",
+                "target": 100
+              }
+            },
+            {
+              "key": "tap_test",
+              "label": "Flange radius tap test",
+              "media": "audio",
+              "instrument": "Mitsui Woodpecker WP-632 digital tap hammer",
+              "metric": {
+                "label": "Contact time over reference",
+                "unit": "%",
+                "op": "<=",
+                "target": 15
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "couplant",
+              "label": "Couplant water treatment",
+              "kind": "couplant",
+              "unit": "L",
+              "qty": 20,
+              "per": "batch",
+              "maxPrice": 0.02
+            }
+          ]
+        },
+        {
+          "code": "07",
+          "column": 7,
+          "name": "Drilling and fastening",
+          "agent": "line",
+          "resourceKind": "robot",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "hole_gauge",
+              "label": "Hole diameter and countersink report",
+              "media": "document",
+              "instrument": "Marposs Merlin air gauge on the end effector",
+              "metric": {
+                "label": "Hole diameter deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.02
+              }
+            },
+            {
+              "key": "exit_delam",
+              "label": "Hole exit inspection",
+              "media": "image",
+              "instrument": "Cognex In-Sight 9912 on the end effector",
+              "metric": {
+                "label": "Exit delamination factor",
+                "unit": "ratio",
+                "op": "<=",
+                "target": 1.1
+              }
+            },
+            {
+              "key": "drill_thermal",
+              "label": "Drill exit thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A50 on the end effector",
+              "metric": {
+                "label": "Hole wall peak temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 180
+              }
+            },
+            {
+              "key": "collar_torque",
+              "label": "Collar installation torque record",
+              "media": "document",
+              "instrument": "Atlas Copco Tensor STR with Power Focus 6000",
+              "metric": {
+                "label": "Collar installation torque",
+                "unit": "N·m",
+                "op": ">=",
+                "target": 4.5,
+                "targetMax": 6.5
+              }
+            },
+            {
+              "key": "drill_audio",
+              "label": "Drill acoustics for wear",
+              "media": "audio",
+              "instrument": "PCB Piezotronics 130F20 microphone on the end effector",
+              "metric": {
+                "label": "Drill-wear band level",
+                "unit": "dB",
+                "op": "<=",
+                "target": 78
+              },
+              "required": false
+            },
+            {
+              "key": "fastener_video",
+              "label": "Fastener installation recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera on the end effector",
+              "metric": {
+                "label": "Missing or cocked fasteners",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "fasteners",
+              "label": "Ti-6Al-4V Hi-Lok fasteners and collars",
+              "kind": "fasteners",
+              "unit": "pcs",
+              "qty": 400,
+              "per": "unit",
+              "maxPrice": 0.04
+            },
+            {
+              "key": "drills",
+              "label": "Carbide drill-countersinks",
+              "kind": "cutting_tools",
+              "unit": "pcs",
+              "qty": 4,
+              "per": "batch",
+              "maxPrice": 1.5
+            },
+            {
+              "key": "fastener_sealant",
+              "label": "Polysulfide fastener sealant",
+              "kind": "sealant",
+              "unit": "kg",
+              "qty": 0.3,
+              "per": "unit",
+              "maxPrice": 2
+            }
+          ]
+        },
+        {
+          "code": "08",
+          "column": 8,
+          "name": "Final dimensional release",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "tracker_form",
+              "label": "Laser-tracker form report",
+              "media": "document",
+              "instrument": "Leica AT960 laser tracker with SpatialAnalyzer",
+              "metric": {
+                "label": "Profile deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.4
+              }
+            },
+            {
+              "key": "surface_scan",
+              "label": "Surface scan colour map",
+              "media": "image",
+              "instrument": "Creaform MetraSCAN 3D",
+              "metric": {
+                "label": "Flange flatness",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.5
+              }
+            },
+            {
+              "key": "joint_thermography",
+              "label": "Fastener-line lock-in thermography",
+              "media": "thermal",
+              "instrument": "FLIR X8580 lock-in thermography",
+              "metric": {
+                "label": "Disbonds near fastener lines",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "surface_ftir",
+              "label": "Surface contamination FTIR",
+              "media": "spectrum",
+              "instrument": "Agilent 4300 Handheld FTIR",
+              "metric": {
+                "label": "Release agent residue",
+                "unit": "mg/m²",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "fai_report",
+              "label": "AS9102 first article report",
+              "media": "document",
+              "instrument": "Zeiss ACCURA CMM with CALYPSO",
+              "metric": {
+                "label": "Characteristics out of tolerance",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "walkround_video",
+              "label": "Release walkround recording",
+              "media": "video",
+              "instrument": "Axis Q1656 inspection-cell camera",
+              "metric": {
+                "label": "Open findings at walkround",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              },
+              "required": false
+            }
+          ],
+          "resources": []
+        }
+      ]
+    },
+    {
+      "key": "satellite-ait",
+      "name": "Satellite integration and environmental test",
+      "category": "Aerospace",
+      "description": "Assembly, integration and test of a small satellite: subsystems received and harnessed, a baseline functional test, then thermal vacuum, random vibration, and acoustic and EMC campaigns in parallel. Released on a final functional test and mass properties, and shipped in a purged, sealed container.",
+      "rework": null,
+      "stages": [
+        {
+          "code": "01",
+          "column": 1,
+          "name": "Receiving and kitting",
+          "agent": "supply",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "cleanroom_particles",
+              "label": "Cleanroom particle count",
+              "media": "document",
+              "instrument": "Lighthouse ApexR5 particle counter",
+              "metric": {
+                "label": "Particles ≥0.5 µm per m³",
+                "unit": "count/m³",
+                "op": "<=",
+                "target": 3520000
+              }
+            },
+            {
+              "key": "unit_visual",
+              "label": "Unit and connector visual",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Connector pin damage",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "transit_shock",
+              "label": "Transit shock and temperature record",
+              "media": "document",
+              "instrument": "Lansmont SAVER 3X90 data recorder",
+              "metric": {
+                "label": "Peak transit shock",
+                "unit": "g",
+                "op": "<=",
+                "target": 10
+              }
+            },
+            {
+              "key": "container_thermal",
+              "label": "Container thermal image before opening",
+              "media": "thermal",
+              "instrument": "FLIR T540",
+              "metric": {
+                "label": "Container-to-room temperature difference",
+                "unit": "°C",
+                "op": "<=",
+                "target": 3
+              }
+            },
+            {
+              "key": "surface_nvr",
+              "label": "Surface NVR by FTIR",
+              "media": "spectrum",
+              "instrument": "Agilent 4300 Handheld FTIR",
+              "metric": {
+                "label": "Non-volatile residue",
+                "unit": "mg/m²",
+                "op": "<=",
+                "target": 10
+              }
+            },
+            {
+              "key": "unpack_video",
+              "label": "Unpacking recording",
+              "media": "video",
+              "instrument": "Axis M3086-V dome camera over the bench",
+              "metric": {
+                "label": "Handling nonconformances",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "esd_bags",
+              "label": "Static-shielding bags",
+              "kind": "esd_bags",
+              "unit": "pcs",
+              "qty": 20,
+              "per": "batch",
+              "maxPrice": 0.05
+            },
+            {
+              "key": "ipa_wipes",
+              "label": "Cleanroom IPA wipes",
+              "kind": "ipa_wipes",
+              "unit": "pcs",
+              "qty": 100,
+              "per": "batch",
+              "maxPrice": 0.01
+            }
+          ]
+        },
+        {
+          "code": "02",
+          "column": 2,
+          "name": "Harness integration",
+          "agent": "line",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 2880,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "harness_test",
+              "label": "Continuity and isolation test",
+              "media": "document",
+              "instrument": "Cirris Easy-Touch Pro harness tester",
+              "metric": {
+                "label": "Insulation resistance at 500 V",
+                "unit": "MΩ",
+                "op": ">=",
+                "target": 100
+              }
+            },
+            {
+              "key": "connector_images",
+              "label": "Connector mating images",
+              "media": "image",
+              "instrument": "Olympus DSX1000 digital microscope",
+              "metric": {
+                "label": "Bent or recessed pins",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "crimp_pull",
+              "label": "Crimp pull test",
+              "media": "document",
+              "instrument": "Mecmesin MultiTest 2.5-i force tester",
+              "metric": {
+                "label": "Crimp pull force (AWG 24)",
+                "unit": "N",
+                "op": ">=",
+                "target": 36
+              }
+            },
+            {
+              "key": "harness_thermal",
+              "label": "Powered harness thermal scan",
+              "media": "thermal",
+              "instrument": "FLIR A700",
+              "metric": {
+                "label": "Hottest connector rise",
+                "unit": "°C",
+                "op": "<=",
+                "target": 10
+              }
+            },
+            {
+              "key": "routing_video",
+              "label": "Harness routing recording",
+              "media": "video",
+              "instrument": "Axis M3086-V over the integration stand",
+              "metric": {
+                "label": "Bend-radius violations",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "rf_cables",
+              "label": "RF cable insertion loss sweep",
+              "media": "spectrum",
+              "instrument": "Keysight E5063A network analyzer",
+              "metric": {
+                "label": "RF cable insertion loss",
+                "unit": "dB",
+                "op": "<=",
+                "target": 1.5
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "lacing_tape",
+              "label": "Polyester lacing tape",
+              "kind": "lacing_tape",
+              "unit": "m",
+              "qty": 50,
+              "per": "unit",
+              "maxPrice": 0.02
+            },
+            {
+              "key": "staking_compound",
+              "label": "Connector staking compound",
+              "kind": "staking_compound",
+              "unit": "g",
+              "qty": 50,
+              "per": "unit",
+              "maxPrice": 0.02
+            }
+          ]
+        },
+        {
+          "code": "03",
+          "column": 3,
+          "name": "Functional test",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 960,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "power_draw",
+              "label": "Power and telemetry log",
+              "media": "document",
+              "instrument": "Keysight N6705C DC power analyzer",
+              "metric": {
+                "label": "Nominal-mode power draw",
+                "unit": "W",
+                "op": "<=",
+                "target": 120
+              }
+            },
+            {
+              "key": "downlink_spectrum",
+              "label": "Downlink spectrum",
+              "media": "spectrum",
+              "instrument": "Rohde & Schwarz FSW43 signal analyzer",
+              "metric": {
+                "label": "Transmitter output power",
+                "unit": "dBm",
+                "op": ">=",
+                "target": 33,
+                "targetMax": 35
+              }
+            },
+            {
+              "key": "powered_thermal",
+              "label": "Powered-on thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 over the spacecraft",
+              "metric": {
+                "label": "Hottest unit surface",
+                "unit": "°C",
+                "op": "<=",
+                "target": 45
+              }
+            },
+            {
+              "key": "deploy_video",
+              "label": "Solar array deployment recording",
+              "media": "video",
+              "instrument": "Phantom VEO 640 high-speed camera",
+              "metric": {
+                "label": "Solar array deployment time",
+                "unit": "s",
+                "op": "<=",
+                "target": 8
+              }
+            },
+            {
+              "key": "wheel_audio",
+              "label": "Reaction wheel acoustic signature",
+              "media": "audio",
+              "instrument": "Brüel & Kjær Type 4189 microphone",
+              "metric": {
+                "label": "Wheel noise at 3000 rpm",
+                "unit": "dBA",
+                "op": "<=",
+                "target": 45
+              }
+            }
+          ],
+          "resources": []
+        },
+        {
+          "code": "04",
+          "column": 4,
+          "name": "Thermal vacuum",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 7200,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "chamber_pressure",
+              "label": "Chamber pressure log",
+              "media": "document",
+              "instrument": "Pfeiffer Vacuum PKR 361 full-range gauge",
+              "metric": {
+                "label": "Chamber pressure at plateau",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 1e-05
+              }
+            },
+            {
+              "key": "baseplate_thermal",
+              "label": "Hot plateau thermal image",
+              "media": "thermal",
+              "instrument": "InfraTec ImageIR 8300 through a ZnSe window",
+              "metric": {
+                "label": "Hot plateau baseplate temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 58,
+                "targetMax": 62
+              }
+            },
+            {
+              "key": "rga",
+              "label": "Residual gas analysis",
+              "media": "spectrum",
+              "instrument": "INFICON Transpector MPH RGA",
+              "metric": {
+                "label": "Hydrocarbon partial pressure (m/z 43)",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 1e-08
+              }
+            },
+            {
+              "key": "tqcm",
+              "label": "Outgassing TQCM log",
+              "media": "document",
+              "instrument": "QCM Research Mark 16 TQCM",
+              "metric": {
+                "label": "Outgassing deposition rate",
+                "unit": "Hz/h",
+                "op": "<=",
+                "target": 10
+              }
+            },
+            {
+              "key": "viewport_video",
+              "label": "Viewport monitoring recording",
+              "media": "video",
+              "instrument": "Allied Vision Prosilica GT1930 behind the viewport",
+              "metric": {
+                "label": "Frost or condensation events",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "thermal_cycles",
+              "label": "Thermal cycle record",
+              "media": "document",
+              "instrument": "Keysight DAQ970A with 120 thermocouples",
+              "metric": {
+                "label": "Thermal cycles completed",
+                "unit": "count",
+                "op": ">=",
+                "target": 4
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "ln2",
+              "label": "Liquid nitrogen for the shrouds",
+              "kind": "ln2",
+              "unit": "L",
+              "qty": 4000,
+              "per": "batch",
+              "maxPrice": 0.003
+            },
+            {
+              "key": "tvac_time",
+              "label": "Thermal vacuum chamber time",
+              "kind": "chamber_hours",
+              "unit": "h",
+              "qty": 120,
+              "per": "batch",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "05",
+          "column": 5,
+          "name": "Random vibration",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 1440,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "control_psd",
+              "label": "Control acceleration PSD",
+              "media": "spectrum",
+              "instrument": "Data Physics SignalStar Vector controller",
+              "metric": {
+                "label": "Overall control level",
+                "unit": "Grms",
+                "op": ">=",
+                "target": 9,
+                "targetMax": 11
+              }
+            },
+            {
+              "key": "sine_survey",
+              "label": "Pre/post sine survey overlay",
+              "media": "spectrum",
+              "instrument": "PCB 356A45 triaxial accelerometers",
+              "metric": {
+                "label": "First mode frequency shift",
+                "unit": "%",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "vibe_video",
+              "label": "High-speed vibration recording",
+              "media": "video",
+              "instrument": "Phantom VEO 640 high-speed camera",
+              "metric": {
+                "label": "Visible loose items",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "rattle_audio",
+              "label": "Rattle detection microphone",
+              "media": "audio",
+              "instrument": "GRAS 46AE microphone near the spacecraft",
+              "metric": {
+                "label": "Rattle events",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "torque_stripes",
+              "label": "Post-test torque-stripe photos",
+              "media": "image",
+              "instrument": "Nikon D850 inspection photos",
+              "metric": {
+                "label": "Broken torque stripes",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "table_thermal",
+              "label": "Slip table thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A400 on the slip table",
+              "metric": {
+                "label": "Slip table temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 50
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "shaker_time",
+              "label": "Electrodynamic shaker time",
+              "kind": "shaker_hours",
+              "unit": "h",
+              "qty": 6,
+              "per": "batch",
+              "maxPrice": 2
+            }
+          ]
+        },
+        {
+          "code": "06a",
+          "column": 6,
+          "name": "Acoustic test",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "oaspl",
+              "label": "Reverberant chamber microphones",
+              "media": "audio",
+              "instrument": "Brüel & Kjær Type 4943 microphones",
+              "metric": {
+                "label": "Overall sound pressure level",
+                "unit": "dB",
+                "op": ">=",
+                "target": 137,
+                "targetMax": 140
+              }
+            },
+            {
+              "key": "octave_spectrum",
+              "label": "One-third octave spectrum",
+              "media": "spectrum",
+              "instrument": "Brüel & Kjær LAN-XI with BK Connect",
+              "metric": {
+                "label": "Bands outside ±3 dB tolerance",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "panel_response",
+              "label": "Response accelerometer report",
+              "media": "document",
+              "instrument": "PCB 356A45 triaxial accelerometers",
+              "metric": {
+                "label": "Peak panel response",
+                "unit": "Grms",
+                "op": "<=",
+                "target": 25
+              }
+            },
+            {
+              "key": "chamber_video",
+              "label": "Chamber video during test",
+              "media": "video",
+              "instrument": "Axis Q1656 camera in the reverberant chamber",
+              "metric": {
+                "label": "Visible MLI blanket lift",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "mli_photos",
+              "label": "Post-test MLI inspection photos",
+              "media": "image",
+              "instrument": "Nikon D850 inspection photos",
+              "metric": {
+                "label": "MLI tears",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "horn_nitrogen",
+              "label": "Gaseous nitrogen for the horns",
+              "kind": "nitrogen",
+              "unit": "m3",
+              "qty": 300,
+              "per": "batch",
+              "maxPrice": 0.05
+            },
+            {
+              "key": "acoustic_time",
+              "label": "Reverberant chamber time",
+              "kind": "chamber_hours",
+              "unit": "h",
+              "qty": 4,
+              "per": "batch",
+              "maxPrice": 2
+            }
+          ]
+        },
+        {
+          "code": "06b",
+          "column": 6,
+          "name": "Electromagnetic compatibility",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 1440,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "re102",
+              "label": "Radiated emissions scan (RE102)",
+              "media": "spectrum",
+              "instrument": "Rohde & Schwarz ESW EMI test receiver",
+              "metric": {
+                "label": "Margin to RE102 limit",
+                "unit": "dB",
+                "op": ">=",
+                "target": 6
+              }
+            },
+            {
+              "key": "ce102",
+              "label": "Conducted emissions scan (CE102)",
+              "media": "spectrum",
+              "instrument": "Rohde & Schwarz ESW with ENV216 LISN",
+              "metric": {
+                "label": "Margin to CE102 limit",
+                "unit": "dB",
+                "op": ">=",
+                "target": 6
+              }
+            },
+            {
+              "key": "rs103",
+              "label": "Radiated susceptibility log (RS103)",
+              "media": "document",
+              "instrument": "Rohde & Schwarz BBA150 amplifier with HL046E antenna",
+              "metric": {
+                "label": "Susceptibility anomalies",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "bonding",
+              "label": "Bonding resistance",
+              "media": "document",
+              "instrument": "Megger DLRO10HD micro-ohmmeter",
+              "metric": {
+                "label": "Chassis bonding resistance",
+                "unit": "mΩ",
+                "op": "<=",
+                "target": 2.5
+              }
+            },
+            {
+              "key": "emc_thermal",
+              "label": "Powered thermal check in chamber",
+              "media": "thermal",
+              "instrument": "FLIR T540",
+              "metric": {
+                "label": "Hottest unit surface in chamber",
+                "unit": "°C",
+                "op": "<=",
+                "target": 50
+              }
+            },
+            {
+              "key": "telemetry_video",
+              "label": "Telemetry monitor recording",
+              "media": "video",
+              "instrument": "Axis Q1656 camera on the EGSE display",
+              "metric": {
+                "label": "Telemetry dropouts",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "anechoic_time",
+              "label": "Anechoic chamber time",
+              "kind": "chamber_hours",
+              "unit": "h",
+              "qty": 20,
+              "per": "batch",
+              "maxPrice": 1.5
+            }
+          ]
+        },
+        {
+          "code": "07",
+          "column": 7,
+          "name": "Final functional and mass properties",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 1440,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "mass",
+              "label": "Mass properties report",
+              "media": "document",
+              "instrument": "Space Electronics KSR1320 mass properties instrument",
+              "metric": {
+                "label": "Mass deviation from model",
+                "unit": "%",
+                "op": "<=",
+                "target": 1
+              }
+            },
+            {
+              "key": "cg_offset",
+              "label": "Centre-of-gravity report",
+              "media": "document",
+              "instrument": "Space Electronics KSR1320 mass properties instrument",
+              "metric": {
+                "label": "Centre-of-gravity offset",
+                "unit": "mm",
+                "op": "<=",
+                "target": 1.5
+              }
+            },
+            {
+              "key": "final_spectrum",
+              "label": "Final downlink spectrum",
+              "media": "spectrum",
+              "instrument": "Rohde & Schwarz FSW43 signal analyzer",
+              "metric": {
+                "label": "Final transmitter output power",
+                "unit": "dBm",
+                "op": ">=",
+                "target": 33,
+                "targetMax": 35
+              }
+            },
+            {
+              "key": "final_thermal",
+              "label": "Final powered thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 over the spacecraft",
+              "metric": {
+                "label": "Unit temperature change from baseline",
+                "unit": "°C",
+                "op": "<=",
+                "target": 3
+              }
+            },
+            {
+              "key": "uv_inspection",
+              "label": "Final UV-A cleanliness photos",
+              "media": "image",
+              "instrument": "Nikon D850 with Spectroline UV-A lamp",
+              "metric": {
+                "label": "Contamination spots under UV",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "wheel_recheck",
+              "label": "Reaction wheel acoustic recheck",
+              "media": "audio",
+              "instrument": "Brüel & Kjær Type 4189 microphone",
+              "metric": {
+                "label": "Wheel noise change from baseline",
+                "unit": "dB",
+                "op": "<=",
+                "target": 3
+              }
+            }
+          ],
+          "resources": []
+        },
+        {
+          "code": "08",
+          "column": 8,
+          "name": "Pack and ship",
+          "agent": "logistics",
+          "resourceKind": "pack_line",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "purge_rh",
+              "label": "Container nitrogen purge log",
+              "media": "document",
+              "instrument": "Vaisala HMP7 humidity probe",
+              "metric": {
+                "label": "Container relative humidity",
+                "unit": "%",
+                "op": "<=",
+                "target": 30
+              }
+            },
+            {
+              "key": "seal_leak",
+              "label": "Container pressure decay check",
+              "media": "document",
+              "instrument": "WIKA CPG1500 precision digital gauge",
+              "metric": {
+                "label": "Container pressure decay over 1 h",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "lift_video",
+              "label": "Lift and packing recording",
+              "media": "video",
+              "instrument": "Axis Q6135-LE PTZ camera",
+              "metric": {
+                "label": "Lift procedure deviations",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "seal_photos",
+              "label": "Container seal photos",
+              "media": "image",
+              "instrument": "Canon EOS R5 photo record",
+              "metric": {
+                "label": "Unsealed latches",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "container_skin",
+              "label": "Container thermal image before dispatch",
+              "media": "thermal",
+              "instrument": "FLIR T540",
+              "metric": {
+                "label": "Container skin temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 15,
+                "targetMax": 25
+              }
+            },
+            {
+              "key": "purge_gc",
+              "label": "Purge gas purity",
+              "media": "spectrum",
+              "instrument": "Agilent 990 Micro GC",
+              "metric": {
+                "label": "Oxygen in purge gas",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 50
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "purge_nitrogen",
+              "label": "Container purge nitrogen",
+              "kind": "nitrogen",
+              "unit": "m3",
+              "qty": 10,
+              "per": "batch",
+              "maxPrice": 0.08
+            },
+            {
+              "key": "container_desiccant",
+              "label": "Container desiccant",
+              "kind": "desiccant",
+              "unit": "kg",
+              "qty": 2,
+              "per": "batch",
+              "maxPrice": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ti-airframe-bracket",
+      "name": "Titanium airframe bracket, laser powder bed fusion",
+      "category": "Aerospace",
+      "description": "Ti-6Al-4V airframe bracket printed by laser powder bed fusion from qualified powder, stress relieved on the plate and HIPed, then cut off, machined and checked by CT for porosity. A proof load test, surface finishing and FPI come before release on CMM, witness-coupon tensile and resonance results.",
+      "rework": null,
+      "stages": [
+        {
+          "code": "01",
+          "column": 1,
+          "name": "Powder qualification",
+          "agent": "supply",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 480,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "powder_icp",
+              "label": "Powder chemistry ICP-OES",
+              "media": "spectrum",
+              "instrument": "Agilent 5900 ICP-OES",
+              "metric": {
+                "label": "Aluminium content",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 5.5,
+                "targetMax": 6.5
+              }
+            },
+            {
+              "key": "powder_oxygen",
+              "label": "Oxygen by inert gas fusion",
+              "media": "document",
+              "instrument": "LECO ONH836 analyzer",
+              "metric": {
+                "label": "Oxygen content",
+                "unit": "wt%",
+                "op": "<=",
+                "target": 0.13
+              }
+            },
+            {
+              "key": "powder_psd",
+              "label": "Particle size distribution report",
+              "media": "document",
+              "instrument": "Malvern Panalytical Mastersizer 3000",
+              "metric": {
+                "label": "D90 particle size",
+                "unit": "µm",
+                "op": ">=",
+                "target": 40,
+                "targetMax": 53
+              }
+            },
+            {
+              "key": "powder_sem",
+              "label": "Powder morphology SEM",
+              "media": "image",
+              "instrument": "Thermo Fisher Phenom XL G2 desktop SEM",
+              "metric": {
+                "label": "Satellite and irregular particles",
+                "unit": "%",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "powder_avalanche",
+              "label": "Rotating drum flow recording",
+              "media": "video",
+              "instrument": "Mercury Scientific Revolution Powder Analyzer",
+              "metric": {
+                "label": "Avalanche angle",
+                "unit": "°",
+                "op": "<=",
+                "target": 45
+              }
+            },
+            {
+              "key": "drying_thermal",
+              "label": "Powder drying thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A400 on the vacuum drying oven",
+              "metric": {
+                "label": "Powder drying temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 100,
+                "targetMax": 120
+              },
+              "required": false
+            }
+          ],
+          "resources": []
+        },
+        {
+          "code": "02",
+          "column": 2,
+          "name": "Build preparation",
+          "agent": "scheduler",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "plate_flatness",
+              "label": "Build plate flatness",
+              "media": "document",
+              "instrument": "Mitutoyo Crysta-Apex V CMM",
+              "metric": {
+                "label": "Build plate flatness",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.05
+              }
+            },
+            {
+              "key": "recoater_blade",
+              "label": "Recoater blade inspection",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Blade edge nicks over 50 µm",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "laser_power",
+              "label": "Laser power calibration",
+              "media": "document",
+              "instrument": "Ophir 5000W-BB-50 thermal power sensor",
+              "metric": {
+                "label": "Laser power vs. setpoint",
+                "unit": "%",
+                "op": ">=",
+                "target": 98,
+                "targetMax": 102
+              }
+            },
+            {
+              "key": "preheat_thermal",
+              "label": "Plate preheat thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A700 through the chamber window",
+              "metric": {
+                "label": "Build plate preheat",
+                "unit": "°C",
+                "op": ">=",
+                "target": 75,
+                "targetMax": 85
+              }
+            },
+            {
+              "key": "argon_gc",
+              "label": "Argon supply purity",
+              "media": "spectrum",
+              "instrument": "Agilent 990 Micro GC",
+              "metric": {
+                "label": "Oxygen in argon supply",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 10
+              }
+            },
+            {
+              "key": "dry_recoat",
+              "label": "Dry-run recoat recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera on the build chamber",
+              "metric": {
+                "label": "Recoat streaks in dry run",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "build_plate",
+              "label": "Ti-6Al-4V build plate",
+              "kind": "build_plates",
+              "unit": "pcs",
+              "qty": 1,
+              "per": "batch",
+              "maxPrice": 6
+            },
+            {
+              "key": "recoater_spare",
+              "label": "Recoater blade",
+              "kind": "recoater_blades",
+              "unit": "pcs",
+              "qty": 1,
+              "per": "batch",
+              "maxPrice": 1
+            }
+          ]
+        },
+        {
+          "code": "03",
+          "column": 3,
+          "name": "LPBF build",
+          "agent": "scheduler",
+          "resourceKind": "cnc",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 2880,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "layer_ot",
+              "label": "Layer optical tomography",
+              "media": "thermal",
+              "instrument": "EOS EOSTATE Exposure OT camera",
+              "metric": {
+                "label": "Layers with hot-spot anomalies",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "powder_bed",
+              "label": "Powder bed layer images",
+              "media": "image",
+              "instrument": "EOS EOSTATE PowderBed camera",
+              "metric": {
+                "label": "Short-feed layers",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "chamber_oxygen",
+              "label": "Chamber oxygen log",
+              "media": "document",
+              "instrument": "Michell XTP601 oxygen analyzer",
+              "metric": {
+                "label": "Chamber oxygen",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 1000
+              }
+            },
+            {
+              "key": "build_ae",
+              "label": "Build acoustic emission",
+              "media": "audio",
+              "instrument": "Physical Acoustics R15α AE sensor under the plate",
+              "metric": {
+                "label": "Cracking AE hits",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "chamber_video",
+              "label": "Build chamber recording",
+              "media": "video",
+              "instrument": "Basler ace 2 camera through the chamber window",
+              "metric": {
+                "label": "Recoater strikes",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": [
+            {
+              "key": "ti64_powder",
+              "label": "Ti-6Al-4V ELI powder 15–45 µm",
+              "kind": "ti64_powder",
+              "unit": "kg",
+              "qty": 2.5,
+              "per": "unit",
+              "maxPrice": 3.5
+            },
+            {
+              "key": "build_argon",
+              "label": "Build chamber argon",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 8,
+              "per": "batch",
+              "maxPrice": 0.4
+            }
+          ]
+        },
+        {
+          "code": "04",
+          "column": 4,
+          "name": "Stress relief",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 360,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "soak_chart",
+              "label": "Load thermocouple chart",
+              "media": "document",
+              "instrument": "Yokogawa GX20 with Type K load thermocouples",
+              "metric": {
+                "label": "Soak temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 640,
+                "targetMax": 660
+              }
+            },
+            {
+              "key": "furnace_vacuum",
+              "label": "Furnace vacuum log",
+              "media": "document",
+              "instrument": "Pfeiffer Vacuum PKR 361 full-range gauge",
+              "metric": {
+                "label": "Vacuum at soak",
+                "unit": "mbar",
+                "op": "<=",
+                "target": 0.0001
+              }
+            },
+            {
+              "key": "unload_thermal",
+              "label": "Load thermal image at unload",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the unload table",
+              "metric": {
+                "label": "Load temperature at unload",
+                "unit": "°C",
+                "op": "<=",
+                "target": 65
+              }
+            },
+            {
+              "key": "distortion_scan",
+              "label": "Distortion scan colour map",
+              "media": "image",
+              "instrument": "ZEISS GOM ATOS Q 3D scanner",
+              "metric": {
+                "label": "Distortion vs. as-built scan",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.15
+              }
+            },
+            {
+              "key": "pump_audio",
+              "label": "Vacuum pump acoustic check",
+              "media": "audio",
+              "instrument": "SDT 340 ultrasound detector on the vacuum pump",
+              "metric": {
+                "label": "Pump bearing ultrasound",
+                "unit": "dBµV",
+                "op": "<=",
+                "target": 35
+              }
+            },
+            {
+              "key": "coupon_hydrogen",
+              "label": "Witness coupon hydrogen",
+              "media": "document",
+              "instrument": "LECO ONH836 analyzer",
+              "metric": {
+                "label": "Hydrogen content",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 120
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "relief_argon",
+              "label": "Argon backfill",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 3,
+              "per": "batch",
+              "maxPrice": 0.4
+            }
+          ]
+        },
+        {
+          "code": "05",
+          "column": 5,
+          "name": "Hot isostatic pressing",
+          "agent": "process",
+          "resourceKind": "process_vessel",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 720,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "hip_temperature",
+              "label": "HIP cycle temperature chart",
+              "media": "document",
+              "instrument": "Quintus QIH 9 cycle controller log",
+              "metric": {
+                "label": "Hold temperature",
+                "unit": "°C",
+                "op": ">=",
+                "target": 910,
+                "targetMax": 930
+              }
+            },
+            {
+              "key": "hip_pressure",
+              "label": "HIP cycle pressure chart",
+              "media": "document",
+              "instrument": "Quintus QIH 9 cycle controller log",
+              "metric": {
+                "label": "Hold pressure",
+                "unit": "MPa",
+                "op": ">=",
+                "target": 100,
+                "targetMax": 110
+              }
+            },
+            {
+              "key": "argon_purity",
+              "label": "Process argon purity",
+              "media": "spectrum",
+              "instrument": "Agilent 990 Micro GC",
+              "metric": {
+                "label": "Oxygen in process argon",
+                "unit": "ppm",
+                "op": "<=",
+                "target": 5
+              }
+            },
+            {
+              "key": "vessel_thermal",
+              "label": "Vessel shell thermal map",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the vessel exterior",
+              "metric": {
+                "label": "Vessel wall temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 60
+              }
+            },
+            {
+              "key": "coupon_micro",
+              "label": "Witness coupon microstructure",
+              "media": "image",
+              "instrument": "Zeiss Axio Imager.M2m metallograph",
+              "metric": {
+                "label": "Alpha lath thickness",
+                "unit": "µm",
+                "op": ">=",
+                "target": 0.8,
+                "targetMax": 3
+              }
+            },
+            {
+              "key": "compressor_audio",
+              "label": "Gas compressor acoustic check",
+              "media": "audio",
+              "instrument": "SDT 340 ultrasound detector on the compressor",
+              "metric": {
+                "label": "Compressor ultrasound level",
+                "unit": "dBµV",
+                "op": "<=",
+                "target": 40
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "hip_argon",
+              "label": "HIP process argon",
+              "kind": "argon",
+              "unit": "m3",
+              "qty": 40,
+              "per": "batch",
+              "maxPrice": 0.3
+            }
+          ]
+        },
+        {
+          "code": "06",
+          "column": 6,
+          "name": "Support removal and machining",
+          "agent": "scheduler",
+          "resourceKind": "cnc",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 360,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "interface_cmm",
+              "label": "Interface CMM report",
+              "media": "document",
+              "instrument": "Zeiss CONTURA CMM with VAST XXT",
+              "metric": {
+                "label": "Bore position deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.05
+              }
+            },
+            {
+              "key": "cut_thermal",
+              "label": "Workpiece thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A700 on the machining envelope",
+              "metric": {
+                "label": "Workpiece surface temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 80
+              }
+            },
+            {
+              "key": "chatter_audio",
+              "label": "Cutting sound for chatter",
+              "media": "audio",
+              "instrument": "PCB Piezotronics 130F20 microphone in the enclosure",
+              "metric": {
+                "label": "Chatter band level",
+                "unit": "dB",
+                "op": "<=",
+                "target": 72
+              }
+            },
+            {
+              "key": "support_witness",
+              "label": "Support witness inspection",
+              "media": "image",
+              "instrument": "Keyence VHX-7000 digital microscope",
+              "metric": {
+                "label": "Support remnants over 0.2 mm",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "spindle_vibration",
+              "label": "Spindle vibration spectrum",
+              "media": "spectrum",
+              "instrument": "SKF Microlog Analyzer dBX",
+              "metric": {
+                "label": "Spindle vibration velocity",
+                "unit": "mm/s",
+                "op": "<=",
+                "target": 2.8
+              }
+            },
+            {
+              "key": "face_roughness",
+              "label": "Machined face roughness",
+              "media": "document",
+              "instrument": "Mitutoyo SJ-410 surface roughness tester",
+              "metric": {
+                "label": "Machined face Ra",
+                "unit": "µm",
+                "op": "<=",
+                "target": 1.6
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "edm_wire",
+              "label": "Brass EDM wire 0.25 mm",
+              "kind": "edm_wire",
+              "unit": "kg",
+              "qty": 1.5,
+              "per": "batch",
+              "maxPrice": 1
+            },
+            {
+              "key": "coolant",
+              "label": "Machining coolant concentrate",
+              "kind": "coolant",
+              "unit": "L",
+              "qty": 3,
+              "per": "batch",
+              "maxPrice": 0.5
+            },
+            {
+              "key": "end_mills",
+              "label": "Carbide end mills",
+              "kind": "cutting_tools",
+              "unit": "pcs",
+              "qty": 0.5,
+              "per": "unit",
+              "maxPrice": 3
+            }
+          ]
+        },
+        {
+          "code": "07",
+          "column": 7,
+          "name": "CT porosity scan",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "ct_pores",
+              "label": "CT porosity volume",
+              "media": "image",
+              "instrument": "Zeiss METROTOM 1500 CT",
+              "metric": {
+                "label": "Largest pore diameter",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.25
+              }
+            },
+            {
+              "key": "ct_porosity",
+              "label": "CT porosity report",
+              "media": "document",
+              "instrument": "Zeiss METROTOM 1500 with VGSTUDIO MAX porosity analysis",
+              "metric": {
+                "label": "Porosity volume fraction",
+                "unit": "%",
+                "op": "<=",
+                "target": 0.05
+              }
+            },
+            {
+              "key": "ct_deviation",
+              "label": "CT nominal-actual comparison",
+              "media": "document",
+              "instrument": "Zeiss METROTOM 1500 with VGSTUDIO MAX",
+              "metric": {
+                "label": "Nominal-to-actual deviation",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.15
+              }
+            },
+            {
+              "key": "part_temperature",
+              "label": "Part temperature before scan",
+              "media": "thermal",
+              "instrument": "FLIR T540",
+              "metric": {
+                "label": "Part temperature before scan",
+                "unit": "°C",
+                "op": ">=",
+                "target": 19,
+                "targetMax": 21
+              }
+            },
+            {
+              "key": "pmi_xrf",
+              "label": "Alloy verification XRF",
+              "media": "spectrum",
+              "instrument": "Olympus Vanta XRF analyzer",
+              "metric": {
+                "label": "Vanadium content",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 3.5,
+                "targetMax": 4.5
+              }
+            }
+          ],
+          "resources": []
+        },
+        {
+          "code": "08",
+          "column": 8,
+          "name": "Proof load test",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 120,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "proof_load",
+              "label": "Proof load record",
+              "media": "document",
+              "instrument": "Instron 8802 servohydraulic frame with Dynacell",
+              "metric": {
+                "label": "Proof load vs. limit load",
+                "unit": "%",
+                "op": ">=",
+                "target": 115,
+                "targetMax": 125
+              }
+            },
+            {
+              "key": "permanent_set",
+              "label": "Permanent set after unload",
+              "media": "document",
+              "instrument": "Solartron AX/5/S LVDT probe",
+              "metric": {
+                "label": "Permanent set",
+                "unit": "mm",
+                "op": "<=",
+                "target": 0.05
+              }
+            },
+            {
+              "key": "dic_strain",
+              "label": "Digital image correlation strain field",
+              "media": "image",
+              "instrument": "Correlated Solutions VIC-3D system",
+              "metric": {
+                "label": "Peak strain at proof load",
+                "unit": "%",
+                "op": "<=",
+                "target": 0.7
+              }
+            },
+            {
+              "key": "proof_ae",
+              "label": "Acoustic emission during load",
+              "media": "audio",
+              "instrument": "MISTRAS Micro-II Express with PK15I sensors",
+              "metric": {
+                "label": "Hold-phase AE hits",
+                "unit": "count",
+                "op": "<=",
+                "target": 2
+              }
+            },
+            {
+              "key": "test_video",
+              "label": "Load test recording",
+              "media": "video",
+              "instrument": "Phantom VEO 640 high-speed camera",
+              "metric": {
+                "label": "Fixture slip events",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            }
+          ],
+          "resources": []
+        },
+        {
+          "code": "09",
+          "column": 9,
+          "name": "Surface finish and FPI",
+          "agent": "process",
+          "resourceKind": "manual_station",
+          "mode": "auto",
+          "escalationRole": "manager",
+          "timeoutMin": 360,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "finish_roughness",
+              "label": "Surface roughness after finishing",
+              "media": "document",
+              "instrument": "Mitutoyo SJ-410 surface roughness tester",
+              "metric": {
+                "label": "As-finished Ra",
+                "unit": "µm",
+                "op": "<=",
+                "target": 3.2
+              }
+            },
+            {
+              "key": "fpi_indications",
+              "label": "FPI indications under UV-A",
+              "media": "image",
+              "instrument": "Magnaflux ZB-100F UV-A lamp with Nikon D850",
+              "metric": {
+                "label": "Relevant linear indications",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "uv_intensity",
+              "label": "UV-A intensity check",
+              "media": "document",
+              "instrument": "Spectroline DSE-2000A radiometer",
+              "metric": {
+                "label": "UV-A intensity at part",
+                "unit": "µW/cm²",
+                "op": ">=",
+                "target": 1000
+              }
+            },
+            {
+              "key": "penetrant_brightness",
+              "label": "Penetrant fluorescent brightness",
+              "media": "spectrum",
+              "instrument": "HORIBA FluoroMax-4 spectrofluorometer",
+              "metric": {
+                "label": "Brightness vs. reference penetrant",
+                "unit": "%",
+                "op": ">=",
+                "target": 90
+              }
+            },
+            {
+              "key": "dryer_thermal",
+              "label": "Drying oven thermal image",
+              "media": "thermal",
+              "instrument": "FLIR A400 on the dryer",
+              "metric": {
+                "label": "Dryer air temperature",
+                "unit": "°C",
+                "op": "<=",
+                "target": 71
+              }
+            },
+            {
+              "key": "wash_video",
+              "label": "Penetrant wash recording",
+              "media": "video",
+              "instrument": "Axis M3086-V over the wash station",
+              "metric": {
+                "label": "Rinse time",
+                "unit": "s",
+                "op": "<=",
+                "target": 120
+              },
+              "required": false
+            }
+          ],
+          "resources": [
+            {
+              "key": "finishing_media",
+              "label": "Ceramic vibratory finishing media",
+              "kind": "finishing_media",
+              "unit": "kg",
+              "qty": 1,
+              "per": "batch",
+              "maxPrice": 0.3
+            },
+            {
+              "key": "penetrant",
+              "label": "Level 3 fluorescent penetrant",
+              "kind": "penetrant",
+              "unit": "L",
+              "qty": 0.05,
+              "per": "unit",
+              "maxPrice": 1.2
+            },
+            {
+              "key": "developer",
+              "label": "Dry powder developer",
+              "kind": "developer",
+              "unit": "kg",
+              "qty": 0.02,
+              "per": "unit",
+              "maxPrice": 0.8
+            }
+          ]
+        },
+        {
+          "code": "10",
+          "column": 10,
+          "name": "Release",
+          "agent": "vision_qa",
+          "resourceKind": "inspection",
+          "mode": "approve",
+          "escalationRole": "manager",
+          "timeoutMin": 240,
+          "criteria": [],
+          "outcomes": [
+            {
+              "key": "final_cmm",
+              "label": "Final CMM report",
+              "media": "document",
+              "instrument": "Zeiss CONTURA CMM with CALYPSO",
+              "metric": {
+                "label": "Characteristics out of tolerance",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "coupon_tensile",
+              "label": "Witness coupon tensile test",
+              "media": "document",
+              "instrument": "ZwickRoell Z250 with clip-on extensometer",
+              "metric": {
+                "label": "Ultimate tensile strength",
+                "unit": "MPa",
+                "op": ">=",
+                "target": 860
+              }
+            },
+            {
+              "key": "pcrt",
+              "label": "Process compensated resonance test",
+              "media": "audio",
+              "instrument": "Vibrant PCRT resonance inspection system",
+              "metric": {
+                "label": "Resonance pattern match",
+                "unit": "%",
+                "op": ">=",
+                "target": 95
+              }
+            },
+            {
+              "key": "final_visual",
+              "label": "Final visual photo record",
+              "media": "image",
+              "instrument": "Nikon D850 inspection photos",
+              "metric": {
+                "label": "Handling damage",
+                "unit": "count",
+                "op": "<=",
+                "target": 0
+              }
+            },
+            {
+              "key": "release_xrf",
+              "label": "Release alloy verification XRF",
+              "media": "spectrum",
+              "instrument": "Olympus Vanta XRF analyzer",
+              "metric": {
+                "label": "Vanadium content at release",
+                "unit": "wt%",
+                "op": ">=",
+                "target": 3.5,
+                "targetMax": 4.5
+              }
+            }
+          ],
+          "resources": []
+        }
+      ]
+    }
+  ]
+}
