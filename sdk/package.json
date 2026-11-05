@@ -1,0 +1,37 @@
+{
+  "name": "ordo-pow",
+  "version": "0.1.0",
+  "description": "Record proof of work on an Ordo stage: a short terminal interview through the 0G Private Computer Router (TEE providers only), signed in the Ordo console.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "ordo-pow": "bin/ordo-pow.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "ordo",
+    "proof-of-work",
+    "0g",
+    "tee",
+    "private-computer",
+    "manufacturing",
+    "cli"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "typescript": "^7.0.2"
+  }
+}
