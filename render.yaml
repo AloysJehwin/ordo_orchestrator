@@ -47,7 +47,7 @@ services:
       - fromGroup: ordo-runtime
       # PORT and RENDER_EXTERNAL_URL come from Render: public links (passports, QR codes, proof-of-work commands, the
       # address machine bodies call) use RENDER_EXTERNAL_URL unless PUBLIC_URL names your own domain.
-      # ZG_ROUTER_AUDIO_MODEL is left out on purpose: unset means whisper-large-v3, an empty value turns voice notes off.
+      # ZG_ROUTER_AUDIO_MODEL: unset means whisper-large-v3 in private mode (none on standard routing); empty turns voice notes off.
       # Machine bodies on Vercel Sandbox (docs/machines.md)
       - key: VERCEL_TOKEN
         sync: false
@@ -203,7 +203,28 @@ services:
         sync: false
       - key: ZG_ROUTER_MODEL
         sync: false
+      # private (TEE providers only, the default) or standard (no TEE; Ordo labels everything so) while 0G has no private provider
+      - key: ZG_ROUTER_TRUST_MODE
+        sync: false
+      - key: ZG_ROUTER_AUDIO_MODEL
+        sync: false
       - key: ZG_ROUTER_CREDIT_LIMIT
+        sync: false
+      # Org treasuries (docs/hedera.md): OrdoTreasury on the trust chain; unset, machines spend only their own balances
+      - key: TREASURY_CONTRACT_ADDRESS
+        sync: false
+      - key: TREASURY_BUDGET_MARGIN_PCT
+        sync: false
+      - key: TREASURY_BUDGET_HOURS
+        sync: false
+      - key: TREASURY_SEED_TINYBARS
+        sync: false
+      - key: TREASURY_TOPUP_MAX_TINYBARS
+        sync: false
+      # Machine bodies (docs/machines.md): where sandboxed bodies reach Ordo (default: the public URL) and their stage length
+      - key: BODY_ORDO_URL
+        sync: false
+      - key: BODY_STAGE_S
         sync: false
       # Proof of work
       - key: POW_PACKAGE

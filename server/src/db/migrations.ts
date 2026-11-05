@@ -529,4 +529,11 @@ ALTER TABLE contributions ADD COLUMN disputes INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE contribution_sessions ADD COLUMN machine_qa_json TEXT;
 `,
   },
+  {
+    version: 32,
+    name: "0G trust modes: which providers a proof-of-work session's Router key could use",
+    sql: `
+ALTER TABLE contribution_sessions ADD COLUMN router_trust_mode TEXT NOT NULL DEFAULT 'private';
+`,
+  },
 ];

@@ -154,9 +154,13 @@ const Env = z.object({
   ZG_ROUTER_NETWORK: z.enum(["mainnet", "testnet"]).default("mainnet"),
   /** A management key (mk-…) from pc.0g.ai with account:read, keys:read, keys:create and keys:manage. Unset: sessions use the CLI's scripted interviewer. */
   ZG_ROUTER_MGMT_KEY: z.string().regex(/^mk-/).optional(),
-  /** The chat model, served by TeeML providers in private mode; it reads images too (multimedia outcomes) */
+  /** Which providers may serve: private (TEE isolation, TeeML), verified (verifiable providers) or standard (any; no TEE,
+   *  and everything Ordo shows says so). Private unless the Router has no private provider for the model. */
+  ZG_ROUTER_TRUST_MODE: z.enum(["private", "verified", "standard"]).default("private"),
+  /** The chat model (in private mode, one TeeML providers serve); it must read images (multimedia outcomes) */
   ZG_ROUTER_MODEL: z.string().default("0gm-1.0-35b-a3b"),
-  /** Speech to text for voice notes, also TeeML. Unset: whisper-large-v3 on mainnet, none on testnet. Empty: none. */
+  /** Speech to text for voice notes: whisper-large-v3 (its transcription endpoint) or an omni chat model that hears audio,
+   *  such as qwen3-omni-flash. Unset: whisper-large-v3 in private mode on mainnet, none otherwise. Empty: none. */
   ZG_ROUTER_AUDIO_MODEL: z.string().optional(),
   /** Most one proof-of-work session may spend, in the account's units (0G wei or micro-USD) */
   ZG_ROUTER_CREDIT_LIMIT: z.string().regex(/^\d+$/).optional(),

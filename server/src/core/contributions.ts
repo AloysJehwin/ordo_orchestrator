@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Signatures, TypedSignature, User } from "../auth/auth.js";
-import type { Receipt, Router } from "../chain/zg-router.js";
+import { audioVia, type Receipt, type Router, type TrustMode } from "../chain/zg-router.js";
 import type { Db } from "../db/db.js";
 import { canonicalize as canonicalJson } from "../domain/canonical.js";
 import type { AccessLevel, Criterion, StageRunView } from "../domain/types.js";
@@ -154,6 +154,8 @@ export interface ContributionOutcome {
 }
 export interface TeeSummary {
   network: string;
+  /** which providers could serve: only `private` is a TEE (records from before trust modes have none: private) */
+  trustMode?: TrustMode;
   model: string;
   turns: number;
   /** answers whose provider attestation the Router verified */
@@ -173,6 +175,7 @@ interface SessionRow {
   stage_code: string;
   router_network: string;
   router_model: string;
+  router_trust_mode: TrustMode;
   router_key_id: string | null;
   router_key_sealed: string | null;
   status: "open" | "submitted" | "signed" | "expired" | "cancelled";
@@ -303,9 +306,9 @@ export class Contributions {
     const secret = randomBytes(24).toString("base64url");
     const expiresAt = new Date(this.now() + this.sessionMs);
     await this.db.query(
-      `INSERT INTO contribution_sessions (id, site_id, user_id, run_id, stage_code, secret_hash, router_network, router_model, router_key_id, router_key_sealed, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [id, siteId, user.id, runId, stageCode, sha256(secret), this.router.network, this.router.model, key.keyId, this.box(siteId).seal(key.key), expiresAt],
+      `INSERT INTO contribution_sessions (id, site_id, user_id, run_id, stage_code, secret_hash, router_network, router_model, router_trust_mode, router_key_id, router_key_sealed, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [id, siteId, user.id, runId, stageCode, sha256(secret), this.router.network, this.router.model, this.router.trustMode, key.keyId, this.box(siteId).seal(key.key), expiresAt],
     );
     const token = `${TOKEN_PREFIX}.${b64url(base.replace(/\/$/, ""))}.${secret}`;
     return {
@@ -313,7 +316,7 @@ export class Contributions {
       expiresAt: expiresAt.toISOString(),
       token,
       command: `npx ${this.pkg}@latest ${token}`,
-      router: { network: this.router.network, model: this.router.model },
+      router: { network: this.router.network, model: this.router.model, trustMode: this.router.trustMode },
     };
   }
 
@@ -407,7 +410,8 @@ export class Contributions {
         apiKey: open && s.router_key_sealed ? this.box(s.site_id).unseal(s.router_key_sealed) : "",
         model: s.router_model,
         audioModel: this.router.audioModel,
-        trustMode: "private" as const,
+        audioVia: audioVia(this.router.audioModel),
+        trustMode: s.router_trust_mode ?? "private",
         network: s.router_network,
       },
     };
@@ -508,7 +512,7 @@ export class Contributions {
       ...(e.analyzedBy ? { analyzedBy: e.analyzedBy } : {}),
     }));
     const receipts = body.receipts as SealedRecord["receipts"];
-    const tee = teeSummary(s.router_network, s.router_model, receipts);
+    const tee = teeSummary(s.router_network, s.router_model, receipts, s.router_trust_mode ?? "private");
     const media = await this.bindMedia(s.site_id, s.run_id, st, body.confirmations);
     const machineQa = JSON.parse(s.machine_qa_json ?? "[]") as MachineAnswer[];
     const voiceNotes = body.voiceNotes.map((v) => ({ ...v, sha256: `sha256:${v.sha256.replace(/^sha256:/, "")}` }));
@@ -812,11 +816,12 @@ const publicReceipt = (r: FinishBody["receipts"][number]) => ({
   kind: (r as { kind?: unknown }).kind === "transcription" ? ("transcription" as const) : ("chat" as const),
 });
 
-export function teeSummary(network: string, model: string, receipts: { teeVerified?: boolean | null; provider?: string | null; model?: string | null }[]): TeeSummary {
+export function teeSummary(network: string, model: string, receipts: { teeVerified?: boolean | null; provider?: string | null; model?: string | null }[], trustMode: TrustMode = "private"): TeeSummary {
   const verified = receipts.filter((r) => r.teeVerified === true).length;
   const failed = receipts.filter((r) => r.teeVerified === false).length;
   return {
     network,
+    trustMode,
     model: receipts.find((r) => r.model)?.model ?? model,
     turns: receipts.length,
     verified,

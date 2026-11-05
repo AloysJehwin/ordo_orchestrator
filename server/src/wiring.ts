@@ -31,7 +31,7 @@ import { Replicas } from "./core/replicas.js";
 import { Contributions } from "./core/contributions.js";
 import { Selection } from "./core/selection.js";
 import { Cases } from "./core/cases.js";
-import { routerFromConfig } from "./chain/zg-router.js";
+import { routerFromConfig, TRUST_LABEL } from "./chain/zg-router.js";
 import { Templates } from "./core/templates.js";
 import { Validation } from "./core/validation.js";
 import { WorkOrders } from "./core/workorders.js";
@@ -617,7 +617,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     },
     {
       rail: "0g private computer",
-      mode: contributions.router.network === "mock" ? "off: proof-of-work sessions use the terminal agent's scripted interviewer" : `${contributions.router.model} on the ${contributions.router.network} Router (${contributions.router.baseUrl}), private trust mode · npx ${cfg.POW_PACKAGE}`,
+      mode: contributions.router.network === "mock" ? "off: proof-of-work sessions use the terminal agent's scripted interviewer" : `${contributions.router.model} on the ${contributions.router.network} Router (${contributions.router.baseUrl}), ${TRUST_LABEL[contributions.router.trustMode]} · npx ${cfg.POW_PACKAGE}`,
       live: contributions.router.network !== "mock",
     },
     { rail: "autonomy policies", mode: trustChain?.cfg.policies ? `OrdoPolicies ${cfg.TRUST_POLICIES_ADDRESS}` : "in-app signatures", live: Boolean(trustChain?.cfg.policies) },

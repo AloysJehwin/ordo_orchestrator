@@ -1289,7 +1289,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   // ---- Virtual machines: each an asset run by its own body and agent ----
   site.get("/machines", async (c) => {
     lvl(c, 2, "the floor");
-    return c.json({ runtime: sys.bodies.runtime, brain: sys.contributions.router.network === "mock" ? "none" : "0g", bodies: await sys.bodies.list(sid(c)) });
+    return c.json({ runtime: sys.bodies.runtime, brain: sys.contributions.router.network === "mock" ? "none" : "0g", trustMode: sys.contributions.router.trustMode, bodies: await sys.bodies.list(sid(c)) });
   });
   site.post("/machines", async (c) => {
     need(c, "manager");

@@ -13,7 +13,7 @@ const USAGE = `ordo-body: a virtual machine's body.
 
 Environment: ORDO_URL, BODY_KEY, BODY_ASSET, BODY_PROFILE, BODY_SEED; optional BODY_ASK_PORT, BODY_ASK_TOKEN,
 BODY_ASK_HOST, BODY_DATA_DIR, BODY_STAGE_S, BODY_TICK_S, BODY_DECIDE_S, BODY_FFMPEG, ZG_ROUTER_URL, ZG_ROUTER_KEY,
-ZG_ROUTER_MODEL, HEDERA_NETWORK, MACHINE_ACCOUNT_ID.`;
+ZG_ROUTER_MODEL, ZG_ROUTER_TRUST_MODE, HEDERA_NETWORK, MACHINE_ACCOUNT_ID.`;
 
 function need(name: string): string {
   const v = process.env[name]?.trim();
@@ -38,7 +38,7 @@ async function run() {
   }
   const zgUrl = process.env.ZG_ROUTER_URL?.trim();
   const zgKey = process.env.ZG_ROUTER_KEY?.trim();
-  const brain = zgUrl && zgKey ? new Brain({ url: zgUrl, key: zgKey, model: process.env.ZG_ROUTER_MODEL?.trim() || "0gm-1.0-35b-a3b" }) : null;
+  const brain = zgUrl && zgKey ? new Brain({ url: zgUrl, key: zgKey, model: process.env.ZG_ROUTER_MODEL?.trim() || "0gm-1.0-35b-a3b", trustMode: process.env.ZG_ROUTER_TRUST_MODE?.trim() || "private" }) : null;
   const accountId = process.env.MACHINE_ACCOUNT_ID?.trim();
   const body = new Body({
     url,

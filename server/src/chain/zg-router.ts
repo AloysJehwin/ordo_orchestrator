@@ -9,7 +9,14 @@
  * `verify_tee: true`) and the provider's `ZG-Res-Key` header. The agent sends those receipts with the record; Ordo keeps
  * them and shows whether every turn was served by a TEE provider whose attestation the Router verified.
  */
+import { randomUUID } from "node:crypto";
 import type { Config } from "../config.js";
+
+/** Which providers may serve a request: `private` is TEE isolation (TeeML); `standard` is any provider, with no TEE. */
+export type TrustMode = "private" | "verified" | "standard";
+/** How a voice note becomes text: whisper's transcription endpoint, or a chat turn to a model that hears audio */
+export type AudioVia = "transcriptions" | "chat";
+export const audioVia = (model: string | null): AudioVia => (model && /whisper/i.test(model) ? "transcriptions" : "chat");
 
 export const ROUTER_URL = { mainnet: "https://router-api.0g.ai/v1", testnet: "https://router-api-testnet.integratenetwork.work/v1" } as const;
 export const ROUTER_CONSOLE = { mainnet: "https://pc.0g.ai", testnet: "https://pc.testnet.0g.ai" } as const;
@@ -60,8 +67,9 @@ export interface Router {
   readonly network: "mainnet" | "testnet" | "mock";
   readonly baseUrl: string;
   readonly model: string;
-  /** speech to text for voice notes (whisper-large-v3), or null */
+  /** speech to text for voice notes (whisper-large-v3, or an omni model), or null */
   readonly audioModel: string | null;
+  readonly trustMode: TrustMode;
   mintSessionKey(name: string, ttlMs: number): Promise<SessionKey>;
   revokeKey(keyId: string): Promise<void>;
   balance(): Promise<RouterBalance>;
@@ -92,6 +100,7 @@ export class ZgRouter implements Router {
     private creditLimit: string,
     private fetcher: typeof fetch = fetch,
     readonly audioModel: string | null = null,
+    readonly trustMode: TrustMode = "private",
   ) {
     this.baseUrl = ROUTER_URL[network];
   }
@@ -120,9 +129,10 @@ export class ZgRouter implements Router {
   async mintSessionKey(name: string, ttlMs: number): Promise<SessionKey> {
     const expiresAt = new Date(Date.now() + ttlMs).toISOString().replace(/\.\d{3}Z$/, "Z");
     const r = await this.call<{ key_id?: string; key?: string; expires_at?: string }>("POST", "/api-keys", {
-      name: name.slice(0, 60),
-      trust_mode: "private",
-      allowed_models: this.audioModel ? [this.model, this.audioModel] : [this.model],
+      // key names are unique on the account, revoked keys included
+      name: `${name.slice(0, 50)} ${randomUUID().slice(0, 8)}`,
+      trust_mode: this.trustMode,
+      allowed_models: [...new Set(this.audioModel ? [this.model, this.audioModel] : [this.model])],
       expiration: expiresAt,
       reset_period: "never",
       ...(this.creditLimit ? { credit_limit: this.creditLimit } : {}),
@@ -178,6 +188,7 @@ export class MockRouter implements Router {
   readonly baseUrl = "mock://router";
   readonly model = "ordo-mock-interviewer";
   readonly audioModel = null;
+  readonly trustMode = "private" as const;
   revoked: string[] = [];
   async mintSessionKey(_name: string, ttlMs: number): Promise<SessionKey> {
     const id = `mock_${Math.random().toString(36).slice(2, 10)}`;
@@ -199,30 +210,42 @@ export class MockRouter implements Router {
 
 export function routerFromConfig(cfg: Config, fetcher?: typeof fetch): Router {
   if (!cfg.ZG_ROUTER_MGMT_KEY) return new MockRouter();
-  const audio = cfg.ZG_ROUTER_AUDIO_MODEL ?? (cfg.ZG_ROUTER_NETWORK === "mainnet" ? "whisper-large-v3" : "");
-  return new ZgRouter(cfg.ZG_ROUTER_NETWORK, cfg.ZG_ROUTER_MGMT_KEY, cfg.ZG_ROUTER_MODEL, cfg.ZG_ROUTER_CREDIT_LIMIT ?? "", fetcher, audio || null);
+  const audio = cfg.ZG_ROUTER_AUDIO_MODEL ?? (cfg.ZG_ROUTER_NETWORK === "mainnet" && cfg.ZG_ROUTER_TRUST_MODE === "private" ? "whisper-large-v3" : "");
+  return new ZgRouter(cfg.ZG_ROUTER_NETWORK, cfg.ZG_ROUTER_MGMT_KEY, cfg.ZG_ROUTER_MODEL, cfg.ZG_ROUTER_CREDIT_LIMIT ?? "", fetcher, audio || null, cfg.ZG_ROUTER_TRUST_MODE);
 }
 
+/** What a trust mode means, for labels: only private is a TEE. */
+export const TRUST_LABEL: Record<TrustMode, string> = {
+  private: "private mode (TEE providers only)",
+  verified: "verified mode (verifiable providers, not a TEE)",
+  standard: "standard routing (not a TEE)",
+};
+
 /**
- * Whether private-mode sessions can run, for the doctor: the chat model has a healthy provider in trust mode `private`
- * (TeeML; a TeeTLS-only model fails every private request), the audio model too when one is set, and the account has
- * credits.
+ * Whether sessions can run, for the doctor: the chat model has a healthy provider for the trust mode (private needs one in
+ * trust mode `private`, TeeML; a TeeTLS-only model fails every private request), the audio model is served too when one
+ * is set, and the account has credits.
  */
 export async function checkRouter(r: Router): Promise<{ ok: boolean; detail: string }> {
   if (r.network === "mock") return { ok: false, detail: "no ZG_ROUTER_MGMT_KEY: proof-of-work sessions use the scripted interviewer" };
-  const [bal, chat, audio] = await Promise.all([r.balance(), r.providers(r.model), r.audioModel ? r.models() : Promise.resolve(null)]);
+  const [bal, chat, models] = await Promise.all([r.balance(), r.providers(r.model), r.models()]);
   const funded = BigInt(bal.total.split(".")[0] || "0") > 0n;
-  const ok = chat.filter((p) => p.healthy && PRIVATE_MODE(p));
+  const fits = (p: RouterProvider) => p.healthy && (r.trustMode === "private" ? PRIVATE_MODE(p) : true);
+  const ok = chat.filter(fits);
   const problems: string[] = [];
   if (!chat.length) problems.push(`model ${r.model} is not on the ${r.network} Router`);
-  else if (!ok.length) problems.push(`${r.model} has no healthy private-mode (TeeML) provider: ${[...new Set(chat.map((p) => p.verifiability ?? p.trustMode ?? "?"))].join(", ")}`);
-  const audioOk = !r.audioModel || audio?.some((m) => m.id === r.audioModel && /teeml/i.test(m.verifiability ?? ""));
-  if (!audioOk) problems.push(`audio model ${r.audioModel} is not served in private mode`);
+  else if (!ok.length) problems.push(`${r.model} has no healthy ${r.trustMode === "private" ? "private-mode (TeeML)" : ""} provider${r.trustMode === "private" ? `: ${[...new Set(chat.map((p) => p.verifiability ?? p.trustMode ?? "?"))].join(", ")}` : ""}`);
+  if (r.audioModel) {
+    const m = models.find((x) => x.id === r.audioModel);
+    if (!m) problems.push(`audio model ${r.audioModel} is not on the ${r.network} Router`);
+    else if (r.trustMode === "private" && !/teeml/i.test(m.verifiability ?? "")) problems.push(`audio model ${r.audioModel} is not served in private mode`);
+  }
   if (!funded) problems.push("account is empty");
   const tee = [...new Set(ok.map((p) => p.teeType).filter(Boolean))].join("/");
   const images = ok.some((p) => p.inputs.includes("image"));
+  const what = r.trustMode === "private" ? `TeeML provider${ok.length === 1 ? "" : "s"}${tee ? `, ${tee}` : ""}` : `provider${ok.length === 1 ? "" : "s"}`;
   return {
     ok: problems.length === 0,
-    detail: `${r.network} · ${r.model} (${ok.length} TeeML provider${ok.length === 1 ? "" : "s"}${tee ? `, ${tee}` : ""}${images ? ", reads images" : ""})${r.audioModel ? ` · ${r.audioModel}` : ""} · balance ${bal.display}${problems.length ? ` · ${problems.join(" · ")}` : ""}`,
+    detail: `${r.network} · ${TRUST_LABEL[r.trustMode]} · ${r.model} (${ok.length} ${what}${images ? ", reads images" : ""})${r.audioModel ? ` · voice notes: ${r.audioModel}` : ""} · balance ${bal.display}${problems.length ? ` · ${problems.join(" · ")}` : ""}`,
   };
 }

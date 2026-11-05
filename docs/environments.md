@@ -121,7 +121,8 @@ It validates every variable and checks each configured rail against the real ser
 | `ZG_ROUTER_NETWORK` | mainnet | mainnet | mainnet | Router for proof-of-work interviews: `mainnet` = `https://router-api.0g.ai/v1`, `testnet` = `https://router-api-testnet.integratenetwork.work/v1` |
 | `ZG_ROUTER_MGMT_KEY` | – | set | set | `mk-…` management key from pc.0g.ai, made by the wallet that holds the credits (sensitive). Unset: scripted interviewer, no TEE |
 | `ZG_ROUTER_MODEL` | `0gm-1.0-35b-a3b` | `0gm-1.0-35b-a3b` | `0gm-1.0-35b-a3b` | The chat model, served by TeeML providers in private mode (it reads images too); the doctor checks it. A model served only by TeeTLS ("verified") providers fails every private-mode request |
-| `ZG_ROUTER_AUDIO_MODEL` | default | default | default | Speech to text for voice notes, also TeeML. Unset: `whisper-large-v3` on mainnet, none on testnet. Empty string: none. Session keys allow it next to the chat model |
+| `ZG_ROUTER_TRUST_MODE` | `private` | `private` | `private` | Which providers serve: `private` (TEE isolation, TeeML), `verified` or `standard` (any provider, no TEE). Ordo stores it per proof-of-work session, the CLI and the machines send it, and everything that shows a 0G answer says "not a TEE" outside private mode. Use `standard` with `qwen3-omni-flash` (reads images and hears audio) while 0G has no private provider for your model |
+| `ZG_ROUTER_AUDIO_MODEL` | default | default | default | Speech to text for voice notes: `whisper-large-v3` (its transcription endpoint) or an omni chat model that hears audio, such as `qwen3-omni-flash` (the CLI sends the audio in a chat turn). Unset: `whisper-large-v3` in private mode on mainnet, none otherwise. Empty string: none. Session keys allow it next to the chat model |
 | `ZG_ROUTER_CREDIT_LIMIT` | – | optional | optional | Most one session's key may spend, in the account's units (0G wei or micro-USD); unset = no cap |
 | `POW_PACKAGE` | ordo-pow | ordo-pow | ordo-pow | The npm package in the command: `npx <package>@latest <token>` |
 | `POW_SESSION_MINUTES` | 120 | 120 | 120 | How long a session and its Router key last (10 to 1440) |
@@ -200,7 +201,7 @@ Render asks for `sync: false` values only when the Blueprint is first created. A
 | AI | `ANTHROPIC_API_KEY` (or `LLM_PROVIDER` + `GEMINI_API_KEY`) | Unset: the offline agents |
 | Hedera and contracts | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_TOPIC_ID`, `HEDERA_PASSPORT_TOKEN_ID`, `HEDERA_AGENT_ID`, `HEDERA_AGENT_KEY`, `ANCHOR=hedera`, `TRUST_*`, `PAY_ON_PROOF_ADDRESS`, `STABLECOIN_*` | The v3 addresses from [contracts/README.md](../contracts/README.md#live-on-hedera-testnet-v3) |
 | ENS | `IDENTITY=ens`, `ENS_*` | From the ENS setup workflow |
-| 0G | `EVIDENCE_STORE=0g`, `ZG_PRIVATE_KEY`, `ZG_INFT_ADDRESS`, `ZG_ROUTER_MGMT_KEY` | `ZG_ROUTER_AUDIO_MODEL` is left out of the Blueprint on purpose: unset means `whisper-large-v3`, an empty value turns voice notes off |
+| 0G | `EVIDENCE_STORE=0g`, `ZG_PRIVATE_KEY`, `ZG_INFT_ADDRESS`, `ZG_ROUTER_MGMT_KEY` | `ZG_ROUTER_TRUST_MODE` and `ZG_ROUTER_AUDIO_MODEL` are in the Blueprint: leave both unset for private mode with `whisper-large-v3`; an empty audio model turns voice notes off |
 | Public address | `PUBLIC_URL` | Only with a custom domain (step 4) |
 
 Every other variable has a working default; the [Variables](#variables) table says what each one does. When a variable is added to `server/.env.example`, add it to `render.yaml` too.

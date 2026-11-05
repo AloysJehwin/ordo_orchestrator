@@ -76,15 +76,19 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : t
 
 /**
  * The machine's on-board agent: it reads what the machine captured and decides what the machine does next, through the
- * 0G Router in private mode (TEE providers only, `verify_tee`). Every answer's request ID goes in the episode log.
+ * 0G Router in Ordo's trust mode: private (TEE providers only, `verify_tee`) unless Ordo runs on standard routing, which
+ * has no TEE and says so. Every answer's request ID goes in the episode log.
  * Ordo mints the key for each start and revokes it on stop.
  */
 export class Brain {
   constructor(
-    private o: { url: string; key: string; model: string; timeoutMs?: number; fetch?: typeof fetch },
+    private o: { url: string; key: string; model: string; trustMode?: string; timeoutMs?: number; fetch?: typeof fetch },
   ) {}
   get model() {
     return this.o.model;
+  }
+  get trustMode() {
+    return this.o.trustMode ?? "private";
   }
 
   async chat(messages: unknown[], maxTokens: number, timeoutMs = this.o.timeoutMs ?? 60_000): Promise<BrainReply> {
@@ -93,8 +97,8 @@ export class Brain {
     try {
       res = await (this.o.fetch ?? fetch)(`${this.o.url.replace(/\/+$/, "")}/chat/completions`, {
         method: "POST",
-        headers: { authorization: `Bearer ${this.o.key}`, "content-type": "application/json", accept: "application/json", "x-0g-provider-trust-mode": "private" },
-        body: JSON.stringify({ model: this.o.model, messages, max_tokens: maxTokens, temperature: 0.2, stream: false, verify_tee: true }),
+        headers: { authorization: `Bearer ${this.o.key}`, "content-type": "application/json", accept: "application/json", "x-0g-provider-trust-mode": this.trustMode },
+        body: JSON.stringify({ model: this.o.model, messages, max_tokens: maxTokens, temperature: 0.2, stream: false, ...(this.trustMode === "private" ? { verify_tee: true } : {}) }),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {

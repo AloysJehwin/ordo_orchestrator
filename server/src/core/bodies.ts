@@ -32,11 +32,13 @@ export interface BodyEnv {
   BODY_DATA_DIR?: string;
   /** how long the simulated process takes over one stage, in seconds */
   BODY_STAGE_S?: string;
-  /** the 0G Router, private mode: a per-start key Ordo mints and revokes on stop. Unset: the body runs without a brain, labelled so */
+  /** the 0G Router, in Ordo's trust mode: a per-start key Ordo mints and revokes on stop. Unset: the body runs without a brain, labelled so */
   ZG_ROUTER_URL?: string;
   ZG_ROUTER_KEY?: string;
   ZG_ROUTER_MODEL?: string;
   ZG_ROUTER_AUDIO_MODEL?: string;
+  /** private (TEE providers only), verified or standard (no TEE): the body labels its readings by it */
+  ZG_ROUTER_TRUST_MODE?: string;
   /** the machine's own Hedera account, which pays vendors over x402 */
   HEDERA_NETWORK?: string;
   MACHINE_ACCOUNT_ID?: string;

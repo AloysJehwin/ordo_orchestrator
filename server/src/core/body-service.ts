@@ -224,7 +224,7 @@ export class Bodies implements BodyService {
     if (!ordoUrl) throw new HttpError(409, "Set PUBLIC_URL or BODY_ORDO_URL: the body needs an address to reach Ordo at");
     await this.setState(assetId, "starting", null, { runtime, auto_start: true });
 
-    // a fresh 0G Router key per start, private mode only; the previous one is revoked
+    // a fresh 0G Router key per start, in Ordo's trust mode; the previous one is revoked
     let routerKey: { keyId: string; key: string } | null = null;
     if (row.router_key_id) await this.router.revokeKey(row.router_key_id).catch(() => undefined);
     if (this.router.network !== "mock") {
@@ -248,7 +248,7 @@ export class Bodies implements BodyService {
       BODY_STAGE_S: String(this.o.stageS),
       ...(this.o.dataDir(assetId) ? { BODY_DATA_DIR: this.o.dataDir(assetId)! } : {}),
       ...(routerKey
-        ? { ZG_ROUTER_URL: this.router.baseUrl, ZG_ROUTER_KEY: routerKey.key, ZG_ROUTER_MODEL: this.router.model, ...(this.router.audioModel ? { ZG_ROUTER_AUDIO_MODEL: this.router.audioModel } : {}) }
+        ? { ZG_ROUTER_URL: this.router.baseUrl, ZG_ROUTER_KEY: routerKey.key, ZG_ROUTER_MODEL: this.router.model, ZG_ROUTER_TRUST_MODE: this.router.trustMode, ...(this.router.audioModel ? { ZG_ROUTER_AUDIO_MODEL: this.router.audioModel } : {}) }
         : {}),
       ...(wallet?.account_id && wallet.key_enc && wallet.status === "active"
         ? { HEDERA_NETWORK: this.o.hederaNetwork, MACHINE_ACCOUNT_ID: wallet.account_id, MACHINE_ACCOUNT_KEY: this.wallets.unseal(wallet.key_enc) }
