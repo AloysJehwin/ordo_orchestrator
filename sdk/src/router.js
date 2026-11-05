@@ -1,6 +1,7 @@
 // Client for the 0G Private Computer Router (OpenAI-compatible chat completions, and speech to text for voice notes).
 //
-// Every request goes out in private trust mode (TEE providers only) with verify_tee: true.
+// Every request goes out in the session's trust mode: private (TEE providers only, with verify_tee: true) unless the
+// Ordo runs on standard routing, which has no TEE and says so.
 // Every successful response yields a receipt: the response key (ZG-Res-Key header, falling
 // back to the body's id), the Router request id, the serving provider and its identity, the
 // Router's TEE verdict (x_0g_trace.tee_verified), SHA-256 of the exact request bytes sent and
@@ -10,7 +11,12 @@ import { canonicalJson, sha256Hex } from "./canonical.js";
 import { USER_AGENT } from "./meta.js";
 import { networkReason } from "./ordo-api.js";
 
+/** The default trust mode, and the only one served in a TEE */
 export const TRUST_MODE = "private";
+/** @param {string} [mode] */
+export const trustText = (mode = TRUST_MODE) =>
+  mode === "private" ? "private mode (TEE providers only)" : mode === "verified" ? "verified mode (verifiable providers, not a TEE)" : "standard routing (not a TEE)";
+const AUDIO_MIME = /** @type {Record<string, string>} */ ({ wav: "audio/wav", mp3: "audio/mpeg", m4a: "audio/mp4", ogg: "audio/ogg", webm: "audio/webm", flac: "audio/flac", aac: "audio/aac" });
 const TIMEOUT_MS = 180_000;
 const MAX_RETRY_DELAY_MS = 60_000;
 
@@ -84,6 +90,8 @@ export class RouterError extends Error {
  *   onRetry?: (error: RouterError, delayMs: number) => void,
  *   timeoutMs?: number,
  *   verifyTee?: boolean,
+ *   trustMode?: string,
+ *   audioVia?: "transcriptions" | "chat",
  * }} options
  */
 export function createRouterClient({
@@ -95,7 +103,9 @@ export function createRouterClient({
   sleep = defaultSleep,
   onRetry = () => {},
   timeoutMs = TIMEOUT_MS,
-  verifyTee = true,
+  trustMode = TRUST_MODE,
+  verifyTee = trustMode === "private",
+  audioVia = audioModel && !/whisper/i.test(audioModel) ? "chat" : "transcriptions",
 }) {
   const root = baseUrl.replace(/\/+$/, "");
   const url = `${root}/chat/completions`;
@@ -118,7 +128,7 @@ export function createRouterClient({
           "content-type": "application/json",
           accept: "application/json",
           "user-agent": USER_AGENT,
-          "x-0g-provider-trust-mode": TRUST_MODE,
+          "x-0g-provider-trust-mode": trustMode,
         },
         body: bodyText,
         signal: AbortSignal.timeout(timeoutMs),
@@ -147,9 +157,55 @@ export function createRouterClient({
     }
   }
 
+  /**
+   * A voice note through an omni chat model (one that hears audio): the audio goes as an input_audio data URI and the
+   * model is asked for a verbatim transcript.
+   * @param {Uint8Array} bytes
+   * @param {string} filename
+   * @returns {Promise<TranscriptionResult>}
+   */
+  async function transcribeByChat(bytes, filename) {
+    const ext = (filename.split(".").pop() ?? "").toLowerCase();
+    const mime = AUDIO_MIME[ext] ?? "audio/wav";
+    /** @type {Record<string, unknown>} */
+    const requestBody = {
+      model: audioModel,
+      stream: false,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Transcribe this voice note verbatim, in its own language. Reply with the transcript only; if nothing is said, reply with an empty line." },
+            { type: "input_audio", input_audio: { data: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`, format: ext || "wav" } },
+          ],
+        },
+      ],
+    };
+    if (verifyTee) requestBody.verify_tee = true;
+    const bodyText = canonicalJson(requestBody);
+    const requestSha256 = sha256Hex(bodyText);
+    const res = await withRetry(bodyText);
+    const responseSha256 = sha256Hex(res.body);
+    /** @type {Record<string, any>} */
+    let data;
+    try {
+      data = JSON.parse(Buffer.from(res.body).toString("utf8"));
+    } catch {
+      throw new RouterError("The 0G Router sent a transcription that is not JSON.", { status: res.status });
+    }
+    const content = data?.choices?.[0]?.message?.content;
+    const text = typeof content === "string" ? content : Array.isArray(content) ? content.map((/** @type {any} */ p) => p?.text ?? "").join("") : null;
+    if (text === null) throw new RouterError("The 0G Router's transcription has no text.", { status: res.status });
+    const receipt = buildReceipt({ data, headers: res.headers, model: /** @type {string} */ (audioModel), requestSha256, responseSha256 });
+    receipt.kind = "transcription";
+    return { text: text.trim(), receipt };
+  }
+
   return {
     model,
     audioModel,
+    trustMode,
 
     /**
      * @param {{ messages: ChatMessage[], tools: unknown[] }} input
@@ -187,13 +243,15 @@ export function createRouterClient({
     },
 
     /**
-     * Transcribe a voice note with the session's speech-to-text model, in private mode. The receipt binds the exact
-     * request (the audio included) and response bytes, like a chat turn's, and keeps the Router's request id.
+     * Transcribe a voice note with the session's speech-to-text model, in the session's trust mode: whisper's
+     * transcription endpoint, or a chat turn to an omni model that hears audio. The receipt binds the exact request
+     * (the audio included) and response bytes, like a chat turn's, and keeps the Router's request id.
      * @param {{ bytes: Uint8Array, filename: string }} input
      * @returns {Promise<TranscriptionResult>}
      */
     async transcribe({ bytes, filename }) {
       if (!audioModel) throw new RouterError("This session has no speech-to-text model.", { status: 403 });
+      if (audioVia === "chat") return transcribeByChat(bytes, filename);
       const bodyText = canonicalJson({ model: audioModel, file_base64: Buffer.from(bytes).toString("base64"), filename, response_format: "json" });
       const requestSha256 = sha256Hex(bodyText);
       const res = await withRetry(bodyText, transcriptionUrl);

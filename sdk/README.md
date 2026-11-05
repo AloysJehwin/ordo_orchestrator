@@ -8,7 +8,7 @@ You open a running stage in the Ordo console and click **Contribute proof of wor
 npx ordo-pow@latest opw1.…
 ```
 
-Run it. A short interview asks what you did on the stage, the values you measured, your evidence files and anything unusual. When the stage runs on a machine, it also shows you what the machine captured for each of the stage's outcomes (a photo, a trace, a spectrogram) and asks you to confirm or dispute it. The interviewer is a language model served by the [0G Private Computer](https://pc.0g.ai) Router in private mode, so only providers running in a TEE (trusted execution environment) see the conversation. When you confirm, the record goes to Ordo, a signing link opens in your browser, and once you have signed it the command prints the public proof link.
+Run it. A short interview asks what you did on the stage, the values you measured, your evidence files and anything unusual. When the stage runs on a machine, it also shows you what the machine captured for each of the stage's outcomes (a photo, a trace, a spectrogram) and asks you to confirm or dispute it. The interviewer is a language model served by the [0G Private Computer](https://pc.0g.ai) Router in private mode, so only providers running in a TEE (trusted execution environment) see the conversation. An Ordo can run on standard routing instead, when no TEE provider serves its model; the CLI then says "standard routing (not a TEE)" in its banner, and nothing in the record is labelled TEE. When you confirm, the record goes to Ordo, a signing link opens in your browser, and once you have signed it the command prints the public proof link.
 
 Requires Node.js 22 or newer. No dependencies.
 
@@ -62,7 +62,7 @@ When the stage runs on a machine, the session lists its outcomes: what the machi
 
 ## Verifiability
 
-Every request to the Router goes out with `X-0G-Provider-Trust-Mode: private` (TEE providers only, no fallback to non-TEE providers) and `"verify_tee": true` (the Router checks the provider's TEE signature itself and reports the result). For every Router response the agent keeps a receipt, and all receipts are posted to Ordo with the record:
+Every request to the Router goes out with the session's trust mode in `X-0G-Provider-Trust-Mode`. In private mode, the default, that is `private` (TEE providers only, no fallback to non-TEE providers) with `"verify_tee": true` (the Router checks the provider's TEE signature itself and reports the result). For every Router response the agent keeps a receipt, and all receipts are posted to Ordo with the record:
 
 | Receipt field | Source |
 |---|---|

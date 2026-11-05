@@ -77,7 +77,8 @@
  * @property {string} apiKey
  * @property {string} model
  * @property {string | null} [audioModel]  Speech to text for voice notes (whisper-large-v3), when the session's key allows it.
- * @property {string} [trustMode]
+ * @property {string} [trustMode]  private (TEE providers only), verified or standard (no TEE)
+ * @property {"transcriptions" | "chat"} [audioVia]  how voice notes become text: whisper's endpoint or an omni chat model
  * @property {"mainnet" | "testnet" | "mock"} [network] "mock": the Ordo deployment has no Router key
  */
 

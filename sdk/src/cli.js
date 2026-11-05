@@ -10,7 +10,7 @@ import { createMockTransport, MOCK_AUDIO_MODEL, MOCK_MODEL } from "./mock-router
 import { openInBrowser } from "./open-url.js";
 import { createOrdoClient, OrdoApiError } from "./ordo-api.js";
 import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, waitForSignature } from "./poll.js";
-import { createRouterClient, TRUST_MODE } from "./router.js";
+import { createRouterClient, trustText } from "./router.js";
 import { isLoopback, isTruthy, normalizeBaseUrl, parseInvocation, TOKEN_ENV } from "./token.js";
 
 export function usage() {
@@ -18,8 +18,8 @@ export function usage() {
        ${TOKEN_ENV}=<token> npx ${PACKAGE_NAME}@latest
 
 Record proof of work on an Ordo stage. Copy the command from the stage in the Ordo
-console ("Contribute proof of work"). The interview runs through the 0G Private
-Computer Router in private mode (TEE providers only). It shows you what the stage's
+console ("Contribute proof of work"). The interview runs through the 0G Router, in
+private mode (TEE providers only) unless your Ordo says otherwise. It shows you what the stage's
 machine captured and records whether you confirm or dispute it. Evidence files are
 hashed on this machine; Ordo gets only the hashes. A photo or voice note goes to the
 0G model only if you say yes for that file.
@@ -141,9 +141,6 @@ export async function main(options = {}) {
       });
     } else {
       const config = routerConfig(session);
-      if (session.router?.trustMode && session.router.trustMode !== TRUST_MODE) {
-        terminal.warn(`Ordo asked for trust mode "${session.router.trustMode}"; this agent always uses "${TRUST_MODE}".`);
-      }
       router = createRouterClient({
         ...config,
         onRetry: (err, delayMs) =>
@@ -248,7 +245,10 @@ function routerConfig(session) {
     throw new OrdoApiError("Ordo gave a Router address that is not https; refusing to send the Router key over plain http.", 200);
   }
   const audioModel = typeof r.audioModel === "string" && r.audioModel ? r.audioModel : null;
-  return { baseUrl, apiKey: r.apiKey, model: r.model, audioModel };
+  // sessions from an Ordo before trust modes were all private
+  const trustMode = r.trustMode === "standard" || r.trustMode === "verified" ? r.trustMode : "private";
+  const audioVia = r.audioVia === "chat" || r.audioVia === "transcriptions" ? r.audioVia : undefined;
+  return { baseUrl, apiKey: r.apiKey, model: r.model, audioModel, trustMode, ...(audioVia ? { audioVia } : {}) };
 }
 
 /**
@@ -273,7 +273,7 @@ function printBanner(terminal, session, { mock, model }) {
       ? style.yellow(
           `scripted interviewer (${mock === "forced" ? "ORDO_POW_MOCK_ROUTER" : "this Ordo has no 0G Router configured"}): no LLM; receipts are not TEE receipts`,
         )
-      : `${model}  ${style.dim("0G Private Computer, private mode (TEE providers only)")}`,
+      : `${model}  ${style.dim(`0G Router, ${trustText(session.router?.trustMode)}`)}`,
   );
   if (stage.machine) row("Machine", `${stage.machine.name ?? stage.machine.id}${stage.machine.answers ? "" : style.dim("  (no running body: it cannot be asked questions)")}`);
   const outcomes = stage.outcomes ?? [];
