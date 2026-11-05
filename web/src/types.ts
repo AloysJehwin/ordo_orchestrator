@@ -959,6 +959,7 @@ export interface BudgetsResponse {
   treasury: TreasuryInfo | null;
   budgets: BudgetSchedule[];
   topups: BudgetSchedule[];
+}
 /** A virtual machine: an asset run by its own body (a process or microVM) with its own agent. Floor and the builder. */
 import type { AssetKind as VmKind } from "../../server/src/domain/types";
 export type BodyState = "stopped" | "starting" | "running" | "sleeping" | "safe_stopped" | "failed";
