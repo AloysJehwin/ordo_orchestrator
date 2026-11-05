@@ -959,4 +959,38 @@ export interface BudgetsResponse {
   treasury: TreasuryInfo | null;
   budgets: BudgetSchedule[];
   topups: BudgetSchedule[];
+/** A virtual machine: an asset run by its own body (a process or microVM) with its own agent. Floor and the builder. */
+import type { AssetKind as VmKind } from "../../server/src/domain/types";
+export type BodyState = "stopped" | "starting" | "running" | "sleeping" | "safe_stopped" | "failed";
+export interface MachineBody {
+  assetId: string;
+  name: string;
+  kind: VmKind;
+  zoneId: string | null;
+  device: string;
+  runtime: "local" | "sandbox";
+  state: BodyState;
+  heartbeatAt: string | null;
+  brain: "0g" | "none";
+  sandboxId: string | null;
+  error: string | null;
+  episodeRoot: string | null;
+  seed: string;
+  autoStart: boolean;
+  startedAt: string | null;
+  createdAt: string;
+  alive: boolean | null;
+  account: string | null;
+  episode: { sha256: string; at: string; entries: number; decisions: number; final: boolean; replica: { status: string; root: string | null; url: string | null } | null } | null;
+}
+export interface MachinesView {
+  /** where bodies run; null when BODY_RUNTIME is off and virtual machines do not run */
+  runtime: "local" | "sandbox" | null;
+  brain: "0g" | "none";
+  bodies: MachineBody[];
+}
+export interface BodyAnswer {
+  answer: string;
+  requestId: string | null;
+  model: string | null;
 }

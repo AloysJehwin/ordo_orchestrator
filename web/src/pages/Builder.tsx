@@ -10,6 +10,7 @@ import { Action, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
 import { ResourcesEditor, resourceErrors } from "./ResourcesEditor";
+import { CreateMachineModal } from "./floor/Bodies";
 
 interface Draft extends Omit<StageSpec, "code"> {
   key: number;
@@ -353,6 +354,8 @@ function StageInspector(props: {
   const { s, editable, meta } = props;
   const setCrit = (i: number, p: Partial<Criterion>) => props.onChange({ criteria: s.criteria.map((c, j) => (j === i ? { ...c, ...p } : c)) });
   const machines = props.assets.filter((a) => a.kind === s.resourceKind);
+  const { can } = useApp();
+  const [vm, setVm] = useState(false);
   return (
     <div className="insp">
       <div className="insp-h">
@@ -398,12 +401,21 @@ function StageInspector(props: {
                 disabled={!editable}
               />
             ) : (
-              <p className="field-e">
-                No {KIND_LABEL[s.resourceKind].toLowerCase()} in this org yet, and every stage runs on a machine. <a href={href("floor")}>Add one on the Floor</a>
-              </p>
+              <>
+                <p className="field-e">
+                  No {KIND_LABEL[s.resourceKind].toLowerCase()} in this org yet, and every stage runs on a machine. <a href={href("floor")}>Add one on the Floor</a>
+                  {editable && can("manager") ? ", or create a virtual one here." : null}
+                </p>
+                {editable && can("manager") && (
+                  <button type="button" className="btn sm" onClick={() => setVm(true)}>
+                    Create a virtual machine
+                  </button>
+                )}
+              </>
             )}
           </Field>
         )}
+        {vm && <CreateMachineModal kind={s.resourceKind as Exclude<AssetKind, "system">} onClose={() => setVm(false)} onCreated={(id) => props.onChange({ machine: id })} />}
         <Field label="Agent">
           <Select<AgentKey> value={s.agent} onChange={(v) => props.onChange({ agent: v })} options={meta.agents.map((a) => ({ value: a.key, label: a.label, hint: a.scope }))} disabled={!editable} />
         </Field>
