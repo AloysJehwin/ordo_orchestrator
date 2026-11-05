@@ -10,11 +10,15 @@
  *   … setup:hedera check 0x… site_… 10  read-only: why a wallet's stake would fail (balance, account, credential, a simulated stake)
  *   … setup:hedera payonproof   OrdoPayOnProof: needs STABLECOIN_ADDRESS and STABLECOIN_TOKEN_ADDRESS (Ordo USD, made with
  *                               Stablecoin Studio by tools/stablecoin/create.cjs) and TRUST_CONTRACT_ADDRESS
+ *   … setup:hedera treasury     OrdoTreasury against TRUST_CONTRACT_ADDRESS (run budgets and top-ups, HIP-755)
+ *   … setup:hedera treasury site_… 50   an org's treasury: opens its key contract in OrdoTreasury
+ *                               (TREASURY_CONTRACT_ADDRESS), creates a Hedera account whose key is that contract and
+ *                               funds it with 50 HBAR from the operator; link it in Finance → Machine budgets
  *
  * Prints only public values: the variables to set in Vercel.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { AccountCreateTransaction, AccountId, Client, Hbar, PrivateKey, TransferTransaction, TokenCreateTransaction, TokenSupplyType, TokenType, TopicCreateTransaction } from "@hiero-ledger/sdk";
+import { AccountCreateTransaction, AccountId, Client, ContractId, Hbar, PrivateKey, TransferTransaction, TokenCreateTransaction, TokenSupplyType, TokenType, TopicCreateTransaction } from "@hiero-ledger/sdk";
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, formatUnits, http, parseAbi, parseUnits, type Abi, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { need } from "./env.js";
@@ -154,7 +158,56 @@ PAY_ON_PROOF_ADDRESS=${r.contractAddress}
 HEDERA_PASSPORT_TOKEN_ID=${id}
 PUBLIC_URL=<the deployment's public URL, e.g. https://aiwarriors.vercel.app>
 `);
+} else if (task === "treasury") {
+  const rpc = process.env.TRUST_RPC_URL ?? "https://testnet.hashio.io/api";
+  const chainId = Number(process.env.TRUST_CHAIN_ID ?? 296);
+  const mirror = (process.env.HEDERA_MIRROR_URL ?? "https://testnet.mirrornode.hedera.com").replace(/\/$/, "");
+  const chain = defineChain({ id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
+  const account = privateKeyToAccount(`0x${operatorKey.toStringRaw()}`);
+  const pub = createPublicClient({ chain, transport: http(rpc) });
+  const wallet = createWalletClient({ chain, transport: http(rpc), account });
+  const { abi, bytecode } = JSON.parse(readFileSync(new URL("../artifacts/OrdoTreasury.json", import.meta.url), "utf8")) as { abi: Abi; bytecode: Hex };
+  const [site, hbarArg] = process.argv.slice(3);
+  if (!site) {
+    const trust = need("TRUST_CONTRACT_ADDRESS") as Hex;
+    // an explicit gas price: the relay's fee estimate is sometimes below its own minimum
+    const hash = await wallet.deployContract({ abi, bytecode, args: [trust], gas: 3_000_000n, gasPrice: await pub.getGasPrice() } as never);
+    const r = await pub.waitForTransactionReceipt({ hash });
+    if (r.status !== "success" || !r.contractAddress) throw new Error(`OrdoTreasury deploy failed: ${hash}`);
+    console.log(`OrdoTreasury deployed at ${r.contractAddress} (tx ${hash}): https://hashscan.io/testnet/contract/${r.contractAddress}
+It approves each org's run budgets and top-ups against OrdoTrust (${trust}) admins.
+
+# ---- set in server/.env and the host's environment ----
+TREASURY_CONTRACT_ADDRESS=${r.contractAddress}
+`);
+  } else {
+    const treasury = need("TREASURY_CONTRACT_ADDRESS") as Hex;
+    const hbar = Number(hbarArg ?? 50);
+    if (!(hbar >= 0 && hbar <= 500)) throw new Error(`treasury: fund it with 0 to 500 HBAR, not ${hbarArg}`);
+    // the org's key contract: anyone may open it once the org is registered in OrdoTrust
+    const hash = await wallet.writeContract({ address: treasury, abi, functionName: "openSite", args: [site], gas: 600_000n, gasPrice: await pub.getGasPrice() } as never);
+    const r = await pub.waitForTransactionReceipt({ hash });
+    if (r.status !== "success") throw new Error(`openSite failed (is ${site} registered in OrdoTrust?): ${hash}`);
+    const key = (await pub.readContract({ address: treasury, abi, functionName: "keyOf", args: [await pub.readContract({ address: treasury, abi, functionName: "siteKey", args: [site] })] } as never)) as Hex;
+    let contractId: string | null = null;
+    for (let i = 0; i < 20 && !contractId; i++) {
+      const res = await fetch(`${mirror}/api/v1/contracts/${key}`);
+      if (res.ok) contractId = ((await res.json()) as { contract_id: string }).contract_id;
+      else await new Promise((ok) => setTimeout(ok, 3000));
+    }
+    if (!contractId) throw new Error(`The mirror node does not know ${key} yet; run this again in a minute`);
+    const client = Client.forName(process.env.HEDERA_NETWORK ?? "testnet").setOperator(operatorId, operatorKey);
+    const tx = await new AccountCreateTransaction().setKey(ContractId.fromString(contractId)).setInitialBalance(new Hbar(hbar)).setAccountMemo(`ordo:treasury:${site}`.slice(0, 100)).execute(client);
+    const id = (await tx.getReceipt(client)).accountId!.toString();
+    client.close();
+    console.log(`${site}'s treasury: https://hashscan.io/testnet/account/${id} with ${hbar} HBAR
+Its key is the contract ${contractId} (OrdoTreasuryKey ${key}): only OrdoTreasury can sign for it, and only for a
+schedule one of the org's managers approved. Anyone can fund it.
+
+Link it in the console (Finance → Machine budgets → Link treasury): ${id}
+`);
+  }
 } else {
-  console.error("usage: hedera-setup.ts topic | agent | contracts | passport | payonproof");
+  console.error("usage: hedera-setup.ts topic | agent | contracts | passport | payonproof | treasury [site amount]");
   process.exit(1);
 }

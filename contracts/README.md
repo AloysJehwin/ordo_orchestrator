@@ -7,6 +7,7 @@ Three contracts on Hedera, two on Sepolia for ENS (below). Every authorisation i
 | `OrdoTrust` | Per-site role credentials (a manager holds ADMIN, PLANT_MANAGER, SUPERVISOR and VALIDATOR, 30), granted and revoked with an admin's signature; validator and tester stakes with an unstake cooldown (`withdrawFor` pays a stake back after it, the call Hedera's scheduler makes); release records that need a staked reviewer and a staked plant manager; v3 adds cases against validators and the reward pool ([below](#ordotrust-v3-four-roles-cases-and-rewards)). |
 | `OrdoWorkOrders` | The maintenance agent pays vendors within limits people set: a per-site fund, per-order and per-day caps an admin signs, escrow only to holders of the site's `VENDOR` credential, release on a supervisor's or plant manager's signature, refund after expiry, and a pause an admin or plant manager signs (a manager holds all of these). |
 | `OrdoPolicies` | Each line's autonomy level and policy hash, published with one plant manager's signature (`REQUIRED = 1`; more may sign, each a different plant manager). |
+| `OrdoTreasury` | Each org's treasury is a Hedera account keyed to the org's own `OrdoTreasuryKey` contract. HBAR leaves it only through a scheduled transfer (a run budget or a machine's top-up) that one of the org's OrdoTrust admins approved: `approve` checks the `budget.approve` signature for exactly that schedule and has the key sign it through Hedera's Schedule Service (`authorizeSchedule`, HIP-755) ([below](#ordotreasury-run-budgets-the-manager-approves)). |
 | `OrdoSpecVerifier` | Generated Groth16 verifier for `circuits/spec_check.circom`: checks a lot passport's proof that a criterion was met, without the measurement. Stateless; anyone can deploy and call `verifyProof`. |
 | `OrdoStageVerifier` | Generated Groth16 verifier for `circuits/stage_check.circom`: checks that the counts a stage's gateway (or, for a manual stage, a manager) signed meet the stage's criteria. `OrdoLotResolver` calls it for every stage of a release. |
 | `OrdoProofs` (library) | The two statements proof of work rests on: `OrdoReading` (a stage's counts as a signed commitment) and `OrdoRelease` (exactly what three people release: site, package, run, lot, content hash, proof root). See [docs/proof-of-work.md](../docs/proof-of-work.md). |
@@ -154,6 +155,28 @@ Three deadlines run as Hedera scheduled transactions (`ScheduleCreateTransaction
 Ordo only does the job itself when a schedule could not be created (less than a minute or more than 62 days away, or Hedera unreachable) or has not run 5 minutes after its time. `HEDERA_SCHEDULES=off` turns it off.
 
 The deployed OrdoTrust (v3) has `withdrawFor`, so Ordo schedules each stake's payout for the end of its cooldown. Against an older OrdoTrust without it, Ordo sees the function is missing and validators and testers withdraw from their wallets instead.
+
+## OrdoTreasury: run budgets the manager approves
+
+An org's machines buy what their stages consume over x402 from their own Hedera accounts. The money comes from the org's treasury, and only with a manager's approval that the ledger itself enforces (`server/src/core/budgets.ts`, `server/src/chain/treasury.ts`; the pitch is in [docs/hedera.md](../docs/hedera.md)):
+
+1. **The treasury account's key is a contract.** `OrdoTreasury.openSite(site)` creates the org's `OrdoTreasuryKey` (CREATE2, once per registered site), and Ordo creates a Hedera account whose key is that contract's id. No server key can sign for it (the operator's own transfer from it fails with `INVALID_SIGNATURE`); anyone can fund it.
+2. **A run's budget is one scheduled transfer.** When a run starts, Ordo creates one `ScheduleCreate` wrapping a multi-recipient HBAR transfer from the treasury to the run's machine accounts (Σ qty × maxPrice of each stage's resources, plus a margin), memo `ordo:budget:<run>`, expiring in 24 h (HIP-423).
+3. **The manager approves it.** The console reads the schedule's body from the mirror node, checks the recipients and amounts are the ones Ordo shows, and the manager signs `budget.approve` for `<scheduleId>#<sha256 of the treasury and credits>` (domain version 2, `verifyingContract` = OrdoTreasury). Ordo's relayer sends `approve(site, schedule, entity, sig)`; the contract checks the signer is an OrdoTrust ADMIN of the org, burns the nonce, and the org's key calls `authorizeSchedule(schedule)` at `0x16b`. The schedule executes at that consensus instant, or lapses at its expiry.
+4. **Over budget.** A machine whose purchase exceeds its balance posts its reasoning (with its 0G request id) to `POST /v1/edge/overbudget`. Ordo writes the reasoning to HCS first, then schedules a top-up of the shortfall and raises a manager inbox item; approval works as above. If the top-up expires or is declined, the stage that needed the resource is held as "not approved".
+
+Each org's account answers only to its own key contract, so a manager of one org cannot approve another org's spending, and a compromised server cannot pay anyone without the owning org's manager.
+
+```bash
+cd contracts
+export HEDERA_OPERATOR_ID=0.0.xxxx HEDERA_OPERATOR_KEY=0x<ecdsa hex>
+TRUST_CONTRACT_ADDRESS=0x<OrdoTrust> pnpm setup:hedera treasury                    # deploys OrdoTreasury: TREASURY_CONTRACT_ADDRESS
+TREASURY_CONTRACT_ADDRESS=0x<OrdoTreasury> pnpm setup:hedera treasury site_… 50    # an org's treasury account with 50 HBAR
+```
+
+The second command needs the org registered in OrdoTrust; link the account it prints in Finance → Machine budgets (a manager can also open one there, which the operator seeds with `TREASURY_SEED_TINYBARS`).
+
+**Live (6 Nov 2026):** `OrdoTreasury` [`0xe90e…c1bb`](https://hashscan.io/testnet/contract/0xe90ec7e22864dca8cdcafc1e94d7f9e0b94dc1bb) against OrdoTrust v3. The spike that proved the design on testnet is recorded in [docs/hedera.md](../docs/hedera.md#what-the-testnet-spike-showed).
 
 ## Zero-knowledge spec proofs
 
