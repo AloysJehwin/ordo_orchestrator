@@ -1,0 +1,31 @@
+{
+  "name": "@ordo/contracts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/compile.mjs",
+    "test": "node scripts/compile.mjs && vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy:trust": "node scripts/compile.mjs && tsx scripts/deploy-trust.ts",
+    "setup:hedera": "node scripts/compile.mjs && tsx scripts/hedera-setup.ts",
+    "setup:ens": "tsx scripts/ens-setup.ts",
+    "setup:zerog": "node scripts/compile.mjs && tsx scripts/zerog-setup.ts",
+    "setup:ens-contracts": "node scripts/compile.mjs && tsx scripts/ens-contracts.ts"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "@types/node": "^22.7.5",
+    "circomlib": "2.0.5",
+    "circomlibjs": "0.1.7",
+    "ganache": "^7.9.2",
+    "snarkjs": "0.7.6",
+    "solc": "^0.8.37",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "viem": "^2.57.7",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@hiero-ledger/sdk": "^2.90.1"
+  }
+}
