@@ -1,0 +1,10 @@
+{
+  "name": "@ordo/stablecoin-setup",
+  "private": true,
+  "description": "Creates Ordo USD with Stablecoin Studio. Installed only by the Hedera setup workflow (kept out of the pnpm workspace: the SDK pulls in wallet libraries Ordo does not need at runtime).",
+  "type": "commonjs",
+  "dependencies": {
+    "@hashgraph/stablecoin-npm-sdk": "4.4.0",
+    "ethers": "6.16.0"
+  }
+}
