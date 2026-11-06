@@ -29,7 +29,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export function Validation() {
-  const { path, live, can } = useApp();
+  const { path, live, can, sees } = useApp();
   const route = useRoute();
   const [list, setList] = useState<PackageSummary[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -47,7 +47,11 @@ export function Validation() {
           {list.filter((p) => p.needsMe).length} need you · {list.length} total
         </div>
         <h1>Validation</h1>
-        <p className="muted small">Prove a stage or process works before it runs on its own: agent pre-check, your evidence, then a signed review chain.</p>
+        <p className="muted small">
+          {sees(3)
+            ? "Prove a stage or process works before it runs on its own: agent pre-check, your evidence, then a signed review chain."
+            : "The packages a manager assigned you to perform, and those on stages you contributed to."}
+        </p>
         {can("manager") && (
           <button type="button" className="btn accent block-btn" onClick={() => setCreating(true)}>
             New validation package
@@ -72,7 +76,10 @@ export function Validation() {
                 <span className={`tag ${STATUS_TAG[p.status][1]}`}>{STATUS_TAG[p.status][0]}</span>
                 <span className="faint small mono">{p.code}</span>
               </div>
-              <span className="eyebrow muted-eyebrow">{p.typeLabel}</span>
+              <span className="eyebrow muted-eyebrow">
+                {p.typeLabel}
+                {p.mine && p.status !== "released" && p.status !== "rejected" ? " · yours to perform" : p.view === "summary" ? " · you contributed" : ""}
+              </span>
               <b>{p.title}</b>
               <span className="faint small">
                 {p.waitingOn ? `Waiting on ${p.waitingOn.toLowerCase()}` : p.status === "released" ? "Released" : "Closed"} · {time(p.updatedAt)}
@@ -84,14 +91,24 @@ export function Validation() {
           ))}
         </div>
       </div>
-      <div className="split-detail">{id ? <PackageView key={id} id={id} /> : <Empty title="No validation packages yet">Create one from a stage gate in a pipeline, or start a new package for a process change, pilot or machine qualification.</Empty>}</div>
+      <div className="split-detail">
+        {id ? (
+          <PackageView key={id} id={id} />
+        ) : sees(3) ? (
+          <Empty title="No validation packages yet">Create one from a stage gate in a pipeline, or start a new package for a process change, pilot or machine qualification.</Empty>
+        ) : (
+          <Empty title="Nothing assigned to you yet">
+            When a manager assigns you a validation package, it appears here: you run the agent pre-check, record each check, attach the evidence and sign Performed by. A validator then reviews it and a manager approves it. Packages on stages you contributed to appear here too, as a summary.
+          </Empty>
+        )}
+      </div>
       <NewPackage open={creating} onClose={() => setCreating(false)} />
     </div>
   );
 }
 
 function PackageView({ id }: { id: string }) {
-  const { path, live, me, roles, names, book } = useApp();
+  const { path, live, me, roles, names, book, can } = useApp();
   const sign = useSign();
   const toast = useToast();
   const [p, setP] = useState<PackageDetail | null>(null);
@@ -100,6 +117,7 @@ function PackageView({ id }: { id: string }) {
   const [addCheck, setAddCheck] = useState(false);
   const [attach, setAttach] = useState<{ slotId: string | null; name: string } | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState(false);
   const load = async () => setP(await api.get<PackageDetail>(path(`/validation/${id}`)));
   useEffect(() => {
     void load();
@@ -107,7 +125,11 @@ function PackageView({ id }: { id: string }) {
   }, [id, live?.headSeq]);
   if (!p) return <Loading />;
   const owner = p.owner.id === me.user!.id;
-  const editable = owner && (p.status === "draft" || p.status === "changes_requested");
+  const open = p.status === "draft" || p.status === "changes_requested";
+  const editable = owner && open;
+  const summary = p.view === "summary";
+  // a manager hands the package to whoever performs it, until Performed by is signed
+  const mayAssign = can("manager") && open;
   // a check's value can be changed by the owner before they sign Performed by, and by a validator until release
   const closed = p.status === "released" || p.status === "rejected";
   const canChange = !closed && (editable || canAct(roles, "validator"));
@@ -164,7 +186,15 @@ function PackageView({ id }: { id: string }) {
                 ·{" "}
               </>
             ) : null}
-            owner <Who address={p.owner.address} fallback={p.owner.name ?? undefined} />
+            performed by <Who address={p.owner.address} fallback={p.owner.name ?? undefined} />
+            {mayAssign && (
+              <>
+                {" "}
+                <button type="button" className="link small" onClick={() => setAssigning(true)}>
+                  Assign
+                </button>
+              </>
+            )}
           </div>
         </div>
         {p.runId && (
@@ -182,6 +212,16 @@ function PackageView({ id }: { id: string }) {
           </li>
         ))}
       </ol>
+      {summary && (
+        <div className="notice small">
+          You contributed to this stage, so you see where its validation stands and whether each check passed. Its measured values, files and audit details need access level 3.
+        </div>
+      )}
+      {editable && !can("manager") && (
+        <div className="notice small">
+          <b>Assigned to you to perform.</b> Run the agent pre-check, record each check, attach the required evidence, then sign Performed by. A validator reviews it and a manager approves it.
+        </div>
+      )}
       {p.returnedComment && (
         <div className={`notice ${p.status === "rejected" ? "bad" : "warn"}`}>
           <b>{p.status === "rejected" ? "Rejected" : "Returned with changes requested"}:</b> {p.returnedComment}
@@ -375,7 +415,11 @@ function PackageView({ id }: { id: string }) {
               <div className="grow">
                 <b>{e.name}</b> <span className={`small ${e.required ? "bad-text" : e.origin === "agent" ? "accent-text" : "faint"}`}>{e.required ? "Required" : e.origin === "agent" ? "Agent-generated" : "Optional"}</span>
                 <div className="faint small">
-                  {e.sha256 ? (
+                  {e.sha256 && summary ? (
+                    <>
+                      Attached · v{e.version} · {time(e.uploadedAt)}
+                    </>
+                  ) : e.sha256 ? (
                     <>
                       <a href={api.url(path(`/validation/${id}/evidence/${e.id}/file`))}>{e.filename}</a> · {((e.size ?? 0) / 1024).toFixed(1)} KB · v{e.version} · <Actor actor={e.origin === "agent" ? (e.uploadedBy ?? "") : `user:${e.uploadedBy}`} /> · {time(e.uploadedAt)} · <span className="mono">{e.sha256.slice(0, 19)}…</span>
                       {e.zeroG && (
@@ -502,6 +546,17 @@ function PackageView({ id }: { id: string }) {
         </div>
       </section>
 
+      {assigning && (
+        <AssignModal
+          current={p.owner.id}
+          onClose={() => setAssigning(false)}
+          onAssign={async (userId) => {
+            setP(await api.post<PackageDetail>(path(`/validation/${id}/owner`), { userId }));
+            setAssigning(false);
+            toast("Assigned. They see it under Validation, and it counts as needing them.", "ok");
+          }}
+        />
+      )}
       {addCheck && (
         <AddCheck
           onClose={() => setAddCheck(false)}
@@ -528,6 +583,44 @@ function PackageView({ id }: { id: string }) {
         />
       )}
     </div>
+  );
+}
+
+/** Who may perform a package: members holding contributor (or manager). */
+function usePerformers() {
+  const { team, names, me } = useApp();
+  return (team?.members ?? [])
+    .filter((m) => m.roles.includes("contributor") || m.roles.includes("manager"))
+    .map((m) => ({
+      value: m.userId,
+      label: `${names.get(m.address.toLowerCase()) ?? m.name ?? shortAddr(m.address)}${m.userId === me.user!.id ? " (you)" : ""}`,
+      hint: m.roles.filter((r) => r !== "contributor").join(", ") || "contributor",
+    }));
+}
+
+function AssignModal({ current, onClose, onAssign }: { current: string; onClose: () => void; onAssign: (userId: string) => Promise<void> }) {
+  const options = usePerformers();
+  const [who, setWho] = useState<string | null>(current);
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Assign the package"
+      footer={
+        <div className="btns end">
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <Action className="btn accent" disabled={!who || who === current} onClick={() => onAssign(who!)}>
+            Assign
+          </Action>
+        </div>
+      }
+    >
+      <Field label="Performed by" hint="They run the pre-check, record the checks, attach evidence and sign Performed by. A validator reviews and a manager approves, each a different person.">
+        <Select value={who} onChange={setWho} options={options} placeholder="Choose a member" />
+      </Field>
+    </Modal>
   );
 }
 
@@ -610,7 +703,9 @@ function AttachModal({ initialName, fixedName, onClose, onUpload }: { initialNam
 }
 
 function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { path, live, book } = useApp();
+  const { path, live, book, me } = useApp();
+  const performers = usePerformers();
+  const [ownerId, setOwnerId] = useState<string | null>(me.user!.id);
   const [type, setType] = useState("stage_validation");
   const [title, setTitle] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
@@ -635,7 +730,7 @@ function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
             className="btn accent"
             disabled={title.trim().length < 3 || (type === "stage_validation" && (!runId || !stage))}
             onClick={async () => {
-              const p = await api.post<{ id: string }>(path("/validation"), { type, title: title.trim(), objective, acceptance, runId, stageCode: stage });
+              const p = await api.post<{ id: string }>(path("/validation"), { type, title: title.trim(), objective, acceptance, runId, stageCode: stage, ownerId });
               onClose();
               go(`validation/${p.id}`);
             }}
@@ -674,6 +769,9 @@ function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
       </Field>
       <Field label="Acceptance criteria">
         <textarea value={acceptance} onChange={(e) => setAcceptance(e.target.value)} />
+      </Field>
+      <Field label="Performed by" hint="Who runs the pre-check, records the checks, attaches evidence and signs Performed by. A contributor works on it from Validation.">
+        <Select value={ownerId} onChange={setOwnerId} options={performers} placeholder="Choose a member" />
       </Field>
     </Modal>
   );

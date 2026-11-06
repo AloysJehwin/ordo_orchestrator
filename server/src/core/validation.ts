@@ -4,10 +4,11 @@ import { toLabel } from "../chain/ensv2.js";
 import type { ReleaseLot } from "../chain/trust.js";
 import { hashOf } from "../domain/canonical.js";
 import type { Signatures, User } from "../auth/auth.js";
+import { redactCriteria, type AccessControl } from "./access.js";
 import type { Db } from "../db/db.js";
 import type { LedgerStore } from "../db/ledger-store.js";
 import { canApproveAny } from "../domain/policy.js";
-import { ROLE_LABEL, SIGNAL_AGG_LABEL, type PackageType, type Role } from "../domain/types.js";
+import { ROLE_LABEL, SIGNAL_AGG_LABEL, type AccessLevel, type PackageType, type Role } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
 import { kindOf, targetText } from "../pipelines/criteria.js";
 import type { RunEngine } from "../pipelines/engine.js";
@@ -85,6 +86,18 @@ interface ReleaseStatement {
   params?: string[];
 }
 
+/**
+ * How much of a package a member sees. At level 3 and up, every package in full. Below that (a contributor, by
+ * default): in full the packages a manager assigned to them, which they perform; and the packages on stages they
+ * contributed to as a summary, with pass or fail but no measured values, evidence files or audit details.
+ */
+export type PackageView = "full" | "summary";
+/** Who is asking, and at what access level. */
+export interface Viewer {
+  user: User;
+  level: AccessLevel;
+}
+
 export class Validation {
   constructor(
     private db: Db,
@@ -106,6 +119,48 @@ export class Validation {
   specProofs: SpecProofs | null = null;
   /** Set when stage series are kept: the agent pre-check then attaches a parameter chart as evidence */
   series: StageSeries | null = null;
+  /** Members' access levels: a package's owner must reach the Validation page (level 2) */
+  access: AccessControl | null = null;
+
+  /** Below level 3, the packages a member may see: their own, and those on stages they contributed to. */
+  private static readonly SCOPED = `(p.owner_id = $2 OR EXISTS (SELECT 1 FROM contributions c WHERE c.site_id = p.site_id AND c.run_id = p.run_id AND c.stage_code = p.stage_code AND c.user_id = $2))`;
+
+  /** What this member sees of a package: everything, a summary, or nothing (403). */
+  async viewOf(siteId: string, id: string, viewer: Viewer): Promise<PackageView> {
+    if (viewer.level >= 3) return "full";
+    const r = await this.db.query<{ owner_id: string; mine: boolean }>(`SELECT p.owner_id, ${Validation.SCOPED} AS mine FROM validation_packages p WHERE p.id = $1 AND p.site_id = $3`, [id, viewer.user.id, siteId]);
+    const p = r.rows[0];
+    if (!p) throw new HttpError(404, "Package not found");
+    if (p.owner_id === viewer.user.id) return "full";
+    if (p.mine) return "summary";
+    throw new HttpError(403, "This package is not assigned to you. Your access level (" + viewer.level + ") shows the packages assigned to you and those on stages you contributed to.");
+  }
+
+  /** A member who may own a package: one holding contributor (or manager), who can reach the Validation page. */
+  private async assignable(siteId: string, userId: string) {
+    const roles = (await this.db.query<{ role: Role }>("SELECT role FROM memberships WHERE site_id = $1 AND user_id = $2 AND state = 'held'", [siteId, userId])).rows.map((r) => r.role);
+    if (!roles.length) throw new HttpError(404, "Not a member of this org");
+    if (!canApproveAny(roles, "contributor")) throw new HttpError(409, "Only a contributor or a manager performs a package: give them the contributor role first");
+    if (this.access && (await this.access.of(siteId, userId, roles)).level < 2) throw new HttpError(409, "Their access level (1) does not reach the Validation page: raise it to 2 or more first");
+    const u = (await this.db.query<{ address: string }>("SELECT address FROM users WHERE id = $1", [userId])).rows[0]!;
+    return u.address;
+  }
+
+  /**
+   * Hand a package to the member who performs it: they run the pre-check, record checks, attach evidence and sign
+   * Performed by. Only while nobody has signed it (a draft, or one returned with changes requested).
+   */
+  async assign(siteId: string, by: User, id: string, ownerId: string) {
+    const p = await this.row(siteId, id);
+    if (p.status !== "draft" && p.status !== "changes_requested") throw new HttpError(409, "Only a draft, or a package returned with changes requested, can change hands");
+    if (p.owner_id === ownerId) return this.get(siteId, id);
+    const address = await this.assignable(siteId, ownerId);
+    const was = (await this.db.query<{ address: string }>("SELECT address FROM users WHERE id = $1", [p.owner_id])).rows[0]?.address ?? null;
+    await this.db.query("UPDATE validation_packages SET owner_id = $1 WHERE id = $2", [ownerId, id]);
+    await this.audit(siteId, `user:${by.address}`, id, "assigned", { from: was, to: address });
+    await this.rec.decide(siteId, { agent: `user:${by.address}`, kind: "validation.assigned", runId: p.run_id, stageCode: p.stage_code, summary: `VP-${p.number} ${p.title}: assigned to ${address} to perform`, data: { packageId: id, owner: address } });
+    return this.get(siteId, id);
+  }
 
   /** The release statement as it stands now. The content is the package's checks and evidence, which are locked once Performed by is signed. */
   private async statementOf(siteId: string, p: PkgRow): Promise<ReleaseStatement> {
@@ -139,7 +194,9 @@ export class Validation {
     await this.db.query("UPDATE validation_packages SET updated_at = now() WHERE id = $1", [id]);
   }
 
-  async create(siteId: string, owner: User, input: { type: PackageType; title: string; objective: string; acceptance: string; samplePlan: string; windowStart?: string | null; windowEnd?: string | null; runId?: string | null; stageCode?: string | null; templateId?: string | null; assetId?: string | null }) {
+  async create(siteId: string, by: User, input: { type: PackageType; title: string; objective: string; acceptance: string; samplePlan: string; windowStart?: string | null; windowEnd?: string | null; runId?: string | null; stageCode?: string | null; templateId?: string | null; assetId?: string | null; ownerId?: string | null }) {
+    // the manager who creates it performs it, unless they hand it to someone
+    const owner = input.ownerId && input.ownerId !== by.id ? { id: input.ownerId, address: await this.assignable(siteId, input.ownerId) } : by;
     const n = Number((await this.db.query<{ n: string }>("SELECT COUNT(*)::text n FROM validation_packages WHERE site_id = $1", [siteId])).rows[0]!.n);
     const id = newId("vp");
     let checks: { criterion: string; method: string; target: string; auto: boolean }[] = [];
@@ -159,7 +216,7 @@ export class Validation {
       for (const c of checks) await q.query("INSERT INTO validation_checks (id, package_id, sort, criterion, method, target, source, auto) VALUES ($1,$2,$3,$4,$5,$6,'agent',true)", [newId("chk"), id, sort++, c.criterion, c.method, c.target]);
       for (const name of REQUIRED_EVIDENCE[input.type]) await q.query("INSERT INTO evidence (id, package_id, name, requirement, required) VALUES ($1,$2,$3,'Required',true)", [newId("evd"), id, name]);
     });
-    await this.audit(siteId, `user:${owner.address}`, id, "created", { type: input.type, title: input.title, runId: input.runId ?? null, stageCode: input.stageCode ?? null });
+    await this.audit(siteId, `user:${by.address}`, id, "created", { type: input.type, title: input.title, runId: input.runId ?? null, stageCode: input.stageCode ?? null, ...(owner.id !== by.id ? { owner: owner.address } : {}) });
     return this.get(siteId, id);
   }
 
@@ -501,13 +558,14 @@ export class Validation {
     if (relay) await this.audit(siteId, "system:relayer", p.id, relay.status === "done" ? "recorded_onchain" : "onchain_failed", { txHash: relay.txHash, error: relay.error });
   }
 
-  async list(siteId: string, user: User, roles: Role[]) {
+  async list(siteId: string, user: User, roles: Role[], level: AccessLevel = 4) {
+    const scoped = level < 3;
     const rows = (await this.db.query<PkgRow & { owner_address: string; owner_name: string | null; checks_total: string; checks_done: string }>(
       `SELECT p.id, p.site_id, p.number, p.type, p.title, p.owner_id, p.status, p.step, p.objective, p.acceptance, p.sample_plan, p.run_id, p.stage_code, p.template_id, p.asset_id, p.outcome, p.precheck_json, p.returned_comment, p.created_at::text AS created_at, p.updated_at::text AS updated_at, p.window_start::text AS window_start, p.window_end::text AS window_end, u.address AS owner_address, u.display_name AS owner_name,
         (SELECT COUNT(*)::text FROM validation_checks c WHERE c.package_id = p.id) AS checks_total,
         (SELECT COUNT(*)::text FROM validation_checks c WHERE c.package_id = p.id AND c.status <> 'pending') AS checks_done
-       FROM validation_packages p JOIN users u ON u.id = p.owner_id WHERE p.site_id = $1 ORDER BY p.updated_at DESC`,
-      [siteId],
+       FROM validation_packages p JOIN users u ON u.id = p.owner_id WHERE p.site_id = $1${scoped ? ` AND ${Validation.SCOPED}` : ""} ORDER BY p.updated_at DESC`,
+      scoped ? [siteId, user.id] : [siteId],
     )).rows;
     return rows.map((p) => {
       const link = this.currentChain(p.step);
@@ -525,6 +583,8 @@ export class Validation {
         stepIndex: this.stepIndex(p),
         waitingOn,
         needsMe,
+        mine: p.owner_id === user.id,
+        view: (!scoped || p.owner_id === user.id ? "full" : "summary") as PackageView,
         owner: { address: p.owner_address, name: p.owner_name },
         runId: p.run_id,
         stageCode: p.stage_code,
@@ -541,7 +601,7 @@ export class Validation {
     return p.precheck_json ? 1 : 0;
   }
 
-  async get(siteId: string, id: string) {
+  async get(siteId: string, id: string, view: PackageView = "full") {
     const p = await this.row(siteId, id);
     const owner = (await this.db.query<{ address: string; display_name: string | null }>("SELECT address, display_name FROM users WHERE id = $1", [p.owner_id])).rows[0]!;
     const checks = (await this.db.query<{ id: string; criterion: string; method: string; target: string; source: string; result: string | null; actual: string | null; status: string; auto: boolean; recorded_by: string | null; recorded_at: string | null }>(
@@ -576,8 +636,12 @@ export class Validation {
     const audit = (await this.ledger.latest(300, id)).reverse().map((e) => ({ seq: e.seq, ts: e.ts, actor: e.actor, type: e.type.replace("validation.", ""), payload: e.payload, entryHash: e.entryHash }));
     const live = evidence.filter((e) => !e.removedAt);
     // the linked stage's parameters as judged, so each automated check can be drawn against its band
-    const parameters = p.run_id && p.stage_code ? ((await this.engine.view(siteId, p.run_id).catch(() => null))?.stages.find((s) => s.code === p.stage_code)?.criteriaResults ?? []) : [];
+    const judged = p.run_id && p.stage_code ? ((await this.engine.view(siteId, p.run_id).catch(() => null))?.stages.find((s) => s.code === p.stage_code)?.criteriaResults ?? []) : [];
+    // a summary (a contributor to the stage who does not perform it): pass or fail, but no measured values, files or audit details
+    const summary = view === "summary";
+    const parameters = summary ? redactCriteria(judged, 2) : judged;
     return {
+      view,
       id: p.id,
       number: p.number,
       code: `VP-${p.number}`,
@@ -598,15 +662,15 @@ export class Validation {
       templateId: p.template_id,
       assetId: p.asset_id,
       outcome: p.outcome,
-      returnedComment: p.returned_comment,
+      returnedComment: summary ? null : p.returned_comment,
       assessment: p.precheck_json ? JSON.parse(p.precheck_json) : null,
-      checks,
+      checks: summary ? checks.map((c) => ({ ...c, result: null, actual: null })) : checks,
       parameters,
-      evidence,
+      evidence: summary ? evidence.map((e) => ({ ...e, filename: null, size: null, zeroG: null })) : evidence,
       chain,
       readiness: this.readiness(p, checks, live, p.run_id && this.stageProofs && p.status !== "released" ? await this.stageProofs.pendingStages(p.run_id) : []),
       onchain: await this.trust.relayOf(siteId, id),
-      audit,
+      audit: summary ? audit.map((a) => ({ ...a, payload: {} })) : audit,
       createdAt: new Date(p.created_at).toISOString(),
       updatedAt: new Date(p.updated_at).toISOString(),
     };

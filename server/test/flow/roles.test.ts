@@ -416,7 +416,11 @@ describe("visibility: level and scope", () => {
     expect(stage(one.run, "02").criteriaResults[0]).toMatchObject({ ok: true, actual: null });
     expect((await c.call("GET", `${S()}/assets`)).status).toBe(200);
     expect((await c.call("GET", `${S()}/decisions`)).status).toBe(200);
-    for (const path of [`/runs/${runA}/stages/02/series`, `/runs/${runA}/proofs`, `/assets/${cnc}`, "/ledger", "/agents", "/validation"]) expect((await c.call("GET", `${S()}${path}`)).status, path).toBe(403);
+    for (const path of [`/runs/${runA}/stages/02/series`, `/runs/${runA}/proofs`, `/assets/${cnc}`, "/ledger", "/agents"]) expect((await c.call("GET", `${S()}${path}`)).status, path).toBe(403);
+    // validation: only the packages assigned to them, or on stages they contributed to
+    const pkgs = await c.call("GET", `${S()}/validation`);
+    expect(pkgs.status).toBe(200);
+    expect(pkgs.json.every((p: any) => p.mine || p.view === "summary")).toBe(true);
   });
 
   it("level 3: plus proofs and measurements; still no agents, ledger or finance", async () => {

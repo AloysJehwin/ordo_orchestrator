@@ -297,13 +297,17 @@ export interface PackageSummary {
   stepIndex: number;
   waitingOn: string | null;
   needsMe: boolean;
+  /** assigned to me to perform */
+  mine: boolean;
+  /** full, or a summary for a contributor to the stage who does not perform it (no measured values, files or audit details) */
+  view: "full" | "summary";
   owner: { address: string; name: string | null };
   runId: string | null;
   stageCode: string | null;
   checks: { total: number; done: number };
   updatedAt: string;
 }
-export interface PackageDetail extends Omit<PackageSummary, "owner" | "waitingOn" | "needsMe" | "checks"> {
+export interface PackageDetail extends Omit<PackageSummary, "owner" | "waitingOn" | "needsMe" | "mine" | "checks"> {
   owner: { id: string; address: string; name: string | null };
   objective: string;
   acceptance: string;

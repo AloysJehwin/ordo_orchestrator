@@ -1151,15 +1151,24 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   site.post("/agents/licenses/:id/decline", async (c) => c.json(await sys.agentLicenses.decline(sid(c), me(c).user, c.get("roles"), c.req.param("id"))));
 
   // ---- Validation packages ----
-  // validation packages: proofs and evidence, so level 3 and up
+  // level 3 and up sees every package; below that, a member sees the packages assigned to them (in full, to perform)
+  // and those on stages they contributed to (as a summary)
   site.use("/validation/*", async (c, next) => {
-    lvl(c, 3, "validation");
+    lvl(c, 2, "validation");
     await next();
   });
-  site.get("/validation", async (c) => {
-    lvl(c, 3, "validation");
-    return c.json(await sys.validation.list(sid(c), me(c).user, c.get("roles")));
+  site.use("/validation", async (c, next) => {
+    lvl(c, 2, "validation");
+    await next();
   });
+  const viewer = (c: Context<Env>) => ({ user: me(c).user, level: c.get("access").level });
+  /** What the caller sees of this package; `full` is needed to change it or to fetch its files. */
+  const pkgView = async (c: Context<Env>, needFull = true) => {
+    const v = await sys.validation.viewOf(sid(c), c.req.param("id")!, viewer(c));
+    if (needFull && v !== "full") throw new HttpError(403, "You see a summary of this package: its owner, a validator or a manager works on it");
+    return v;
+  };
+  site.get("/validation", async (c) => c.json(await sys.validation.list(sid(c), me(c).user, c.get("roles"), c.get("access").level)));
   const PackageFields = z.object({
     title: z.string().trim().min(3).max(120),
     objective: z.string().max(2000).default(""),
@@ -1170,39 +1179,49 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   });
   site.post("/validation", async (c) => {
     need(c, "manager");
-    const b = await body(c, PackageFields.extend({ type: PackageType, runId: z.string().nullable().optional(), stageCode: z.string().nullable().optional(), templateId: z.string().nullable().optional(), assetId: z.string().nullable().optional() }));
+    const b = await body(c, PackageFields.extend({ type: PackageType, runId: z.string().nullable().optional(), stageCode: z.string().nullable().optional(), templateId: z.string().nullable().optional(), assetId: z.string().nullable().optional(), ownerId: z.string().nullable().optional() }));
     return c.json(await sys.validation.create(sid(c), me(c).user, b));
   });
-  site.get("/validation/:id", async (c) => c.json(await sys.validation.get(sid(c), c.req.param("id"))));
-  site.patch("/validation/:id", async (c) => c.json(await sys.validation.update(sid(c), me(c).user, c.req.param("id"), await body(c, PackageFields.partial()))));
-  site.post("/validation/:id/checks", async (c) =>
-    c.json(await sys.validation.addCheck(sid(c), me(c).user, c.req.param("id"), await body(c, z.object({ criterion: z.string().trim().min(2).max(200), method: z.string().max(200).default("Manual"), target: z.string().max(100).default("") })))),
-  );
-  site.patch("/validation/:id/checks/:checkId", async (c) =>
-    c.json(await sys.validation.recordCheck(sid(c), me(c).user, c.get("roles"), c.req.param("id"), c.req.param("checkId"), await body(c, z.object({ status: z.enum(["pass", "fail"]), result: z.string().trim().max(200).default("") })))),
-  );
-  site.delete("/validation/:id/checks/:checkId", async (c) => c.json(await sys.validation.removeCheck(sid(c), me(c).user, c.req.param("id"), c.req.param("checkId"))));
-  site.post("/validation/:id/precheck", async (c) => c.json(await sys.validation.precheck(sid(c), me(c).user, c.req.param("id"))));
+  site.get("/validation/:id", async (c) => c.json(await sys.validation.get(sid(c), c.req.param("id"), await pkgView(c, false))));
+  // a manager hands a package to the member who performs it (signs Performed by)
+  site.post("/validation/:id/owner", async (c) => {
+    need(c, "manager");
+    const b = await body(c, z.object({ userId: z.string().min(1) }));
+    return c.json(await sys.validation.assign(sid(c), me(c).user, c.req.param("id"), b.userId));
+  });
+  site.patch("/validation/:id", async (c) => (await pkgView(c), c.json(await sys.validation.update(sid(c), me(c).user, c.req.param("id"), await body(c, PackageFields.partial())))));
+  site.post("/validation/:id/checks", async (c) => {
+    await pkgView(c);
+    return c.json(await sys.validation.addCheck(sid(c), me(c).user, c.req.param("id"), await body(c, z.object({ criterion: z.string().trim().min(2).max(200), method: z.string().max(200).default("Manual"), target: z.string().max(100).default("") }))));
+  });
+  site.patch("/validation/:id/checks/:checkId", async (c) => {
+    await pkgView(c);
+    return c.json(await sys.validation.recordCheck(sid(c), me(c).user, c.get("roles"), c.req.param("id"), c.req.param("checkId"), await body(c, z.object({ status: z.enum(["pass", "fail"]), result: z.string().trim().max(200).default("") }))));
+  });
+  site.delete("/validation/:id/checks/:checkId", async (c) => (await pkgView(c), c.json(await sys.validation.removeCheck(sid(c), me(c).user, c.req.param("id"), c.req.param("checkId")))));
+  site.post("/validation/:id/precheck", async (c) => (await pkgView(c), c.json(await sys.validation.precheck(sid(c), me(c).user, c.req.param("id")))));
   site.post("/validation/:id/evidence", async (c) => {
+    await pkgView(c);
     const form = await c.req.parseBody();
     const file = form.file;
     if (!(file instanceof File)) throw new HttpError(400, "Attach a file");
     const bytes = new Uint8Array(await file.arrayBuffer());
     return c.json(await sys.validation.attach(sid(c), me(c).user, c.req.param("id"), { slotId: typeof form.slotId === "string" && form.slotId ? form.slotId : null, name: typeof form.name === "string" && form.name ? form.name : file.name, filename: file.name, mime: file.type || "application/octet-stream", bytes }));
   });
-  site.delete("/validation/:id/evidence/:evidenceId", async (c) => c.json(await sys.validation.removeEvidence(sid(c), me(c).user, c.req.param("id"), c.req.param("evidenceId"))));
-  site.get("/validation/:id/evidence/:evidenceId/0g", async (c) => c.json(await sys.validation.verifyOnZeroG(sid(c), c.req.param("id"), c.req.param("evidenceId"))));
+  site.delete("/validation/:id/evidence/:evidenceId", async (c) => (await pkgView(c), c.json(await sys.validation.removeEvidence(sid(c), me(c).user, c.req.param("id"), c.req.param("evidenceId")))));
+  site.get("/validation/:id/evidence/:evidenceId/0g", async (c) => (await pkgView(c), c.json(await sys.validation.verifyOnZeroG(sid(c), c.req.param("id"), c.req.param("evidenceId")))));
   site.get("/validation/:id/evidence/:evidenceId/file", async (c) => {
+    await pkgView(c);
     const f = await sys.validation.blob(sid(c), c.req.param("id"), c.req.param("evidenceId"));
     return new Response(Buffer.from(f.bytes), { headers: { "content-type": f.mime, "content-disposition": `attachment; filename="${f.filename.replace(/"/g, "")}"`, "x-content-type-options": "nosniff" } });
   });
   const PkgAction = z.object({ action: z.enum(["sign", "return", "reject"]), comment: z.string().max(1000).default("") });
   site.post("/validation/:id/sign-request", async (c) => {
+    await pkgView(c);
     const b = await body(c, PkgAction.extend({ chainId: z.number().int().optional() }));
     return c.json(await sys.validation.signatureRequest(sid(c), me(c).user, c.get("roles"), c.req.param("id"), b.action, b.comment, b.chainId));
   });
-  site.post("/validation/:id/act", async (c) => c.json(await sys.validation.act(sid(c), me(c).user, c.get("roles"), c.req.param("id"), await body(c, PkgAction.merge(SignedBody)))));
-
+  site.post("/validation/:id/act", async (c) => (await pkgView(c), c.json(await sys.validation.act(sid(c), me(c).user, c.get("roles"), c.req.param("id"), await body(c, PkgAction.merge(SignedBody))))));
 
   // ---- Stakes, vendors, on-chain trust ----
   site.get("/stakers", async (c) => {
@@ -1329,7 +1348,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
       a.level >= 2 ? sys.inbox.list(s, { status: "pending" }) : none<Awaited<ReturnType<typeof sys.inbox.list>>[number]>(),
       a.level >= 2 ? sys.rec.decisions(s, { limit: 30 }) : none<Awaited<ReturnType<typeof sys.rec.decisions>>[number]>(),
       sys.ledger.head(),
-      a.level >= 3 ? sys.validation.list(s, me(c).user, c.get("roles")) : none<Awaited<ReturnType<typeof sys.validation.list>>[number]>(),
+      a.level >= 2 ? sys.validation.list(s, me(c).user, c.get("roles"), a.level) : none<Awaited<ReturnType<typeof sys.validation.list>>[number]>(),
     ]);
     const roles = c.get("roles");
     const manager = canApproveAny(roles, "manager");

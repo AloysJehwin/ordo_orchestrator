@@ -174,6 +174,19 @@ describe("proof of work, selection and cases", () => {
     expect(reading.rows).toHaveLength(0);
     // the stage takes no more proof of work
     expect((await bob.call("POST", `${S()}/pow/sessions`, { runId, stage: "01" })).status).toBe(409);
+    // the stage's validation package: a contributor to the stage sees where it stands, without its values or files
+    const pkg = (await manager.call("POST", `${S()}/validation`, { type: "stage_validation", title: "Inspect housings", runId, stageCode: "01" })).json.id;
+    await manager.call("POST", `${S()}/validation/${pkg}/precheck`);
+    expect((await bob.call("GET", `${S()}/validation`)).json).toEqual([expect.objectContaining({ id: pkg, mine: false, view: "summary", needsMe: false })]);
+    const seen = (await bob.call("GET", `${S()}/validation/${pkg}`)).json;
+    expect(seen.view).toBe("summary");
+    expect(seen.checks[0]).toMatchObject({ status: "pass", result: null, actual: null });
+    expect(seen.parameters[0]).toMatchObject({ actual: null, ok: true });
+    const record = seen.evidence.find((e: any) => e.origin === "agent");
+    expect(record).toMatchObject({ filename: null });
+    expect((await bob.raw("GET", `${S()}/validation/${pkg}/evidence/${record.id}/file`)).status).toBe(403);
+    expect((await bob.call("PATCH", `${S()}/validation/${pkg}`, { title: "Mine now" })).status).toBe(403);
+    expect((await manager.call("GET", `${S()}/validation/${pkg}`)).json.checks[0].actual).not.toBeNull();
   });
 
   it("a tester's case is answered by the validator and decided by the manager", async () => {

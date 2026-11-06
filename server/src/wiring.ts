@@ -252,6 +252,8 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   inbox.trust = trust;
   const validation = new Validation(db, rec, ledger, sigs, engine, inbox, cfg.SIGNATURE_CHAIN_ID, trust);
   validation.series = series;
+  const access = new AccessControl(db);
+  validation.access = access;
   // ---- Evidence copies on 0G Storage ----
   if (opts.blobStore || cfg.EVIDENCE_STORE === "0g") {
     try {
@@ -701,7 +703,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   return {
     cfg,
     db,
-    access: new AccessControl(db),
+    access,
     rails,
     warnings,
     policy,

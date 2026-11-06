@@ -115,6 +115,8 @@ export const stageInScope = (a: Access, lineId: string | null, code: string) => 
 
 const bareCriterion = (c: CriterionResult): CriterionResult => ({ label: c.label, kind: c.kind, unit: c.unit, target: c.target, actual: null, ok: null, band: c.band });
 const outcomeCriterion = (c: CriterionResult): CriterionResult => ({ ...bareCriterion(c), ok: c.ok });
+/** A stage's judged criteria at this level: at 3 and up as measured, at 2 pass or fail only, at 1 neither. */
+export const redactCriteria = (cs: CriterionResult[], level: AccessLevel): CriterionResult[] => (level >= 3 ? cs : cs.map(level === 2 ? outcomeCriterion : bareCriterion));
 
 /** A stage as a member at this level may see it: at 1 its state only, at 2 its counts and pass/fail, at 3 and up its measured values. */
 export function redactStage(s: StageRunView, level: AccessLevel): StageRunView {

@@ -36,7 +36,7 @@ type Count = "approvals" | "validation" | "workOrders" | "autonomy" | "cases";
 type NavItem = { page: string; label: string; short?: string; icon: string; count?: Count; level?: AccessLevel; manager?: boolean; roles?: Role[] };
 const NAV: NavItem[] = [
   { page: "pipelines", label: "Pipelines", icon: "pipelines" },
-  { page: "validation", label: "Validation", icon: "validation", count: "validation", level: 3 },
+  { page: "validation", label: "Validation", icon: "validation", count: "validation", level: 2 },
   { page: "templates", label: "Templates", icon: "templates" },
   { page: "pow", label: "Proof of work", short: "My work", icon: "pow", level: 2 },
   { page: "cases", label: "Cases", icon: "cases", count: "cases", roles: ["tester", "validator"] },

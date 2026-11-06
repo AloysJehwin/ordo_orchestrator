@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { atLevel, boot, demote, join, promote, wallet, type Client, type System } from "./helpers.js";
+import { atLevel, boot, demote, join, promote, uid, wallet, type Client, type System } from "./helpers.js";
 
 let sys: System;
 let app: Awaited<ReturnType<typeof boot>>["app"];
@@ -303,6 +303,41 @@ describe("validation package", () => {
     const done = await act(admin, "sign");
     expect(done.json.status).toBe("released");
     expect(done.json.audit.some((a: any) => a.type === "signed.approved" && a.payload?.soleManager === true)).toBe(true);
+  });
+
+  it("a manager assigns a package to a contributor, who performs it; other contributors do not see it", async () => {
+    const opId = await uid(operator);
+    // a contributor sees only the packages assigned to them (and those on stages they contributed to)
+    expect((await operator.call("GET", `${S()}/validation`)).json).toEqual([]);
+    expect((await admin.call("POST", `${S()}/validation`, { type: "process_change", title: "Nobody's", ownerId: "usr_nobody" })).status).toBe(404);
+    const created = (await admin.call("POST", `${S()}/validation`, { type: "stage_validation", title: "Housing machining, third lot", objective: "Prove stage 02 once more", acceptance: "Yield ≥ 95%", runId, stageCode: "02", ownerId: opId })).json;
+    expect(created.owner.id).toBe(opId);
+    const id = created.id;
+    expect((await operator.call("GET", `${S()}/validation`)).json).toEqual([expect.objectContaining({ id, needsMe: true, mine: true, view: "full" })]);
+    expect((await operator.call("GET", `${S()}/live`)).json.counts.validation).toBe(1);
+    expect((await pm.call("GET", `${S()}/validation`)).json.some((x: any) => x.id === id)).toBe(false);
+    expect((await pm.call("GET", `${S()}/validation/${id}`)).status).toBe(403);
+    // the contributor performs it: the agent pre-check, the required evidence, then Performed by
+    const p = (await operator.call("POST", `${S()}/validation/${id}/precheck`)).json;
+    expect(p.checks[0].status).toBe("pass");
+    const form = new FormData();
+    form.set("file", new File(["CMM report: third lot in tolerance"], "cmm3.txt", { type: "text/plain" }));
+    form.set("slotId", p.evidence.find((e: any) => e.name === "Inspection report").id);
+    expect((await operator.upload(`${S()}/validation/${id}/evidence`, form)).status).toBe(200);
+    const act = async (c: Client, action: string, comment = "") => {
+      const t = await c.call("POST", `${S()}/validation/${id}/sign-request`, { action, comment });
+      if (t.status !== 200) return t;
+      return c.call("POST", `${S()}/validation/${id}/act`, { action, comment, nonce: t.json.message.nonce, signature: await c.sign(t.json) });
+    };
+    expect((await act(admin, "sign")).status).toBe(403); // the manager who created it does not perform it now
+    expect((await act(operator, "sign")).json.step).toBe("qe_review");
+    // signed, it no longer changes hands
+    expect((await admin.call("POST", `${S()}/validation/${id}/owner`, { userId: await uid(admin) })).status).toBe(409);
+    expect((await act(qe, "sign")).json.step).toBe("approval");
+    const done = await act(admin, "sign");
+    expect(done.json.status).toBe("released");
+    expect(done.json.chain.map((x: any) => x.signer.address)).toEqual([operator.address, qe.address, admin.address]);
+    expect(done.json.audit.some((a: any) => a.payload?.soleManager)).toBe(false);
   });
 });
 
