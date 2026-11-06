@@ -14,6 +14,7 @@ const GROUPS: { title: string; kinds: NameKind[]; note?: string }[] = [
   { title: "People", kinds: ["person"], note: "Minted to each person's own wallet, from the handle they chose." },
   { title: "Roles", kinds: ["role", "registrar"], note: "Holding the name is holding the role: contracts read roles from these registries." },
   { title: "Machines", kinds: ["machine"], note: "Owned by each machine's device key; their Hedera record is the machine's own account." },
+  { title: "Machine roles", kinds: ["machinerole"], note: "Attesters, buyers and runners: what each machine may do, held by its key. Buyer caps and Runner kinds are records on the name." },
   { title: "Agents", kinds: ["agent"] },
   { title: "Lines and pipelines", kinds: ["line", "pipeline"] },
   { title: "Vendors, customers and financiers", kinds: ["vendor", "customer", "financier"] },
@@ -39,6 +40,7 @@ export function routeFor(e: Pick<DirectoryEntry, "kind" | "ref" | "name">, entri
     case "role":
       return "team";
     case "machine":
+    case "machinerole":
     case "line":
       return "floor";
     case "workorder":

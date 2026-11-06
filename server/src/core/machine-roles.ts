@@ -15,7 +15,8 @@ export interface MachineCaps {
 export interface MachineAuthority {
   attester: boolean;
   runner: AssetKind[] | null;
-  buyer: { order: bigint; daily: bigint } | null;
+  /** null caps: no limit beyond each stage's max price and approved top-ups */
+  buyer: { order: bigint | null; daily: bigint | null } | null;
 }
 export interface MachineRoleView {
   role: MachineRole;
@@ -45,7 +46,8 @@ const ENTITY_ROLE: Record<MachineRole, string> = { attester: "ATTESTER", buyer: 
 /** The text records a machine's role name carries for its caps (cnc-07.buyers.acme.ordo.eth: com.ordo.cap.order…). */
 export function capsTexts(role: MachineRole, caps: MachineCaps): Record<string, string> {
   if (role === "runner") return { "com.ordo.kinds": [...(caps.kinds ?? [])].sort().join(",") };
-  if (role === "buyer") return { "com.ordo.cap.order": caps.order ?? "0", "com.ordo.cap.daily": caps.daily ?? "0" };
+  // a Buyer without a cap is bound only by each stage's max price and approved top-ups: no record
+  if (role === "buyer") return { ...(caps.order ? { "com.ordo.cap.order": caps.order } : {}), ...(caps.daily ? { "com.ordo.cap.daily": caps.daily } : {}) };
   return {};
 }
 
@@ -54,8 +56,10 @@ function effective(role: MachineRole, wanted: MachineCaps, held: MachineCaps | n
   if (!held) return null;
   if (role === "runner") return { kinds: (wanted.kinds ?? []).filter((k) => (held.kinds ?? []).includes(k)) };
   if (role === "buyer") {
-    const min = (a?: string, b?: string) => (BigInt(a ?? "0") < BigInt(b ?? "0") ? (a ?? "0") : (b ?? "0"));
-    return { order: min(wanted.order, held.order), daily: min(wanted.daily, held.daily) };
+    // no cap is no limit: the lower of the two is the one that has a cap, or the smaller cap
+    const min = (a?: string, b?: string) => (a === undefined ? b : b === undefined ? a : BigInt(a) < BigInt(b) ? a : b);
+    const [order, daily] = [min(wanted.order, held.order), min(wanted.daily, held.daily)];
+    return { ...(order ? { order } : {}), ...(daily ? { daily } : {}) };
   }
   return {};
 }
@@ -102,7 +106,7 @@ export class MachineRoles {
       const caps = effective(r.role, JSON.parse(r.caps_json) as MachineCaps, parse(r.held_caps_json));
       if (r.role === "attester") a.attester = true;
       if (r.role === "runner" && caps) a.runner = caps.kinds ?? [];
-      if (r.role === "buyer" && caps) a.buyer = { order: BigInt(caps.order ?? "0"), daily: BigInt(caps.daily ?? "0") };
+      if (r.role === "buyer" && caps) a.buyer = { order: caps.order ? BigInt(caps.order) : null, daily: caps.daily ? BigInt(caps.daily) : null };
       out.set(r.asset_id, a);
     }
     return out;
@@ -136,9 +140,9 @@ export class MachineRoles {
     }
   }
   /** A machine's wallet opened for the first time: Buyer, within the wallet's limits. */
-  async seedBuyer(siteId: string, assetId: string, caps: { order: string; daily: string }, by: string) {
-    const c = JSON.stringify({ order: caps.order, daily: caps.daily });
-    await this.db.query("INSERT INTO machine_roles (site_id, asset_id, role, caps_json, held_caps_json, granted_by) VALUES ($1,$2,'buyer',$3,$3,$4) ON CONFLICT DO NOTHING", [siteId, assetId, c, by]);
+  /** A wallet's first opening: the machine buys as it did before roles, within each stage's max price (a manager may sign caps). */
+  async seedBuyer(siteId: string, assetId: string, by: string) {
+    await this.db.query("INSERT INTO machine_roles (site_id, asset_id, role, caps_json, held_caps_json, granted_by) VALUES ($1,$2,'buyer','{}','{}',$3) ON CONFLICT DO NOTHING", [siteId, assetId, by]);
   }
   /** A paused wallet: the machine is no longer a Buyer (resuming does not give it back; a manager signs a grant). */
   async dropBuyer(assetId: string) {
@@ -148,7 +152,7 @@ export class MachineRoles {
   // ---------------------------------------------------------------- granted with a manager's signature
   private entity(assetId: string, role: MachineRole, caps: MachineCaps) {
     const t = capsTexts(role, caps);
-    const extra = role === "runner" ? `;kinds=${t["com.ordo.kinds"]}` : role === "buyer" ? `;order=${t["com.ordo.cap.order"]};daily=${t["com.ordo.cap.daily"]}` : "";
+    const extra = role === "runner" ? `;kinds=${t["com.ordo.kinds"]}` : role === "buyer" ? `;order=${caps.order ?? "none"};daily=${caps.daily ?? "none"}` : "";
     return `${assetId}#${ENTITY_ROLE[role]}${extra}`;
   }
   private async asset(siteId: string, assetId: string) {
@@ -164,20 +168,24 @@ export class MachineRoles {
       return { kinds: kinds.sort() };
     }
     if (role === "buyer") {
+      // each cap is optional: without one, the machine is bound by each stage's max price and approved top-ups
       const n = (v: string | undefined, what: string) => {
-        if (!v || !/^\d{1,18}$/.test(v) || BigInt(v) <= 0n) throw new HttpError(400, `A buyer needs a ${what} cap above zero (tinybar)`);
+        if (v === undefined || v === "") return undefined;
+        if (!/^\d{1,18}$/.test(v) || BigInt(v) <= 0n) throw new HttpError(400, `A buyer's ${what} cap is above zero (tinybar), or left out`);
         return BigInt(v).toString();
       };
-      const order = n(caps.order, "per-order");
-      const daily = n(caps.daily, "daily");
-      if (BigInt(order) > BigInt(daily)) throw new HttpError(400, "The per-order cap cannot be above the daily cap");
-      return { order, daily };
+      const [order, daily] = [n(caps.order, "per-order"), n(caps.daily, "daily")];
+      if (order && daily && BigInt(order) > BigInt(daily)) throw new HttpError(400, "The per-order cap cannot be above the daily cap");
+      return { ...(order ? { order } : {}), ...(daily ? { daily } : {}) };
     }
     return {};
   }
   private describe(role: MachineRole, caps: MachineCaps) {
     if (role === "runner") return ` for ${(caps.kinds ?? []).join(", ")} stages`;
-    if (role === "buyer") return `, up to ${Number(caps.order) / 1e8} HBAR an order and ${Number(caps.daily) / 1e8} HBAR a day`;
+    if (role === "buyer") {
+      const parts = [caps.order ? `${Number(caps.order) / 1e8} HBAR an order` : null, caps.daily ? `${Number(caps.daily) / 1e8} HBAR a day` : null].filter(Boolean);
+      return parts.length ? `, up to ${parts.join(" and ")}` : ", within each stage's max price";
+    }
     return "";
   }
 

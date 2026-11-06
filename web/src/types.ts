@@ -30,7 +30,7 @@ export type {
   TemplateSpec,
   TemplateView,
 } from "../../server/src/domain/types";
-import type { AccessLevel, AccessScope, AgentKey, AutonomyLevel, CriterionResult, Outcome, OutcomeMedia, Role, StageMode } from "../../server/src/domain/types";
+import type { AccessLevel, AccessScope, AgentKey, AssetKind, AutonomyLevel, CriterionResult, Outcome, OutcomeMedia, Role, StageMode } from "../../server/src/domain/types";
 export type { AccessLevel, AccessScope };
 export interface MyAccess {
   level: AccessLevel;
@@ -510,6 +510,27 @@ export interface PublicPassport {
   };
 }
 
+// ---------------- Machine roles (each an ENS role name the machine holds) ----------------
+export type MachineRole = "attester" | "buyer" | "runner";
+export interface MachineCaps {
+  kinds?: AssetKind[];
+  /** tinybar */
+  order?: string;
+  /** tinybar */
+  daily?: string;
+}
+export interface MachineRoleView {
+  role: MachineRole;
+  label: string;
+  /** pending: signed, counts once its role name is on ENS */
+  state: "pending" | "held";
+  caps: MachineCaps;
+  /** what the role name on ENS says (null until it is there) */
+  heldCaps: MachineCaps | null;
+  grantedBy: string | null;
+  createdAt: string;
+}
+
 // ---------------- ENS names (ENSv2 on Sepolia, under ordo.eth) ----------------
 export type NameKind =
   | "org"
@@ -529,7 +550,8 @@ export type NameKind =
   | "stage"
   | "budget"
   | "topup"
-  | "workorder";
+  | "workorder"
+  | "machinerole";
 export type NameStatus = "pending" | "sent" | "issued" | "revoked" | "failed";
 export interface EnsNameView {
   kind: NameKind;

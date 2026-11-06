@@ -272,6 +272,15 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .drawer-b { padding: 4px 22px 30px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .dsec { border-top: 1px solid var(--divider); padding: 16px 0; margin-top: 12px; }
 .dsec h3 { margin-bottom: 8px; }
+/* machine roles in the asset drawer */
+.mroles { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.mrole { border: 1px solid var(--divider); border-radius: var(--r-md); padding: 10px 12px; display: grid; gap: 4px; background: var(--surface-soft); }
+.mrole-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mrole .btns { margin-top: 4px; }
+.mrole-edit { display: grid; gap: 8px; margin-top: 6px; }
+.mrole-edit .check { display: inline-flex; gap: 6px; align-items: center; padding: 4px 8px; border: 1px solid var(--divider); border-radius: 999px; background: var(--surface); cursor: pointer; }
+.role-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.role-chips .tag, td > .tag.faint { height: 20px; font-size: 11px; padding: 0 8px; }
 .gate-box { background: var(--accent-50); border: 1px solid var(--accent-100); border-radius: var(--r-md); padding: 12px 14px; }
 .sheet-overlay { place-items: end center; padding: 0; z-index: 85; }
 .sheet { width: 100%; max-width: 560px; max-height: 85vh; max-height: 85dvh; display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.96); border: 1px solid var(--glass-line); border-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.12); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); padding-bottom: env(safe-area-inset-bottom); animation: up 0.2s ease-out; }

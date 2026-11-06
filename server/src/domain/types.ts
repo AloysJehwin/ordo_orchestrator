@@ -139,6 +139,9 @@ export interface AssetView {
   sourceError: string | null;
   limits: Record<string, SignalLimit>;
   idealCycleS: number | null;
+  /** roles it holds now (on ENS when names are live), and the kinds of stage it may run as a Runner */
+  roles?: MachineRole[];
+  runnerKinds?: AssetKind[] | null;
 }
 
 // ---------- Templates ----------

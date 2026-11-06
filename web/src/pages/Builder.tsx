@@ -355,6 +355,10 @@ function StageInspector(props: {
   const setCrit = (i: number, p: Partial<Criterion>) => props.onChange({ criteria: s.criteria.map((c, j) => (j === i ? { ...c, ...p } : c)) });
   const machines = props.assets.filter((a) => a.kind === s.resourceKind);
   const { can } = useApp();
+  // only a Runner for this kind is given the stage (runnerKinds is absent when the server does not report roles)
+  const runs = (a: AssetView) => a.runnerKinds === undefined || (a.runnerKinds ?? []).includes(s.resourceKind);
+  const pinned = s.machine ? machines.find((a) => a.id === s.machine) : undefined;
+  const runners = machines.filter(runs);
   const [vm, setVm] = useState(false);
   return (
     <div className="insp">
@@ -394,12 +398,27 @@ function StageInspector(props: {
         {s.resourceKind !== "system" && (
           <Field label="Machine" hint={machines.length ? "Pin one machine, or let each run take any free machine of this kind." : undefined}>
             {machines.length ? (
-              <Select
-                value={s.machine ?? ""}
-                onChange={(v) => props.onChange({ machine: v || undefined })}
-                options={[{ value: "", label: `Any free ${KIND_LABEL[s.resourceKind].toLowerCase()}`, hint: `${machines.length} in this org` }, ...machines.map((a) => ({ value: a.id, label: a.name, hint: a.status.replaceAll("_", " ") }))]}
-                disabled={!editable}
-              />
+              <>
+                <Select
+                  value={s.machine ?? ""}
+                  onChange={(v) => props.onChange({ machine: v || undefined })}
+                  options={[
+                    { value: "", label: `Any free ${KIND_LABEL[s.resourceKind].toLowerCase()}`, hint: `${runners.length} of ${machines.length} can run it` },
+                    ...machines.map((a) => ({ value: a.id, label: a.name, hint: runs(a) ? a.status.replaceAll("_", " ") : "not a Runner for this kind" })),
+                  ]}
+                  disabled={!editable}
+                />
+                {pinned && !runs(pinned) && (
+                  <p className="field-e">
+                    {pinned.name} does not hold the Runner role for {KIND_LABEL[s.resourceKind].toLowerCase()} stages, so runs will wait here. A manager grants it on the <a href={href("floor")}>Floor</a>.
+                  </p>
+                )}
+                {!s.machine && !runners.length && (
+                  <p className="field-e">
+                    No {KIND_LABEL[s.resourceKind].toLowerCase()} holds the Runner role for this kind, so runs will wait here. A manager grants it on the <a href={href("floor")}>Floor</a>.
+                  </p>
+                )}
+              </>
             ) : (
               <>
                 <p className="field-e">

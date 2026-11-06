@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MachineRoles } from "../core/machine-roles.js";
+import type { MachineAuthority, MachineRoles } from "../core/machine-roles.js";
 import type { Db } from "../db/db.js";
 import { HttpError } from "../engine/errors.js";
 import {
@@ -10,6 +10,7 @@ import {
   type AssetKind,
   type AssetView,
   type AutonomyLevel,
+  type MachineRole,
   type Quality,
   type Role,
   type TelemetrySample,
@@ -553,6 +554,7 @@ export class PlantService {
       [siteId],
     );
     const q = new Map(quality.rows.map((r) => [r.asset_id, { good: Number(r.good), scrap: Number(r.scrap) }]));
+    const authority = this.machineRoles ? await this.machineRoles.of(siteId) : null;
 
     const out: AssetView[] = [];
     for (const a of assets) {
@@ -584,10 +586,21 @@ export class PlantService {
         sourceError: st.lastError,
         limits: a.limits,
         idealCycleS: a.idealCycleS,
+        ...(authority ? rolesOf(authority.get(a.id)) : {}),
       });
     }
     return out;
   }
+}
+
+/** The roles a machine holds now, for its view. */
+function rolesOf(a: MachineAuthority | undefined): Pick<AssetView, "roles" | "runnerKinds"> {
+  if (!a) return { roles: [], runnerKinds: null };
+  const roles: MachineRole[] = [];
+  if (a.runner) roles.push("runner");
+  if (a.attester) roles.push("attester");
+  if (a.buyer) roles.push("buyer");
+  return { roles, runnerKinds: a.runner };
 }
 
 export const agentLabel = (k: AgentKey) => AGENT_INFO[k].label;

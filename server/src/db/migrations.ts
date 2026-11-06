@@ -634,4 +634,11 @@ INSERT INTO machine_roles (site_id, asset_id, role, caps_json, held_caps_json, g
 CREATE TABLE edge_nonces (key TEXT PRIMARY KEY, seen_at TIMESTAMPTZ NOT NULL DEFAULT now());
 `,
   },
+  {
+    version: 39,
+    name: "A Buyer no one signed caps for buys as before roles: within each stage's max price and approved top-ups (38 had copied the wallet's callout limits, 0.5 HBAR a purchase, into its caps)",
+    sql: `
+UPDATE machine_roles SET caps_json = '{}', held_caps_json = CASE WHEN held_caps_json IS NULL THEN NULL ELSE '{}' END WHERE role = 'buyer' AND signature_id IS NULL;
+`,
+  },
 ];

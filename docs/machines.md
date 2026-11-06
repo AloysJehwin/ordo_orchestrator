@@ -30,6 +30,32 @@ sequenceDiagram
 - **The last unit waits.** A stage closes on its count, and its criteria are judged then, so the body holds back its last unit until the required outcomes are uploaded (and, with a brain, until its agent's closing decision).
 - **Buying ahead.** When a stage starts, and about once a minute while the body runs, it asks Ordo (`GET /v1/edge/purchases/needed`) what the stages after its running one still need, and what its own stage waiting to start needs. It buys each from the cheapest vendor over x402 on Hedera, paid from the machine's own account (`MACHINE_ACCOUNT_ID` and `MACHINE_ACCOUNT_KEY`), and never pays more than Ordo quoted for it (`body/src/buy.ts`, `server/src/edge/purchasing.ts`). A purchase above the stage's max price, or above what the machine holds, is over budget: the body asks the org treasury for a top-up (`POST /v1/edge/overbudget`) with a short justification its 0G agent writes, or, without a brain, with the facts and no 0G request id. It asks once per purchase until that purchase resolves. When the manager approves and the top-up executes on Hedera, Ordo counts the offer within budget up to the amount approved, and the body buys it on its next cycle. A body without a machine account buys nothing and says so once in its log; a safe-stopped body does not buy.
 
+## Roles
+
+A machine does only what its roles allow. Each role is an ENS role name the machine holds, under its org: `cnc-07.runners.acme.ordo.eth`, `cnc-07.attesters.acme.ordo.eth`, `cnc-07.buyers.acme.ordo.eth` (slots 9 to 11 of `OrdoNames`), owned by the machine's device key. A machine without a key of its own gets names Ordo holds for it, and can be a Runner and a Buyer but never an Attester.
+
+| Role | What it allows | Records on the name |
+| --- | --- | --- |
+| **Runner** | Ordo gives it stages of the kinds listed, and no others. A stage with no Runner for its kind waits, and says so. | `com.ordo.kinds` (`cnc,robot`) |
+| **Attester** | Its key signs readings, measurements, outputs and edge stage polls, for the stages it runs only. Once OrdoRunResolver v2 is deployed, the chain checks the same for the runs recorded on it. | none |
+| **Buyer** | It buys a stage's resources over x402 and asks for top-ups, within each stage's max price (or an approved top-up) and its own caps, if it has any. | `com.ordo.cap.order`, `com.ordo.cap.daily` (tinybar), when set |
+
+**Granting.** On the Floor, a manager opens a machine and signs each change in its Roles section (an OrdoSignature `machine.role.grant` or `machine.role.revoke` whose entity carries the kinds or caps, so the signature covers them). A grant, a new kind, or a higher cap counts once the role name says so on ENS, about a minute; a removal, a dropped kind or a lower cap counts at once. Until then the drawer shows the role as *pending on ENS*. With ENS off, a signed change counts straight away.
+
+**Without a signature.** A new machine is a Runner for its own kind, and an Attester when it has its own key. A machine wallet's first opening makes the machine a Buyer with no caps of its own (the wallet's per-purchase limit is for callouts such as condition assessments, not for a stage's resources); pausing the wallet takes Buyer away, and resuming it does not give it back (a manager grants it again). Migration 38 gave every machine what it could already do before roles existed (39 took back the Buyer caps 38 had copied from the wallet's callout limits).
+
+**Buying with a ticket.** `GET /v1/edge/purchases/needed` lists only what a Buyer may buy, with its per-order cap and what is left of its day, and a ticket for each item: an HMAC over machine, run, stage and resource, valid an hour. The storefront sells a stage's resource only with that ticket, only to a Buyer, within its caps, and at or below the stage's max price unless a top-up was approved; a sale counts against the machine's day when it is sold, and a payment from another account is flagged (`resource.payer_mismatch`). A body skips a purchase over a cap with the reason: a manager raises the cap, a top-up would not help.
+
+**Chain wins.** Every 5 minutes Ordo reads the role names back from ENS. A name taken away on-chain ends the role; an expired one is issued again.
+
+**One key, one attester.** Each machine label holds one name per account on-chain, so when one device key feeds several machines only one of them can attest on-chain. The drawer warns; give each machine its own gateway or body.
+
+```
+GET  /v1/sites/:id/assets/:assetId/roles                     (level 2)
+POST /v1/sites/:id/assets/:assetId/roles/sign-request        { role, grant, kinds?, order?, daily?, chainId? }   manager
+POST /v1/sites/:id/assets/:assetId/roles                     { role, grant, kinds?, order?, daily?, nonce, signature }
+```
+
 ## 0G in the loop
 
 When Ordo has a 0G Router management key, each start of a body mints it a private-mode inference key (TEE providers only, seven days, revoked when the body stops). The body's agent then:

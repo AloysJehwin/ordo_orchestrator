@@ -10,6 +10,7 @@ import { Select } from "../ui/Select";
 import { Ref, Who } from "../ui/Name";
 import { Spark } from "../ui/Spark";
 import { BodiesSection, BodyDrawerSection, CreateMachineModal, FleetModal, useFleet } from "./floor/Bodies";
+import { MachineRolesSection, RoleChips } from "./floor/Roles";
 
 type Tab = "assets" | "agents" | "incidents";
 const SIGNALS = ["temperature", "load_pct", "spindle_speed", "vibration", "feed_override", "part_count", "execution", "good", "scrap"];
@@ -106,6 +107,7 @@ export function Floor() {
                             <b>{a.name}</b>
                             {book.name("machine", a.id) && <div className="small mono muted">{book.name("machine", a.id)}</div>}
                             <div className="faint small">{a.kind.replaceAll("_", " ")}</div>
+                            <RoleChips asset={a} />
                           </td>
                           <td>
                             <span className={`pill ${statusClass(a.status)}`}>
@@ -759,6 +761,7 @@ function AssetDrawer({ id, onClose, onEdit }: { id: string; onClose: () => void;
       )}
       {reading && <ReadingModal assetId={a.id} onClose={() => setReading(false)} onDone={load} />}
       {src.type === "gateway" && <BodyDrawerSection assetId={a.id} />}
+      <MachineRolesSection asset={a} />
       <MachineWalletSection assetId={a.id} name={a.name} />
       {upload && <UploadModal assetId={a.id} onClose={() => setUpload(false)} onDone={load} />}
     </Drawer>

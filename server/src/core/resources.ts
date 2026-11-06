@@ -582,8 +582,8 @@ export class Resources {
         const auth = await this.machineRoles.ofAsset(buyer);
         if (!auth.buyer) throw new HttpError(403, "That machine does not hold the Buyer role: a manager grants it on the floor");
         const amount = amountFor(BigInt(o.price), roundQty(qty));
-        if (amount > auth.buyer.order) throw new HttpError(403, `${amount} tinybar is over the machine's Buyer cap of ${auth.buyer.order} an order`);
-        if ((await this.spentToday(buyer)) + amount > auth.buyer.daily) throw new HttpError(403, `That would take the machine over its Buyer cap of ${auth.buyer.daily} tinybar a day`);
+        if (auth.buyer.order != null && amount > auth.buyer.order) throw new HttpError(403, `${amount} tinybar is over the machine's Buyer cap of ${auth.buyer.order} an order`);
+        if (auth.buyer.daily != null && (await this.spentToday(buyer)) + amount > auth.buyer.daily) throw new HttpError(403, `That would take the machine over its Buyer cap of ${auth.buyer.daily} tinybar a day`);
         const ok = (await this.approvals(q.run)).get(`${st.code}/${r.key}`);
         if (!this.within(BigInt(o.price), hbarToTinybar(r.maxPrice), amount, ok)) throw new HttpError(409, `${o.label} costs more than the stage's max price, and no top-up was approved for it`);
       }
@@ -971,8 +971,8 @@ export class Resources {
               remaining,
               maxPrice: r.maxPrice,
               maxPriceTinybar: maxTb.toString(),
-              capOrderTinybar: caps ? caps.order.toString() : null,
-              capDailyLeftTinybar: caps ? (caps.daily > spent.get(buyer)! ? caps.daily - spent.get(buyer)! : 0n).toString() : null,
+              capOrderTinybar: caps?.order != null ? caps.order.toString() : null,
+              capDailyLeftTinybar: caps?.daily != null ? (caps.daily > spent.get(buyer)! ? caps.daily - spent.get(buyer)! : 0n).toString() : null,
               offer: best
                 ? {
                     vendorId: best.vendor_id,

@@ -133,7 +133,7 @@ export class Machines {
       await this.jobs.retry(OPEN_JOB, assetId);
       await this.jobs.enqueue(siteId, OPEN_JOB, assetId, {});
       // its first wallet makes it a Buyer, within these limits (a manager signs changes to its caps on the floor)
-      await this.machineRoles?.seedBuyer(siteId, assetId, { order: call.toString(), daily: day.toString() }, user.address);
+      await this.machineRoles?.seedBuyer(siteId, assetId, user.address);
       await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: "machine.wallet_requested", assetId, summary: `${asset.name} gets its own Hedera account: ${hbar(day)} a day, at most ${hbar(call)} a purchase`, data: { dailyBudget: day.toString(), perCall: call.toString() } });
     }
     return this.get(siteId, assetId);
@@ -193,7 +193,7 @@ export class Machines {
     const asset = await this.plant.asset(siteId, assetId);
     const samples = (await this.plant.series(assetId, "vibration", WINDOW_MINUTES)).filter((p) => p.value !== null).map((p) => ({ t: p.ts, v: p.value! }));
     if (samples.length < 3) return { skipped: "Fewer than three vibration readings in the last 6 hours: nothing to assess" };
-    const perCall = role && role.order < BigInt(w.per_call) ? role.order : BigInt(w.per_call);
+    const perCall = role?.order != null && role.order < BigInt(w.per_call) ? role.order : BigInt(w.per_call);
     const buyer = this.buyerFor(w.account_id, this.unseal(w.key_enc), perCall);
     const who = `machine:${asset.name}`;
 
