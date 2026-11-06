@@ -13,7 +13,7 @@ import type { ParamProofArg } from "./spec-proofs.js";
 /** What LotNames needs from ENSv2 (EnsV2 in production): OrdoNames' roles and OrdoRunResolver's releases. */
 export interface ReleaseRail {
   roles(siteId: string, account: Address): Promise<number>;
-  sendRecordRelease(i: { lot: ReleaseLot; sigs: ReleaseSigArg[]; proofs: StageProofArg[]; params: ParamProofArg[] }): Promise<Hex>;
+  sendRecordRelease(i: { lot: ReleaseLot; sigs: ReleaseSigArg[]; proofs: StageProofArg[]; params: ParamProofArg[]; resolver?: Address | null }): Promise<Hex>;
   check(hashes: Hex[]): Promise<TxState>;
   txUrl(hash: string): string | null;
   appUrl(name: string): string;
@@ -150,6 +150,8 @@ export class LotNames {
     const p = fromJson<ReleasePayload>(r.payload_json);
     // wait for the run's name to be on-chain, without counting it as a failure
     if (!(await this.names.onChain(r.site_id, "run", r.run_id))) return;
+    // on OrdoRunResolver v2 the run name says which machine ran each stage: wait until those records have landed
+    if (!(await this.names.landed(r.site_id, "run", r.run_id, "com.ordo.machine."))) return;
     const name = await this.names.nameOf(r.site_id, "run", r.run_id);
     if (name !== p.lot.lotLabel) throw new Error(`The release was signed for ${p.lot.lotLabel}, but the run's name is ${name}`);
     // say who lacks which role, instead of a bare revert
@@ -159,7 +161,9 @@ export class LotNames {
       const ok = need.bits === 0 ? bits !== 0 : (bits & need.bits) === need.bits;
       if (!ok) throw new Error(`${s.address} (${s.meaning}) does not hold ${need.label} through a name at this org yet`);
     }
-    const hash = await rail.sendRecordRelease({ lot: p.lot, sigs: p.sigs, proofs: p.proofs, params: p.params ?? [] });
+    // to the resolver the run's name was issued with, where its earlier releases are
+    const resolver = await this.names.resolverOf(r.site_id, "run", r.run_id);
+    const hash = await rail.sendRecordRelease({ lot: p.lot, sigs: p.sigs, proofs: p.proofs, params: p.params ?? [], resolver });
     await this.db.query("UPDATE ens_releases SET pending_tx = $1, sent_at = $2, name = $3, updated_at = now() WHERE id = $4", [hash, this.iso(), name, r.id]);
   }
 

@@ -395,8 +395,34 @@ export class EnsV2 {
     return ((await this.pub.getCode({ address })) ?? "0x") !== "0x";
   }
 
-  sendRecordRelease(i: { lot: unknown; sigs: unknown[]; proofs: unknown[]; params: unknown[] }): Promise<Hex> {
-    return this.send(this.need(this.cfg.runResolver, "ENS_RUN_RESOLVER_ADDRESS"), "recordRelease", [i.lot, i.sigs, i.proofs, i.params], ORDO_RUN_RESOLVER_ABI as Abi);
+  /** Record a release on the run's own resolver (the one its name was issued with), else the configured one. */
+  sendRecordRelease(i: { lot: unknown; sigs: unknown[]; proofs: unknown[]; params: unknown[]; resolver?: Address | null }): Promise<Hex> {
+    return this.send(i.resolver ?? this.need(this.cfg.runResolver, "ENS_RUN_RESOLVER_ADDRESS"), "recordRelease", [i.lot, i.sigs, i.proofs, i.params], ORDO_RUN_RESOLVER_ABI as Abi);
+  }
+
+  private v2 = new Map<string, Promise<boolean>>();
+  /**
+   * Whether a run resolver checks which machine ran each stage (OrdoRunResolver v2, which has ATTESTERS): its runs
+   * then carry a com.ordo.machine.<stage> record for each stage. Remembered per address.
+   */
+  machineScoped(resolver: Address): Promise<boolean> {
+    const k = resolver.toLowerCase();
+    let p = this.v2.get(k);
+    if (!p) {
+      p = this.read<number>(resolver, "ATTESTERS", [], ORDO_RUN_RESOLVER_ABI as Abi).then(
+        (n) => Number(n) > 0,
+        (e: unknown) => {
+          // v1 has no ATTESTERS: the call reverts or returns nothing. Anything else (the RPC) is asked again next time,
+          // and fails the caller rather than passing for v1, which would drop a v2 run's machine records.
+          for (let c = e as { name?: string; cause?: unknown } | undefined; c; c = c.cause as typeof c)
+            if (/Revert|ZeroData|FunctionNotFound/.test(c.name ?? "")) return false;
+          this.v2.delete(k);
+          throw e;
+        },
+      );
+      this.v2.set(k, p);
+    }
+    return p;
   }
 
   // ---------------------------------------------------------------- reading records

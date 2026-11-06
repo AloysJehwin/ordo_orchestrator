@@ -206,6 +206,8 @@ run("ENS credentials and lot names", () => {
     expect(await onchainText(LOT, "com.ordo.release.package")).toBe(id);
     expect(proofRoot).not.toBe(`0x${"00".repeat(32)}`);
     expect(await onchainText(LOT, "com.ordo.release.proofs")).toBe(`1 stages and 0 parameters proven, root ${proofRoot}`);
+    // OrdoRunResolver v2 took stage 02's proof only from the machine the run name says ran it
+    expect(await onchainText(LOT, "com.ordo.machine.02")).toBe("cnc-01");
     expect(await onchainText(LOT, "com.ordo.release.signers")).toBe((await Promise.all([admin, qe, pm].map((c) => nameOf(c.address)))).join(","));
     expect(await onchainText(LOT, "com.ordo.release.signers")).toMatch(/^member-[0-9a-f]{6}\.pune-plant-1\.ordo-test\.eth,/);
     const decisions = (await admin.call("GET", `${S()}/decisions?limit=100`)).json;

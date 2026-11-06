@@ -132,6 +132,8 @@ The names a wallet holds decide its roles at an org. Ordo keeps a copy of them i
   - reviewed: VALIDATOR
   - approved: VALIDATOR and PLANT_MANAGER, which a manager holds
 - Every stage proof must verify with `OrdoStageVerifier` and every source-signed parameter proof with `OrdoSpecVerifier`. They must fold to the root the three signed.
+- **v2: each stage from the machine that ran it.** Ordo writes `com.ordo.machine.<stage>` on the run name: the label of the machine that ran the stage when it holds the Attester role, `manual` when it cannot sign (no key of its own, or no Attester role), nothing when the stage has no machine. A machine's proof counts only for a stage recorded as its own, and only while it holds its machine name and its attester name (`<label>.attesters.<org>.ordo.eth`, slot 9); otherwise the release reverts with `WrongMachine(stage, signer)`. A person (a contributor) signs only a stage whose record is empty or `manual`. v1 took any machine or contributor of the org for any stage. Ordo sends a release once these records have landed (`Names.landed`).
+- **Each run keeps its resolver.** A run name issued with v1 keeps v1, where its releases are stored, and its later releases go there too (`Names.resolverOf`); `ENS_RUN_RESOLVER_ADDRESS` serves runs named from then on. The doctor says which version is configured.
 - The run name then answers `com.ordo.release*` from the contract. Everything else falls back to Ordo's PermissionedResolver.
 
 The wallet's signing prompt shows the lot as `so-7781.runs.acme.ordo.eth`. Packages signed before runs had names (`lot-<order>`) are marked legacy and not recorded.

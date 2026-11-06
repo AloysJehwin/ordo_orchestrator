@@ -151,10 +151,22 @@ await check(
     if (!(await ens.hasRootRoles(cfg.ENS_REGISTRY_ADDRESS as `0x${string}`, NAMES_ROOT_ROLES, names))) throw new Error("OrdoNames lacks its roles on the root registry (setup:ens-contracts grants them)");
     if (!(await ens.hasRootRoles(cfg.ENS_RESOLVER_ADDRESS as `0x${string}`, NAMES_RESOLVER_ROLES, names))) throw new Error("OrdoNames lacks its roles on the resolver (setup:ens-contracts grants them)");
     const releases = cfg.ENS_RUN_RESOLVER_ADDRESS && (await ens.hasCode(cfg.ENS_RUN_RESOLVER_ADDRESS as `0x${string}`));
+    // v2 checks that each stage's proof comes from the machine that ran it; v1 takes any machine or contributor of the org
+    const v2 = releases ? await ens.machineScoped(cfg.ENS_RUN_RESOLVER_ADDRESS as `0x${string}`) : false;
+    if (releases && !v2) warn("ens names", "OrdoRunResolver is v1: any machine or contributor of an org can attest any stage of its runs (deploy v2 with setup:ens-contracts, keeping ENS_NAMES_ADDRESS)");
+    // names were registered for ENS_NAME_YEARS and there is no renewal yet: say so well before they lapse
+    const db = await openDb({ url: cfg.DATABASE_URL, dataDir: cfg.DATA_DIR });
+    const soon = (
+      await db
+        .query<{ n: string; first: string | null }>("SELECT COUNT(*)::text AS n, MIN(expires_at)::text AS first FROM ens_names WHERE have_json IS NOT NULL AND status <> 'revoked' AND expires_at < now() + interval '60 days'")
+        .catch(() => ({ rows: [{ n: "0", first: null }] }))
+    ).rows[0]!;
+    await db.close();
+    if (Number(soon.n) > 0) warn("ens names", `${soon.n} names expire within 60 days (the first on ${soon.first?.slice(0, 10)}): renew them from the ENS owner key, which holds RENEW on every registry`);
     const fee = await ens.baseFeeGwei();
     if (fee > cfg.ENS_MAX_FEE_GWEI) warn("ens names", `Sepolia's base fee is ${fee.toFixed(2)} gwei, over ENS_MAX_FEE_GWEI (${cfg.ENS_MAX_FEE_GWEI}): sending waits until it drops`);
     if (!releases) warn("ens names", "no OrdoRunResolver (ENS_RUN_RESOLVER_ADDRESS): runs are named, but releases are not recorded on them");
-    return `under ${cfg.ENS_PARENT_NAME} · OrdoNames ${names.slice(0, 10)}… holds its roles · owner ${balance.toFixed(4)} ETH · base fee ${fee.toFixed(2)} gwei${releases ? " · releases recorded on run names" : ""}`;
+    return `under ${cfg.ENS_PARENT_NAME} · OrdoNames ${names.slice(0, 10)}… holds its roles · owner ${balance.toFixed(4)} ETH · base fee ${fee.toFixed(2)} gwei${releases ? ` · releases recorded on run names (OrdoRunResolver ${v2 ? "v2: each stage from the machine that ran it" : "v1"})` : ""}`;
   },
   "ENS_PARENT_NAME, ENS_REGISTRY_ADDRESS, ENS_RESOLVER_ADDRESS and ENS_OWNER_KEY not set: nothing gets an ENS name",
 );

@@ -5,16 +5,19 @@
  *    vendors, runs, stages, budgets, top-ups), deploys the registries of the names that have their own, and answers
  *    roles from the names people hold (a validator holds <handle>.validators.<org>.<root>);
  *  - OrdoStageVerifier and OrdoSpecVerifier: the Groth16 verifiers of the stage-check and spec-check circuits, reused
- *    from ENS_STAGE_VERIFIER_ADDRESS / ENS_SPEC_VERIFIER_ADDRESS, or from the retired lot resolver
- *    (ENS_LOT_RESOLVER_ADDRESS), or deployed when neither is set;
- *  - OrdoRunResolver: the resolver of every run name (<order>.runs.<org>.<root>). It records each lot's release only
- *    with three signatures from people holding the role names and proofs that verify, answers the com.ordo.release*
- *    records from storage, and passes every other record to Ordo's resolver.
+ *    from ENS_STAGE_VERIFIER_ADDRESS / ENS_SPEC_VERIFIER_ADDRESS, or from the current run resolver
+ *    (ENS_RUN_RESOLVER_ADDRESS) or the retired lot resolver (ENS_LOT_RESOLVER_ADDRESS), or deployed when none is set;
+ *  - OrdoRunResolver: the resolver of new run names (<order>.runs.<org>.<root>). It records each lot's release only
+ *    with three signatures from people holding the role names and proofs that verify, each stage's from the machine
+ *    the run name says ran it (v2: com.ordo.machine.<stage>, and the machine's attester name), answers the
+ *    com.ordo.release* records from storage, and passes every other record to Ordo's resolver. Runs already named
+ *    keep the resolver they were issued with, where their releases are; a new one serves runs named from then on.
  * Run locally:
  *
  *   ENS_OWNER_KEY=0x… ENS_PARENT_NAME=ordo.eth ENS_REGISTRY_ADDRESS=0x… ENS_RESOLVER_ADDRESS=0x… pnpm --filter @ordo/contracts setup:ens-contracts
  *
- * Set ENS_NAMES_ADDRESS to keep an OrdoNames already deployed. Prints only public values.
+ * Set ENS_NAMES_ADDRESS to keep an OrdoNames already deployed: then only a new OrdoRunResolver is deployed (its
+ * grants are already in place). Prints only public values.
  */
 import { readFileSync } from "node:fs";
 import { createPublicClient, createWalletClient, fallback, formatEther, http, parseAbi, type Abi, type Address, type Hex } from "viem";
@@ -79,11 +82,15 @@ async function verifiers(): Promise<[Address, Address]> {
   const stage = await deployed(process.env.ENS_STAGE_VERIFIER_ADDRESS);
   const spec = await deployed(process.env.ENS_SPEC_VERIFIER_ADDRESS);
   if (stage && spec) return [stage, spec];
-  const old = await deployed(process.env.ENS_LOT_RESOLVER_ADDRESS);
-  if (old) {
+  for (const [env, what] of [
+    ["ENS_RUN_RESOLVER_ADDRESS", "the current run resolver"],
+    ["ENS_LOT_RESOLVER_ADDRESS", "the retired lot resolver"],
+  ] as const) {
+    const old = await deployed(process.env[env]);
+    if (!old) continue;
     const s = await pub.readContract({ address: old, abi: roleAbi, functionName: "stageVerifier" });
     const p = await pub.readContract({ address: old, abi: roleAbi, functionName: "specVerifier" });
-    console.log(`  verifiers from the retired lot resolver: ${s} · ${p}`);
+    console.log(`  verifiers from ${what}: ${s} · ${p}`);
     return [s, p];
   }
   return [await deploy("OrdoStageVerifier", []), await deploy("OrdoSpecVerifier", [])];
@@ -104,4 +111,5 @@ ENS_NAMES_ADDRESS=${names}
 ENS_RUN_RESOLVER_ADDRESS=${runs}
 
 ENS_ROLES_ADDRESS and ENS_LOT_RESOLVER_ADDRESS are retired: remove them.
+Runs already named keep the run resolver they were issued with; ${runs} serves runs named from now on.
 `);

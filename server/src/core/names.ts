@@ -37,6 +37,8 @@ export interface NameRail {
   estimateOne(op: NameOp): Promise<bigint | null>;
   /** who holds `label` in `registry` right now (zero when nobody does, or the name expired) */
   ownerOf(registry: Address, label: string): Promise<Address>;
+  /** whether a run resolver checks which machine ran each stage (OrdoRunResolver v2) */
+  machineScoped?(resolver: Address): Promise<boolean>;
   batchState(hash: Hex): Promise<BatchState>;
   baseFeeGwei(): Promise<number>;
   balanceEth(): Promise<number>;
@@ -457,6 +459,8 @@ export class Names {
     const machineRoles = new Map<string, { role: MachineRole; caps: MachineCaps }[]>();
     for (const r of (await this.db.query<{ asset_id: string; role: MachineRole; caps_json: string }>("SELECT asset_id, role, caps_json FROM machine_roles WHERE site_id = $1 ORDER BY role", [siteId])).rows)
       machineRoles.set(r.asset_id, [...(machineRoles.get(r.asset_id) ?? []), { role: r.role, caps: JSON.parse(r.caps_json) as MachineCaps }]);
+    // machines that sign their own stages on-chain, by the label of their attester name (for run names on v2)
+    const attesterLabel = new Map<string, string>();
     for (const a of assets.rows) {
       const src = JSON.parse(a.source_json) as { type: string; device?: string };
       const device = src.type === "gateway" && src.device && /^0x[0-9a-fA-F]{40}$/.test(src.device) ? (src.device.toLowerCase() as Address) : null;
@@ -501,6 +505,7 @@ export class Names {
       for (const mr of machineRoles.get(a.id) ?? []) {
         // signing needs the machine's own key: a machine without one never holds Attester on-chain
         if (mr.role === "attester" && !device) continue;
+        if (mr.role === "attester") attesterLabel.set(a.id, machineRow.label);
         await upsert({
           kind: "machinerole",
           ref: `${mr.role}:${a.id}`,
@@ -568,6 +573,14 @@ export class Names {
     const treasuryName = names.get(key("treasury", siteId)) ?? null;
     const runResolver = rail.cfg.runResolver ? (rail.cfg.runResolver.toLowerCase() as Address) : null;
     for (const r of runs.rows) {
+      // a run keeps the resolver its name was issued with: its releases are stored there (a new resolver serves new runs)
+      const issued = byKey.get(key("run", r.id))?.have_json;
+      const issuedResolver = issued ? ((JSON.parse(issued) as Want).resolver ?? null) : null;
+      const resolver = issuedResolver && issuedResolver !== ZERO ? issuedResolver : runResolver;
+      // on OrdoRunResolver v2, the run name says which machine ran each stage: its attester label, or manual
+      const ranBy: Record<string, string> = {};
+      if (resolver && (await rail.machineScoped?.(resolver)))
+        for (const s of stagesOf.get(r.id) ?? []) if (s.asset_id) ranBy[`com.ordo.machine.${s.code}`] = attesterLabel.get(s.asset_id) ?? "manual";
       const active = ACTIVE_RUN.has(r.status);
       const started = Date.parse(r.started_at) / 1000;
       const prio = active ? 2 : 3;
@@ -588,8 +601,9 @@ export class Names {
             ...(r.line_id && names.get(key("line", r.line_id)) ? { "com.ordo.line": names.get(key("line", r.line_id))! } : {}),
             ...(names.get(key("pipeline", r.template_id)) ? { "com.ordo.pipeline": names.get(key("pipeline", r.template_id))! } : {}),
             ...(active ? {} : { "com.ordo.status": r.status }),
+            ...ranBy,
           }),
-          { resolver: runResolver },
+          { resolver },
         ),
       });
       if (!runName) continue;
@@ -1083,6 +1097,19 @@ export class Names {
   async onChain(siteId: string, kind: NameKind, ref: string): Promise<boolean> {
     const r = (await this.db.query<{ have_json: string | null }>("SELECT have_json FROM ens_names WHERE id = $1", [`ens:${siteId}:${key(kind, ref)}`])).rows[0];
     return Boolean(r?.have_json && !(JSON.parse(r.have_json) as Want).revoke);
+  }
+  /** Whether every record starting with `prefix` that the name should carry is on-chain (its run's com.ordo.machine.* before a release). */
+  async landed(siteId: string, kind: NameKind, ref: string, prefix: string): Promise<boolean> {
+    const r = (await this.db.query<{ want_json: string | null; have_json: string | null }>("SELECT want_json, have_json FROM ens_names WHERE id = $1", [`ens:${siteId}:${key(kind, ref)}`])).rows[0];
+    if (!r?.want_json || !r.have_json) return false;
+    const [w, h] = [JSON.parse(r.want_json) as Want, JSON.parse(r.have_json) as Want];
+    return !h.revoke && Object.entries(w.texts).every(([k, v]) => !k.startsWith(prefix) || h.texts[k] === v);
+  }
+  /** The resolver a name was issued with (null before it is on-chain). */
+  async resolverOf(siteId: string, kind: NameKind, ref: string): Promise<Address | null> {
+    const r = (await this.db.query<{ have_json: string | null }>("SELECT have_json FROM ens_names WHERE id = $1", [`ens:${siteId}:${key(kind, ref)}`])).rows[0];
+    const res = r?.have_json ? (JSON.parse(r.have_json) as Want).resolver : null;
+    return res && res !== ZERO ? res : null;
   }
 
   /** Names by wallet address at an org: a person's handle first, then a machine's or vendor's name. */

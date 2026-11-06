@@ -184,6 +184,7 @@ The full design is in [ens.md](ens.md). In short:
    - It deploys `OrdoNames` and `OrdoRunResolver`, reusing `OrdoStageVerifier` and `OrdoSpecVerifier`.
    - It grants OrdoNames `REGISTRAR | UNREGISTER | RENEW | SET_SUBREGISTRY | SET_RESOLVER` on the root registry and `0x111` on the resolver.
    - It prints `ENS_NAMES_ADDRESS` and `ENS_RUN_RESOLVER_ADDRESS`.
+   - With `ENS_NAMES_ADDRESS` set, it keeps that OrdoNames and deploys only a new `OrdoRunResolver`, with the verifiers of the current one. Runs already named keep the resolver they were issued with.
 3. **The app names everything** (`server/src/core/names.ts`).
    - Each engine cycle it plans every org's names: the org with its own registry and collections, people by handle, role names, machines, agents, lines, vendors, parties, pipelines, runs, stages, budgets, top-ups and work orders.
    - It sends them to `OrdoNames.execute` in batches of up to 16 ops, under `ENS_MAX_FEE_GWEI` and `ENS_DAILY_ETH`.
@@ -191,6 +192,7 @@ The full design is in [ens.md](ens.md). In short:
 5. **Releases on run names** (`OrdoRunResolver`, `server/src/core/lot-names.ts`).
    - A run's name is its lot. A released package is recorded there with its three signatures and its proofs.
    - Each signer must hold the right role through a name. Every stage proof must verify with `OrdoStageVerifier` and every source-signed parameter proof with `OrdoSpecVerifier`, and the folded root must match the one the three signed.
+   - v2 also checks who signed each proof: the machine the run name's `com.ordo.machine.<stage>` record names, holding its attester name, or a contributor for a stage run by hand (see [ens.md](ens.md)).
    - The run name then answers `com.ordo.release*`.
 6. **Retired:** `OrdoEnsRoles` (`0x100f…ab91`), `OrdoLotResolver` (`0x83bc…5795`) and the CCIP-Read gateway, with the parent `ordo-mfg.eth`. They stay on-chain, unused. The verifiers `OrdoStageVerifier` [`0xadf0…3d22`](https://sepolia.etherscan.io/address/0xadf064b185151dad607a86f48166c36df1333d22) and `OrdoSpecVerifier` [`0xd4c4…ed17`](https://sepolia.etherscan.io/address/0xd4c4b8438c6519d6830668365068560e0239ed17) are reused.
 
