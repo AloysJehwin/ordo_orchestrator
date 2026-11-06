@@ -195,7 +195,7 @@ export function StageDrawer(props: {
   onRecord: (s: StageRunView) => void;
   onHold: (s: StageRunView) => void;
 }) {
-  const { can, book } = useApp();
+  const { can, sees, book } = useApp();
   const s = props.stage;
   const series = useStageSeries(props.run.id, s?.code ?? null, Boolean(s && signalsOf(s.criteria).length));
   if (!s) return null;
@@ -239,19 +239,28 @@ export function StageDrawer(props: {
       {(s.state === "awaiting_approval" || s.state === "held") && (
         <section className="dsec gate-box">
           <h3>Human approval gate</h3>
-          <p className="muted small">{gate ? `${gate.title}. Needs ${gate.requiredRole.replaceAll("_", " ")} or higher.` : "Waiting for the gate item."}</p>
+          <p className="muted small">
+            {gate ? `${gate.title}. Needs ${gate.requiredRole.replaceAll("_", " ")} or higher.` : "Waiting for the gate item."}
+            {!a.canRelease(s) && ` Waiting on ${s.escalationRole.replaceAll("_", " ")}s to release it.`}
+          </p>
           <div className="btns">
-            <Action className="btn accent" disabled={!gate || !a.canRelease(s)} onClick={() => a.approve(s)}>
-              {s.state === "held" ? "Release" : "Approve"}
-            </Action>
-            {s.state === "awaiting_approval" && (
-              <Action className="btn" disabled={!gate || !a.canRelease(s)} onClick={() => a.holdGate(s)}>
-                Hold
+            {a.canRelease(s) && (
+              <>
+                <Action className="btn accent" disabled={!gate} onClick={() => a.approve(s)}>
+                  {s.state === "held" ? "Release" : "Approve"}
+                </Action>
+                {s.state === "awaiting_approval" && (
+                  <Action className="btn" disabled={!gate} onClick={() => a.holdGate(s)}>
+                    Hold
+                  </Action>
+                )}
+              </>
+            )}
+            {sees(3) && (
+              <Action className="btn link" onClick={() => a.validate(s)}>
+                Validate with evidence
               </Action>
             )}
-            <Action className="btn link" onClick={() => a.validate(s)}>
-              Validate with evidence
-            </Action>
           </div>
         </section>
       )}

@@ -7,13 +7,17 @@ import { useSign } from "../lib/sign";
 import type { AutonomyLevel, AutonomyProposalView, DecisionView, InboxItemView, PassportView, RunView, StageRunView, TemplateView, TypedSignature } from "../types";
 import { QR } from "../ui/QR";
 import { DateTimePicker } from "../ui/Calendar";
-import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
+import { Action, Empty, Field, Loading, Menu, Modal, Segmented, useToast } from "../ui/kit";
+import { MoreHorizontal, SkipForward, X } from "lucide-react";
 import { Select } from "../ui/Select";
 import { Actor, NameInput, Ref, Who } from "../ui/Name";
 import { SpecBand } from "../ui/SpecBand";
 import { machineless, outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline/StageParts";
 import { FlowView, GraphView, LedgerView } from "./pipeline/Views";
+import { DecisionStream } from "./pipeline/Stream";
+import { Attention } from "./pipeline/Attention";
+import { atGate, roleWords } from "./pipeline/layout";
 
 type View = "flow" | "graph" | "ledger";
 
@@ -50,15 +54,16 @@ export function Pipelines() {
 }
 
 function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onNew: () => void }) {
-  const { path, live, can, refresh, site, book } = useApp();
+  const { path, live, can, sees, refresh, site, book } = useApp();
   const [data, setData] = useState<{ run: RunView; decisions: DecisionView[]; inbox: InboxItemView[] } | null>(null);
   const [view, setView] = useState<View>("flow");
-  const [sel, setSel] = useState<{ code: string; x: number; y: number } | null>(null);
+  const [sel, setSel] = useState<{ code: string; left: number; right: number; top: number; h: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [record, setRecord] = useState<StageRunView | null>(null);
   const [hold, setHold] = useState<StageRunView | null>(null);
   const [autonomy, setAutonomy] = useState(false);
+  const [passport, setPassport] = useState(false);
   const toast = useToast();
   const load = useCallback(async () => setData(await api.get(path(`/runs/${runId}`))), [path, runId]);
   useEffect(() => {
@@ -81,6 +86,26 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
   const stage = (code: string | null) => run.stages.find((s) => s.code === code) ?? null;
   const s = stage(sel?.code ?? null);
   const latest = s ? decisions.find((d) => d.stageCode === s.code) : null;
+  const isManager = can("manager");
+  const running = run.status === "running";
+  // gates the signed-in person may release, oldest column first
+  const myGates = run.stages.filter((x) => atGate(x) && can(x.escalationRole));
+  const openStage = (code: string) => (setSel(null), setDrawer(code));
+
+  // place the stage's block beside the node, inside the canvas, flipping to the left when there is no room on the right
+  const pick = (code: string, el: Element) => {
+    const c = canvas.current;
+    if (!c) return;
+    if (sel?.code === code) return setSel(null);
+    const node = c.querySelector(`[data-code="${code}"]`) ?? el;
+    const cr = c.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    setSel({ code, left: r.left - cr.left, right: r.right - cr.left, top: r.top - cr.top, h: r.height });
+  };
+  const blockW = 352;
+  const cw = canvas.current?.clientWidth ?? 9999;
+  const blockLeft = sel ? (sel.right + 14 + blockW <= cw ? sel.right + 14 : sel.left - blockW - 14 >= 0 ? sel.left - blockW - 14 : Math.max(0, cw - blockW)) : 0;
+  const blockTop = sel ? Math.max(8, sel.top + sel.h / 2 - 110) : 0;
 
   const step = async () => {
     const r = await api.post<{ started: string[]; gateItemId: string | null }>(path(`/runs/${run.id}/step`));
@@ -92,257 +117,316 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
     await Promise.all([load(), refresh()]);
   };
 
+  // the one action that matters most for this person gets the accent; the rest are secondary and fold into a menu on a phone
+  const reviewLabel = myGates.length === 1 ? `Review gate ${myGates[0]!.code}` : `Review gates (${myGates.length})`;
+  const primary =
+    isManager && running ? (
+      <Action className="btn accent" onClick={step} title="Advance the run one column; stops at a gate and opens it">
+        <SkipForward size={16} aria-hidden /> Step run
+      </Action>
+    ) : myGates.length ? (
+      <button type="button" className="btn accent" onClick={() => openStage(myGates[0]!.code)}>
+        {reviewLabel}
+      </button>
+    ) : null;
+  const secondary: { label: string; onClick: () => void }[] = [];
+  if (isManager && running && myGates.length) secondary.push({ label: reviewLabel, onClick: () => openStage(myGates[0]!.code) });
+  if (sees(3)) secondary.push({ label: "Lot passport", onClick: () => setPassport(true) });
+  secondary.push({ label: isManager ? "Edit in builder" : "View template", onClick: () => go(`builder/${run.templateId}`) });
+  if (isManager) secondary.push({ label: "New run", onClick: onNew });
+  const statusTag = running ? <span className="tag accent">Running</span> : <span className={`tag ${run.status === "completed" ? "ok" : "bad"}`}>{run.status}</span>;
+  const ordered = [...run.stages].sort((a, b) => a.column - b.column || a.code.localeCompare(b.code));
+
   return (
     <div className="pipeline">
-      <div className="page-head">
-        <div className="ph-text">
-          <div className="eyebrow">
-            Run {run.id} · {run.templateCategory} · started {time(run.startedAt)} · {run.orderRef} · {run.quantity} units
-            {run.status !== "running" && <span className={`tag ${run.status === "completed" ? "ok" : "bad"}`}>{run.status}</span>}
+      <header className="run-head">
+        <div className="rh-text">
+          <div className="rh-title">
+            <h1>{run.templateName}</h1>
+            {statusTag}
           </div>
-          <h1>{run.templateName}</h1>
-          {book.of("run", run.id) && (
-            <p className="small">
-              <Ref kind="run" id={run.id} />
-            </p>
-          )}
-          <p className="muted lede">{run.templateDescription}</p>
+          <div className="rh-meta">
+            <span className="mono">{run.id}</span>
+            {book.of("run", run.id) ? <Ref kind="run" id={run.id} /> : <span>{run.orderRef}</span>}
+            <span className="num">{run.quantity} units</span>
+            <span>{run.templateCategory}</span>
+            <span>started {dateTime(run.startedAt)}</span>
+          </div>
+          {run.templateDescription && <p className="lede rh-desc">{run.templateDescription}</p>}
         </div>
-        <div className="ph-actions">
-          <Select width={290} value={run.id} onChange={(id) => go(`pipelines/${id}`)} options={runOptions} searchable />
+        <div className="rh-side">
+          <Select width={300} value={run.id} onChange={(id) => go(`pipelines/${id}`)} options={runOptions} searchable />
+          <div className="rh-actions">
+            {primary}
+            <span className="ra-wide">
+              {secondary.map((b) =>
+                b.label === "Edit in builder" || b.label === "View template" ? (
+                  <a key={b.label} className="btn" href={href(`builder/${run.templateId}`)}>
+                    {b.label}
+                  </a>
+                ) : (
+                  <button key={b.label} type="button" className="btn" onClick={b.onClick}>
+                    {b.label}
+                  </button>
+                ),
+              )}
+            </span>
+            <span className="ra-narrow">
+              <Menu
+                title="Run actions"
+                items={secondary}
+                trigger={(open, toggle) => (
+                  <button type="button" className="btn" aria-expanded={open} aria-haspopup="menu" onClick={toggle}>
+                    <MoreHorizontal size={16} aria-hidden /> More
+                  </button>
+                )}
+              />
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <section className="runband card" aria-label="Run status">
+        <div className="rb-strip">
+          <div className="rb-strip-h">
+            <span>
+              <b className="num">
+                {run.metrics.completed} of {run.metrics.total}
+              </b>{" "}
+              stages complete
+            </span>
+            <span className="muted small">
+              {run.status === "running" ? (run.metrics.eta ? `ETA ${time(run.metrics.eta)}` : "No ETA yet") : `Finished ${run.finishedAt ? dateTime(run.finishedAt) : ""}`}
+              {run.dueAt ? ` · due ${dateTime(run.dueAt)}` : ""}
+              {run.metrics.onTrack !== null && (run.metrics.onTrack ? " · on track" : " · late")}
+            </span>
+          </div>
+          <ol className="rb-segs" aria-label="Stages in order">
+            {ordered.map((x) => (
+              <li key={x.code}>
+                <button type="button" className={`rb-seg s-${x.state}`} title={`${x.code} ${x.name} · ${STATE_LABEL[x.state]}`} aria-label={`${x.code} ${x.name}, ${STATE_LABEL[x.state]}`} onClick={() => openStage(x.code)}>
+                  {x.state === "running" && <span style={{ width: `${Math.round(x.progress * 100)}%` }} />}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="kpis band">
+          {isManager ? (
+            <button type="button" className="kpi kpi-auto" onClick={() => setAutonomy(true)} title="Change how much agents may do on their own">
+              <AutonomyTile level={line.autonomy} editable />
+            </button>
+          ) : (
+            <div className="kpi">
+              <AutonomyTile level={line.autonomy} />
+            </div>
+          )}
+          <div className="kpi">
+            <span className="label">Rolled yield</span>
+            <div className="v">{pct(run.metrics.rolledYield)}</div>
+            <div className="s">across measured stages</div>
+          </div>
+          <div className="kpi">
+            <span className="label">Throughput</span>
+            <div className="v">{num(run.metrics.throughputPerHour)}</div>
+            <div className="s">units / hour shipped</div>
+          </div>
+          <div className="kpi">
+            <span className="label">{running ? "Run ETA" : "Finished"}</span>
+            <div className="v">{running ? (run.metrics.eta ? time(run.metrics.eta) : "—") : run.finishedAt ? time(run.finishedAt) : "—"}</div>
+            <div className="s">{run.dueAt ? `due ${dateTime(run.dueAt)}` : "no due date"}</div>
+          </div>
+          <div className="kpi">
+            <span className="label">Agent decisions</span>
+            <div className="v">{run.metrics.decisions}</div>
+            <div className="s">{run.metrics.escalated} escalated to people</div>
+          </div>
+          <div className="kpi">
+            <span className="label">Gates pending</span>
+            <div className={`v${run.metrics.gatesPending ? " accent-text" : ""}`}>{run.metrics.gatesPending}</div>
+            <div className="s">{myGates.length ? `${myGates.length} you can release` : "need sign-off"}</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="map card" aria-label="Stage map">
+        <div className="map-bar">
           <Segmented<View>
+            label="View"
             value={view}
-            onChange={setView}
+            onChange={(v) => (setView(v), setSel(null))}
             options={[
               { value: "flow", label: "Flow" },
               { value: "graph", label: "Graph" },
               { value: "ledger", label: "Ledger" },
             ]}
           />
-          {run.status === "running" && can("manager") && (
-            <Action className="btn" onClick={step}>
-              Step run
-            </Action>
-          )}
-          <PassportButton runId={run.id} orderRef={run.orderRef} />
-          <a className="btn accent" href={href(`builder/${run.templateId}`)}>
-            Edit in builder
-          </a>
-          {can("manager") && (
-            <button type="button" className="btn" onClick={onNew}>
-              New run
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="kpis line">
-        <button type="button" className="kpi kpi-auto" onClick={() => setAutonomy(true)} title="Change autonomy level">
-          <div className="kpi-row">
-            <span className="label">Autonomy level</span>
-            <span className="accent-text small">
-              {line.autonomy} · {LEVEL_LABEL[line.autonomy]}
-            </span>
-          </div>
-          <div className="bars">
-            {[1, 2, 3, 4].map((i) => (
-              <span key={i} className={i <= Number(line.autonomy.slice(1)) ? "on" : ""} />
-            ))}
-          </div>
-          <div className="s">{LEVEL_TEXT[line.autonomy]}</div>
-        </button>
-        <div className="kpi">
-          <span className="label">Progress</span>
-          <div className="v">
-            {run.metrics.completed}/{run.metrics.total}
-          </div>
-          <div className="s">stages complete</div>
-        </div>
-        <div className="kpi">
-          <span className="label">Rolled yield</span>
-          <div className="v">{pct(run.metrics.rolledYield)}</div>
-          <div className="s">across measured stages</div>
-        </div>
-        <div className="kpi">
-          <span className="label">Throughput</span>
-          <div className="v">{num(run.metrics.throughputPerHour)}</div>
-          <div className="s">units / hour shipped</div>
-        </div>
-        <div className="kpi">
-          <span className="label">{run.status === "running" ? "Run ETA" : "Finished"}</span>
-          <div className="v">{run.metrics.eta ? time(run.metrics.eta) : "—"}</div>
-          <div className="s">
-            {run.dueAt ? `due ${dateTime(run.dueAt)}` : "no due date"}
-            {run.metrics.onTrack !== null && (run.metrics.onTrack ? " · on track" : " · late")}
-          </div>
-        </div>
-        <div className="kpi">
-          <span className="label">Agent decisions</span>
-          <div className="v accent-text">{run.metrics.decisions}</div>
-          <div className="s">{run.metrics.escalated} escalated to people</div>
-        </div>
-        <div className="kpi">
-          <span className="label">Gates pending</span>
-          <div className="v accent-text">{run.metrics.gatesPending}</div>
-          <div className="s">needs sign-off</div>
-        </div>
-      </div>
-
-      <div className="legend-row">
-        <div className="legend">
-          <span>
-            <i className="lg done" /> Completed
-          </span>
-          <span>
-            <i className="lg run" /> Running
-          </span>
-          <span>
-            <i className="lg gate" /> Awaiting approval
-          </span>
-          <span>
-            <i className="lg held" /> Held
-          </span>
-          <span>
-            <i className="lg dev" /> Done · deviation
-          </span>
-          <span>
-            <i className="lg queued" /> Queued
-          </span>
-        </div>
-        <span className="faint small">Click a node to open its block</span>
-      </div>
-
-      <div className="canvas" ref={canvas} onClick={(e) => e.target === e.currentTarget && setSel(null)}>
-        {view === "flow" && <FlowView run={run} selected={sel?.code ?? null} onSelect={(code, x, y) => setSel({ code, x, y })} />}
-        {view === "graph" && <GraphView run={run} selected={sel?.code ?? null} onSelect={(code, x, y) => setSel({ code, x, y })} />}
-        {view === "ledger" && <LedgerView run={run} onOpen={setDrawer} />}
-        {s && view !== "ledger" && (
-          <div className="block" style={{ left: Math.max(0, Math.min(sel!.x + 40, (canvas.current?.clientWidth ?? 9999) - 332)), top: Math.max(10, sel!.y - 90) }} role="dialog" aria-label={`Stage ${s.code}`}>
-            <div className="block-h">
-              <span className="eyebrow">Stage {s.code}</span>
-              <span className={`tag st-${s.state}`}>{STATE_LABEL[s.state]}</span>
-              <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSel(null)}>
-                ×
-              </button>
+          {view !== "ledger" && (
+            <div className="legend" aria-label="Legend">
+              <span>
+                <i className="lg done" /> Completed
+              </span>
+              <span>
+                <i className="lg run" /> Running
+              </span>
+              <span>
+                <i className="lg gate" /> Awaiting approval
+              </span>
+              <span>
+                <i className="lg held" /> Held
+              </span>
+              <span>
+                <i className="lg dev" /> Done · deviation
+              </span>
+              <span>
+                <i className="lg queued" /> Queued
+              </span>
             </div>
-            <h3 className="block-title">{s.name}</h3>
-            {book.of("stage", `${run.id}:${s.code}`) && (
-              <div className="small">
-                <Ref kind="stage" id={`${run.id}:${s.code}`} />
+          )}
+          <span className="faint small map-hint">{view === "ledger" ? "Select a row for its full details" : "Select a stage, or move with the arrow keys"}</span>
+        </div>
+        <div className={`canvas v-${view}`} ref={canvas} onClick={(e) => e.target === e.currentTarget && setSel(null)}>
+          {view === "flow" && <FlowView run={run} selected={sel?.code ?? null} onSelect={pick} />}
+          {view === "graph" && <GraphView run={run} selected={sel?.code ?? null} onSelect={pick} />}
+          {view === "ledger" && <LedgerView run={run} onOpen={openStage} />}
+          {s && sel && view !== "ledger" && (
+            <div className="block" style={{ left: blockLeft, top: blockTop }} role="dialog" aria-label={`Stage ${s.code}`}>
+              <div className="block-h">
+                <span className="mono block-code">{s.code}</span>
+                <span className={`tag st-${s.state}`}>{STATE_LABEL[s.state]}</span>
+                <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSel(null)}>
+                  <X size={16} aria-hidden />
+                </button>
               </div>
-            )}
-            <div className="faint small">
-              {AGENT_LABEL[s.agent]} · {s.assetId ? <Ref kind="machine" id={s.assetId} fallback={s.assetName ?? "no asset"} link={false} /> : (s.assetName ?? "no asset")}
-            </div>
-            <p className="block-body">{s.outcome ?? s.waitingReason ?? (s.state === "queued" ? "Waiting on upstream stages." : "In progress.")}</p>
-            {(s.state === "awaiting_approval" || s.state === "held") && s.criteriaResults.some((c) => c.ok !== true) && (
-              <ul className="gate-why">
-                {s.criteriaResults
-                  .filter((c) => c.ok !== true)
-                  .map((c) => (
-                    <li key={c.label} className={c.ok === false ? "bad-text" : ""}>
-                      {c.ok === false ? `Out of target: ${c.label} ${c.actual} (target ${c.target})` : `Not measured: ${c.label} (target ${c.target}), confirm before release`}
+              <h3 className="block-title">{s.name}</h3>
+              {book.of("stage", `${run.id}:${s.code}`) && (
+                <div className="small">
+                  <Ref kind="stage" id={`${run.id}:${s.code}`} />
+                </div>
+              )}
+              <div className="faint small">
+                {AGENT_LABEL[s.agent]} · {s.assetId ? <Ref kind="machine" id={s.assetId} fallback={s.assetName ?? "no asset"} link={false} /> : (s.assetName ?? "no asset")}
+              </div>
+              <p className="block-body">{s.outcome ?? s.waitingReason ?? (s.state === "queued" ? "Waiting on upstream stages." : "In progress.")}</p>
+              {atGate(s) && s.criteriaResults.some((c) => c.ok !== true) && (
+                <ul className="gate-why">
+                  {s.criteriaResults
+                    .filter((c) => c.ok !== true)
+                    .map((c) => (
+                      <li key={c.label} className={c.ok === false ? "bad-text" : ""}>
+                        {c.ok === false ? `Out of target: ${c.label} ${c.actual} (target ${c.target})` : `Not measured: ${c.label} (target ${c.target}), confirm before release`}
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {s.criteriaResults.length > 0 && (
+                <ul className="band-list" aria-label="Parameters against their bands">
+                  {s.criteriaResults.map((c) => (
+                    <li key={c.label}>
+                      <span className="bl-name" title={c.label}>
+                        {c.label}
+                      </span>
+                      <SpecBand compact lo={c.band?.lo ?? null} hi={c.band?.hi ?? null} value={c.measured?.value ?? null} valueMax={c.measuredMax?.value ?? null} ok={c.ok} unit={c.unit} label={c.label} />
+                      <span className={`bl-val ${c.ok === false ? "bad-text" : c.ok === null ? "faint" : ""}`}>{c.actual ?? "not measured"}</span>
                     </li>
                   ))}
-              </ul>
-            )}
-            {s.criteriaResults.length > 0 && (
-              <ul className="band-list" aria-label="Parameters against their bands">
-                {s.criteriaResults.map((c) => (
-                  <li key={c.label}>
-                    <span className="bl-name" title={c.label}>
-                      {c.label}
-                    </span>
-                    <SpecBand compact lo={c.band?.lo ?? null} hi={c.band?.hi ?? null} value={c.measured?.value ?? null} valueMax={c.measuredMax?.value ?? null} ok={c.ok} unit={c.unit} label={c.label} />
-                    <span className={`bl-val ${c.ok === false ? "bad-text" : c.ok === null ? "faint" : ""}`}>{c.actual ?? "not measured"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="metrics3">
-              <div>
-                <span className="label">Duration</span>
-                <b>{dur(s.durationMin)}</b>
-              </div>
-              <div>
-                <span className="label">Yield</span>
-                <b>{s.yieldPct === null ? "—" : `${s.yieldPct.toFixed(1)}%`}</b>
-              </div>
-              <div>
-                <span className="label">Output</span>
-                <b>{s.throughputPerHour === null ? `${s.unitsGood}/${run.quantity}` : `${num(s.throughputPerHour)} u/h`}</b>
-              </div>
-            </div>
-            {latest && (
-              <div className="block-dec">
-                <span className="label">Latest decision</span>
-                <b>{latest.summary}</b>
-                <div className="faint small">
-                  <Actor actor={latest.agent} /> · {time(latest.ts)}
+                </ul>
+              )}
+              <div className="metrics3">
+                <div>
+                  <span className="label">Duration</span>
+                  <b>{dur(s.durationMin)}</b>
+                </div>
+                <div>
+                  <span className="label">Yield</span>
+                  <b>{s.yieldPct === null ? "—" : `${s.yieldPct.toFixed(1)}%`}</b>
+                </div>
+                <div>
+                  <span className="label">Output</span>
+                  <b>{s.throughputPerHour === null ? `${s.unitsGood}/${run.quantity}` : `${num(s.throughputPerHour)} u/h`}</b>
                 </div>
               </div>
-            )}
-            <div className="btns">
-              {(s.state === "awaiting_approval" || s.state === "held") && (
-                <>
-                  <Action className="btn accent" disabled={!actions.canRelease(s)} title={actions.canRelease(s) ? "" : `Needs ${s.escalationRole.replaceAll("_", " ")}`} onClick={() => actions.approve(s)}>
-                    {s.state === "held" ? "Release" : "Approve"}
-                  </Action>
-                  {s.state === "awaiting_approval" && (
-                    <Action className="btn" disabled={!actions.canRelease(s)} onClick={() => actions.holdGate(s)}>
-                      Hold
+              {latest && (
+                <div className="block-dec">
+                  <span className="label">Latest decision</span>
+                  <b>{latest.summary}</b>
+                  <div className="faint small">
+                    <Actor actor={latest.agent} /> · {time(latest.ts)}
+                  </div>
+                </div>
+              )}
+              {atGate(s) && !actions.canRelease(s) && <p className="small muted gate-who">Waiting on {roleWords(s.escalationRole)}s to release this gate.</p>}
+              <div className="btns">
+                {atGate(s) && actions.canRelease(s) && (
+                  <>
+                    <Action className="btn accent" disabled={!actions.gateItem(s)} onClick={() => actions.approve(s)}>
+                      {s.state === "held" ? "Release" : "Approve"}
                     </Action>
-                  )}
+                    {s.state === "awaiting_approval" && (
+                      <Action className="btn" disabled={!actions.gateItem(s)} onClick={() => actions.holdGate(s)}>
+                        Hold
+                      </Action>
+                    )}
+                  </>
+                )}
+                {atGate(s) && sees(3) && (
                   <Action className="btn link" onClick={() => actions.validate(s)}>
                     Validate
                   </Action>
-                </>
-              )}
-              {s.state === "running" && can("manager") && (
-                <>
-                  <button type="button" className="btn" onClick={() => setHold(s)}>
-                    Hold
-                  </button>
-                  <button type="button" className="btn link" title="For a machine that cannot report: record units and readings by hand, signed" onClick={() => setRecord(s)}>
-                    Record manually
-                  </button>
-                </>
-              )}
+                )}
+                {s.state === "running" && isManager && (
+                  <>
+                    <button type="button" className="btn" onClick={() => setHold(s)}>
+                      Hold
+                    </button>
+                    <button type="button" className="btn link" title="For a machine that cannot report: record units and readings by hand, signed" onClick={() => setRecord(s)}>
+                      Record manually
+                    </button>
+                  </>
+                )}
+              </div>
+              <button type="button" className="link right" onClick={() => openStage(s.code)}>
+                Full details →
+              </button>
             </div>
-            <button type="button" className="link right" onClick={() => (setDrawer(s.code), setSel(null))}>
-              Full details →
-            </button>
-          </div>
-        )}
-      </div>
-
-      <section className="section">
-        <div className="section-h">
-          <h2>Decision stream</h2>
-          <span className="muted small">What the agents and people decided on this run, and why</span>
-        </div>
-        <div className="stream">
-          {decisions.slice(0, 40).map((d) => (
-            <div key={d.id} className="row">
-              <span className="faint">{time(d.ts)}</span>
-              <span className="agent">
-                <Actor actor={d.agent} />
-              </span>
-              <span>
-                <b>{d.summary}</b>
-                {d.reason && <span className="muted"> — {d.reason}</span>}
-              </span>
-              <span className="faint r">{d.confidence !== null ? `conf. ${d.confidence.toFixed(2)}` : d.stageCode ?? ""}</span>
-            </div>
-          ))}
+          )}
         </div>
       </section>
+
+      <div className="run-lower">
+        <DecisionStream decisions={decisions} onStage={openStage} />
+        <Attention run={run} inbox={inbox} onOpen={openStage} />
+      </div>
 
       <StageDrawer run={run} stage={stage(drawer)} decisions={decisions} inbox={inbox} onClose={() => setDrawer(null)} actions={actions} onRecord={setRecord} onHold={setHold} />
       <RecordModal run={run} stage={record} onClose={() => setRecord(null)} onDone={async () => (await load(), await refresh())} />
       <HoldModal stage={hold} onClose={() => setHold(null)} onHold={(reason) => actions.holdRunning(hold!, reason)} />
       <AutonomyModal open={autonomy} onClose={() => setAutonomy(false)} lineId={line.id} current={line.autonomy} />
+      {sees(3) && <PassportModal open={passport} onClose={() => setPassport(false)} runId={run.id} orderRef={run.orderRef} />}
     </div>
+  );
+}
+
+/** The line's autonomy: its level, a four-step meter and what it lets agents do. */
+function AutonomyTile({ level, editable = false }: { level: AutonomyLevel; editable?: boolean }) {
+  return (
+    <>
+      <div className="kpi-row">
+        <span className="label">Autonomy</span>
+        <span className="small">
+          <b>{level}</b> · {LEVEL_LABEL[level]}
+        </span>
+      </div>
+      <div className="bars" aria-hidden>
+        {[1, 2, 3, 4].map((i) => (
+          <span key={i} className={i <= Number(level.slice(1)) ? "on" : ""} />
+        ))}
+      </div>
+      <div className="s">
+        {LEVEL_TEXT[level]}
+        {editable ? <span className="kpi-edit"> · change</span> : null}
+      </div>
+    </>
   );
 }
 
@@ -481,26 +565,23 @@ function StartRun({ open, templateId, onClose, onStarted, path }: { open: boolea
 }
 
 /** The lot's passport: its QR code and public page, the NFT, and shipping to the customer with a signature. */
-function PassportButton({ runId, orderRef }: { runId: string; orderRef: string }) {
+function PassportModal({ runId, orderRef, open, onClose }: { runId: string; orderRef: string; open: boolean; onClose: () => void }) {
   const { path, can } = useApp();
   const sign = useSign();
   const toast = useToast();
-  const [open, setOpen] = useState(false);
   const [p, setP] = useState<PassportView | null>(null);
   const [to, setTo] = useState("");
   const load = () => api.get<PassportView>(path(`/runs/${runId}/passport`)).then(setP);
   useEffect(() => {
-    if (open) void load();
+    if (open) void load().catch((e: unknown) => toast(e instanceof Error ? e.message : String(e), "bad"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, runId]);
   const url = p ? (p.pageUrl.startsWith("http") ? p.pageUrl : `${window.location.origin}${p.pageUrl}`) : "";
   // a Hedera account, an EVM address, or a name the server resolves to one (acme-buyer.customers.acme.ordo.eth)
   const validTo = /^(0\.0\.\d+|0x[0-9a-fA-F]{40})$/.test(to.trim()) || /^([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(to.trim());
   return (
     <>
-      <button type="button" className="btn" onClick={() => setOpen(true)}>
-        Lot passport
-      </button>
-      <Modal open={open} onClose={() => setOpen(false)} eyebrow="Lot passport" title={`Lot ${orderRef}`}>
+      <Modal open={open} onClose={onClose} eyebrow="Lot passport" title={`Lot ${orderRef}`}>
         {!p ? (
           <Loading />
         ) : (

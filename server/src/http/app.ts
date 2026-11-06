@@ -121,6 +121,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
       machinesRequired: sys.cfg.STAGE_MACHINES === "required",
       /** the ENS root every name sits under (ordo.eth), when names are on */
       ensRoot: sys.names.live ? sys.names.root : null,
+      /** the Hedera network, for HashScan links to payments, schedules and HCS records */
+      hederaNetwork: sys.cfg.HEDERA_NETWORK,
     }),
   );
 
@@ -563,6 +565,12 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   site.get("/names/resolve", async (c) => {
     lvl(c, 1);
     return c.json(await sys.nameResolver.resolve(sid(c), (c.req.query("q") ?? "").trim()));
+  });
+  // a manager registers the org's names now: anything not planned yet, and failed names again
+  site.post("/names/sync", async (c) => {
+    need(c, "manager");
+    if (!sys.names.live) throw new HttpError(409, "ENS names are off on this server (ENS_PARENT_NAME, ENS_NAMES_ADDRESS)");
+    return c.json(await sys.names.resync(sid(c)));
   });
   site.post("/names/:kind/:ref/retry", async (c) => {
     need(c, "manager");

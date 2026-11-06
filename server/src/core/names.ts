@@ -998,6 +998,13 @@ export class Names {
     return { issued: n("issued"), pending: n("pending") + n("sent") };
   }
 
+  /** Register an org's names now: plan anything missing on the next cycle, and send failed names again from the start. */
+  async resync(siteId: string): Promise<{ retried: number }> {
+    const r = await this.db.query<{ id: string }>("UPDATE ens_names SET status = 'pending', attempts = 0, next_try_at = $1, error = NULL, updated_at = now() WHERE site_id = $2 AND status = 'failed' RETURNING id", [this.iso(), siteId]);
+    this.touch(siteId);
+    return { retried: r.rows.length };
+  }
+
   async retry(siteId: string, kind: string, ref: string) {
     await this.db.query("UPDATE ens_names SET status = 'pending', attempts = 0, next_try_at = $1, updated_at = now() WHERE site_id = $2 AND kind = $3 AND ref = $4 AND status = 'failed'", [this.iso(), siteId, kind, ref]);
   }

@@ -43,7 +43,19 @@ export function actorLabel(actor: string, names: Map<string, string> = new Map()
   if (kind === "user") return names.get(rest.toLowerCase()) ?? names.get(rest) ?? `${rest.slice(0, 6)}…${rest.slice(-4)}`;
   if (kind === "guard") return "Policy guard";
   if (kind === "system") return "System";
-  return actor;
+  if (kind === "device") return `Device ${/^0x[0-9a-f]{40}$/i.test(rest) ? shortAddr(rest) : rest}`;
+  if (kind === "machine") return rest;
+  // anything else: its kind and a short form of a long id, never a raw 40-hex string that cannot wrap
+  return /^0x[0-9a-f]{40}$/i.test(rest) ? `${kind} ${shortAddr(rest)}` : rest ? `${kind} ${rest}` : actor;
+}
+/** What kind of actor wrote a record, for filtering a decision stream. */
+export type ActorGroup = "agent" | "person" | "machine" | "system";
+export function actorGroup(actor: string): ActorGroup {
+  const kind = actor.split(":")[0];
+  if (kind === "agent") return "agent";
+  if (kind === "user") return "person";
+  if (kind === "device" || kind === "machine") return "machine";
+  return "system";
 }
 export const time = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—");
 export const dateTime = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");

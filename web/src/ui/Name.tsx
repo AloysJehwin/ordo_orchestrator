@@ -11,12 +11,35 @@ import { useToast } from "./kit";
  * An ENS name, in full: the first label strong, the rest plain, the root muted, breakable at each dot so long names
  * wrap. Click to copy; the arrow opens it in the ENS app. A dot marks a name not on-chain yet, or one that failed.
  */
-export function Name({ name, status, link = true, title }: { name: string; status?: NameStatus | null; link?: boolean; title?: string }) {
+export function Name({ name, status, link = true, title, plain = false }: { name: string; status?: NameStatus | null; link?: boolean; title?: string; plain?: boolean }) {
   // on public pages there is no org context: the root is then the last two labels (ordo.eth)
   const root0 = useAppMaybe()?.book.root ?? name.split(".").slice(-2).join(".");
   const toast = useToast();
   const { head, mid, root } = splitName(name, root0);
   const parts = mid.split(/(?=\.)/);
+  const text = (
+    <>
+      <b>{head}</b>
+      {parts.map((p, i) => (
+        <span key={i}>
+          <wbr />
+          {p}
+        </span>
+      ))}
+      {root && (
+        <span className="ens-root">
+          <wbr />
+          {root}
+        </span>
+      )}
+    </>
+  );
+  // inside something that is itself clickable (a graph card): text only, no copy button and no link
+  if (plain) return (
+    <span className="ens" title={title ?? name}>
+      <span className="ens-copy ens-plain">{text}</span>
+    </span>
+  );
   return (
     <span className={`ens${status === "failed" ? " ens-failed" : status && status !== "issued" ? " ens-pending" : ""}`} title={title ?? name}>
       <button
@@ -28,19 +51,7 @@ export function Name({ name, status, link = true, title }: { name: string; statu
         }}
         aria-label={`Copy ${name}`}
       >
-        <b>{head}</b>
-        {parts.map((p, i) => (
-          <span key={i}>
-            <wbr />
-            {p}
-          </span>
-        ))}
-        {root && (
-          <span className="ens-root">
-            <wbr />
-            {root}
-          </span>
-        )}
+        {text}
       </button>
       {status && status !== "issued" && <span className={`ens-dot ${status === "failed" ? "bad" : "warn"}`} aria-label={status === "failed" ? "failed to register" : "registering on-chain"} />}
       {link && (
@@ -66,18 +77,25 @@ export function Who({ address, hedera, fallback, link }: { address?: string | nu
 }
 
 /** An entity by its name (a run, stage, work order, budget, machine…), or `fallback` when it has none yet. */
-export function Ref({ kind, id, fallback, link }: { kind: NameKind; id: string | null | undefined; fallback?: ReactNode; link?: boolean }) {
+export function Ref({ kind, id, fallback, link, plain }: { kind: NameKind; id: string | null | undefined; fallback?: ReactNode; link?: boolean; plain?: boolean }) {
   const { book } = useApp();
   const e = book.of(kind, id);
-  if (e) return <Name name={e.name} status={e.status} link={link} />;
+  if (e) return <Name name={e.name} status={e.status} link={link} plain={plain} />;
   return <>{fallback ?? (id ? <span className="mono">{id}</span> : "—")}</>;
 }
 
 /** Who did something in the record ("user:0x…", "agent:maintenance", "system:treasury", "machine:CNC-07"), by name. */
 export function Actor({ actor, link = false }: { actor: string; link?: boolean }) {
-  const { book, names } = useApp();
+  const { book, names, live } = useApp();
   const n = book.actor(actor);
-  return n ? <Name name={n} link={link} /> : <>{actorLabel(actor, names)}</>;
+  if (n) return <Name name={n} link={link} />;
+  // a gateway's key with no name yet: the machine it reports for
+  const [kind, rest = ""] = actor.split(/:(.*)/s);
+  if (kind === "device") {
+    const a = live?.assets.find((x) => x.source.type === "gateway" && x.source.device === rest.toLowerCase());
+    if (a) return <>Gateway · {a.name}</>;
+  }
+  return <>{actorLabel(actor, names)}</>;
 }
 
 /**

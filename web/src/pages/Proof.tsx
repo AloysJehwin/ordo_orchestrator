@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRoute } from "../lib/router";
 import { api } from "../api";
 import { useApp } from "../lib/app";
 import { dateTime } from "../lib/format";
@@ -11,8 +12,18 @@ export function Proof() {
   const { path, live, can } = useApp();
   const [ledger, setLedger] = useState<{ entries: LedgerEntryDto[]; anchors: AnchorDto[]; anchorKind: string } | null>(null);
   const [report, setReport] = useState<VerifyReport | null>(null);
-  const [subject, setSubject] = useState<string | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+  // a decision stream links here with ?subject=R-1003/02&seq=482: that subject's entries, with the entry open
+  const route = useRoute();
+  const [subject, setSubject] = useState<string | null>(route.query.get("subject"));
+  const [open, setOpen] = useState<number | null>(route.query.get("seq") ? Number(route.query.get("seq")) : null);
+  useEffect(() => {
+    if (route.query.get("subject")) setSubject(route.query.get("subject"));
+    if (route.query.get("seq")) setOpen(Number(route.query.get("seq")));
+  }, [route.query]);
+  useEffect(() => {
+    if (open !== null && ledger) document.getElementById(`ledger-${open}`)?.scrollIntoView({ block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledger === null, open]);
   useEffect(() => {
     void api.get<typeof ledger>(path(`/ledger?limit=150${subject ? `&subject=${encodeURIComponent(subject)}` : ""}`)).then(setLedger);
   }, [path, live?.headSeq, subject]);
@@ -31,7 +42,11 @@ export function Proof() {
             width={240}
             value={subject}
             onChange={setSubject}
-            options={[{ value: "", label: "Whole ledger" }, ...(live?.runs ?? []).map((r) => ({ value: r.id, label: `${r.id} · ${r.templateName}` }))]}
+            options={[
+              { value: "", label: "Whole ledger" },
+              ...(subject && !(live?.runs ?? []).some((r) => r.id === subject) ? [{ value: subject, label: subject }] : []),
+              ...(live?.runs ?? []).map((r) => ({ value: r.id, label: `${r.id} · ${r.templateName}` })),
+            ]}
             placeholder="Whole ledger"
           />
           <Action className="btn accent" onClick={verify}>
@@ -117,7 +132,7 @@ export function Proof() {
             <tbody>
               {ledger.entries.map((e) => (
                 <>
-                  <tr key={e.seq} className="click" onClick={() => setOpen(open === e.seq ? null : e.seq)}>
+                  <tr key={e.seq} id={`ledger-${e.seq}`} className={`click${open === e.seq ? " on" : ""}`} onClick={() => setOpen(open === e.seq ? null : e.seq)}>
                     <td className="mono">{e.seq}</td>
                     <td>{dateTime(e.ts)}</td>
                     <td className="agent">

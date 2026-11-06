@@ -5,34 +5,129 @@ import { ago, LEVEL_LABEL, shortAddr } from "../lib/format";
 import { href } from "../lib/router";
 import type { AutonomyLevel, AutonomyProposalView, ChainStatus, EnsNamesResponse } from "../types";
 import { Name } from "../ui/Name";
+import { HandlePicker } from "../ui/HandlePicker";
 import { Action, Field, Segmented, useToast } from "../ui/kit";
 import { AutonomyModal } from "./Pipelines";
 import { ChainBanner } from "./Stakes";
 
-/** The org's ENS names in short: how many are on-chain, waiting or failed, and a link to the full tree. */
+/**
+ * The org's ENS names in short, and the signed-in person's own: who they are on-chain in this org, a handle picker when
+ * they have not registered one, and (for a manager) a way to register the org's names now.
+ */
 function EnsNames() {
-  const { path, site } = useApp();
+  const { path, site, siteId, me, setMe, can, book } = useApp();
+  const toast = useToast();
   const [names, setNames] = useState<EnsNamesResponse | null>(null);
+  const [handle, setHandle] = useState("");
+  const [handleOk, setHandleOk] = useState(false);
+  const load = () => api.get<EnsNamesResponse>(path("/names")).then(setNames).catch(() => setNames(null));
   useEffect(() => {
-    void api.get<EnsNamesResponse>(path("/names")).then(setNames).catch(() => setNames(null));
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, site]);
-  if (!names?.live) return null;
+  if (!names) return null;
+  if (!names.live)
+    return can("manager") ? (
+      <section className="card section">
+        <div className="card-h">
+          <h2>ENS names</h2>
+        </div>
+        <p className="card-b small muted">ENS names are off on this server. Set ENS_PARENT_NAME, ENS_NAMES_ADDRESS and ENS_OWNER_KEY (see docs/ens.md) and restart it, and every person, role, machine and run in this org gets an ENSv2 name.</p>
+      </section>
+    ) : null;
   const by = (k: string) => names.items.filter((n) => n.kind === k && n.status !== "revoked").length;
+  const org = names.items.find((n) => n.kind === "org") ?? null;
+  const user = me.user;
+  const mine = (user?.names ?? []).filter((n) => n.siteId === siteId);
+  const person = mine.find((n) => n.kind === "person") ?? null;
+  const roles = mine.filter((n) => n.kind === "role");
+  // a person with no handle, or the member-… one the server gave them, has not registered a name of their own
+  const unregistered = !user?.handle || user.handle.startsWith("member-");
   return (
-    <section className="card section">
+    <section className="card section ens-card">
       <div className="card-h">
         <h2>ENS names</h2>
         <span className="faint small">ENSv2 · Sepolia · under {names.root}</span>
       </div>
-      <div className="card-b">
-        <p>{names.org ? <Name name={names.org} /> : null}</p>
-        <p className="small muted">
-          {names.issued} on-chain · {names.pending} waiting · {names.failed} failed — {by("person")} people, {by("role")} role names, {by("machine")} machines, {by("run")} runs.
-          {names.gas.paused ? ` Sending is paused: ${names.gas.reason ?? "gas limits"}.` : ""}
-        </p>
-        <a className="btn sm" href={href("team?tab=names")}>
-          Open every name (Team → Names)
-        </a>
+      <div className="card-b ens-grid">
+        <div>
+          <span className="label">This org</span>
+          {org ? (
+            <p>
+              <Name name={org.name} status={org.status} />
+            </p>
+          ) : (
+            <p className="small muted">Not registered yet.</p>
+          )}
+          <p className="small muted">
+            {names.issued} on-chain · {names.pending} waiting · {names.failed} failed: {by("person")} people, {by("role")} role names, {by("machine")} machines, {by("run")} runs.
+            {names.gas.paused ? ` Sending is paused: ${names.gas.reason ?? "gas limits"}.` : ""}
+          </p>
+          <div className="btns">
+            {can("manager") && (!org || org.status !== "issued" || names.failed > 0 || names.pending > 0) && (
+              <Action
+                className="btn sm accent"
+                onClick={async () => {
+                  const r = await api.post<{ retried: number }>(path("/names/sync"));
+                  toast(r.retried ? `${r.retried} failed name${r.retried === 1 ? "" : "s"} sent again; new names go out in the next batch` : "Registering: new names go out in the next batch", "ok");
+                  await load();
+                }}
+              >
+                {org ? "Register names now" : `Register ${book.org ?? "this org"}`}
+              </Action>
+            )}
+            <a className="btn sm" href={href("team?tab=names")}>
+              Open every name
+            </a>
+          </div>
+        </div>
+        <div>
+          <span className="label">You</span>
+          {person && !unregistered ? (
+            <>
+              <p>
+                <Name name={person.name} status={person.status} />
+              </p>
+              {roles.length > 0 && (
+                <p className="small muted">
+                  Roles you hold:{" "}
+                  {roles.map((r, i) => (
+                    <span key={r.name}>
+                      {i > 0 && ", "}
+                      <Name name={r.name} status={r.status} link={false} />
+                    </span>
+                  ))}
+                </p>
+              )}
+              <p className="small faint">Change your handle from the account menu.</p>
+            </>
+          ) : (
+            <>
+              <p className="small muted">
+                {person ? (
+                  <>
+                    You are on-chain as <Name name={person.name} status={person.status} link={false} />, a name Ordo gave your wallet. Choose a handle to register your own.
+                  </>
+                ) : (
+                  "You have no ENS name in this org yet. Choose a handle to register one."
+                )}
+              </p>
+              <HandlePicker value={handle} onChange={setHandle} onValid={setHandleOk} org={book.org} suggestion={user?.handleSuggestion ?? null} label="Your handle" />
+              <Action
+                className="btn sm accent"
+                disabled={!handle.trim() || !handleOk}
+                onClick={async () => {
+                  setMe(await api.patch("/v1/me", { handle: handle.trim() }));
+                  toast(`Registering ${handle.trim()}.${book.org ?? names.root}`, "ok");
+                  setHandle("");
+                  await load();
+                }}
+              >
+                Register {handle.trim() ? `${handle.trim()}.${book.org ?? names.root}` : "my name"}
+              </Action>
+            </>
+          )}
+        </div>
       </div>
     </section>
   );

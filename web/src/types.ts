@@ -77,6 +77,8 @@ export interface Meta {
   packageTypes: string[];
   /** the ENS root every name sits under (ordo.eth), when names are on */
   ensRoot?: string | null;
+  /** the Hedera network (testnet, mainnet), for HashScan links */
+  hederaNetwork?: string;
 }
 export interface Status {
   rails: { rail: string; mode: string; live: boolean }[];
