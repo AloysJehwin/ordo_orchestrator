@@ -3,7 +3,7 @@ import { api } from "../../api";
 import { useDecide } from "../../lib/actions";
 import { useApp } from "../../lib/app";
 import { AGENT_LABEL, computeProof, dur, num, STATE_LABEL, time } from "../../lib/format";
-import { Actor, Ref } from "../../ui/Name";
+import { Actor, NamedText, Ref } from "../../ui/Name";
 import { go } from "../../lib/router";
 import { signTyped } from "../../lib/wallet";
 import { kindOf, signalsOf, targetText } from "../../lib/criteria";
@@ -350,7 +350,9 @@ export function StageDrawer(props: {
           <div key={d.id} className="dlog">
             <span className="faint">{time(d.ts)}</span>
             <div>
-              <b>{d.summary}</b>
+              <b>
+                <NamedText text={d.summary} />
+              </b>
               {d.reason && <div className="muted small">{d.reason}</div>}
               <div className="faint small">
                 <Actor actor={d.agent} />

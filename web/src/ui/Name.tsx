@@ -76,6 +76,17 @@ export function Who({ address, hedera, fallback, link }: { address?: string | nu
   return <>—</>;
 }
 
+/** Text written with wallet addresses in it (a decision's summary): each address shows as the person's name. */
+export function NamedText({ text }: { text: string }) {
+  const parts = text.split(/(0x[0-9a-fA-F]{40})(?![0-9a-fA-F])/);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((p, i) => (i % 2 ? <Who key={i} address={p} link={false} /> : p))}
+    </>
+  );
+}
+
 /** An entity by its name (a run, stage, work order, budget, machine…), or `fallback` when it has none yet. */
 export function Ref({ kind, id, fallback, link, plain }: { kind: NameKind; id: string | null | undefined; fallback?: ReactNode; link?: boolean; plain?: boolean }) {
   const { book } = useApp();

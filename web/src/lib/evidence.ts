@@ -56,7 +56,8 @@ export function signedOf(d: DecisionView): SignedMark | null {
   if (d.kind === "stage.reading_signed")
     return { label: "Signed", signer: str(x.signer), detail: `${x.signerKind === "device" ? "The gateway's key" : "The operator's wallet"} signed a commitment to the counts (EIP-712)${str(x.commitment) ? `: ${str(x.commitment)!.slice(0, 18)}…` : ""}` };
   if (d.kind === "resource.bought" && str(x.receiptSigner)) return { label: "Receipt signed", signer: null, detail: `Ordo signed the delivery receipt (EIP-712) with ${str(x.receiptSigner)}` };
-  if (str(x.signatureId)) return { label: "Signed", signer: str(x.contributor), detail: `Signed with the person's wallet (EIP-712)${str(x.recordSha256) ? ` over the record ${str(x.recordSha256)!.slice(0, 16)}…` : ""}` };
+  // the actor signed it: a contributor their record, a validator their selection (whose data names the contributor too)
+  if (str(x.signatureId)) return { label: "Signed", signer: str(x.signer), detail: `Signed with the person's wallet (EIP-712)${str(x.recordSha256) ? ` over the record ${str(x.recordSha256)!.slice(0, 16)}…` : ""}` };
   if (/\.signed$|_signed$/.test(d.kind)) return { label: "Signed", signer: null, detail: "Signed by the actor (EIP-712)" };
   return null;
 }

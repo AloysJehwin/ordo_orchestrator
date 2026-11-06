@@ -6,7 +6,7 @@ import { actorGroup, time, type ActorGroup } from "../../lib/format";
 import { href } from "../../lib/router";
 import type { DecisionView } from "../../types";
 import { Segmented } from "../../ui/kit";
-import { Actor, Who } from "../../ui/Name";
+import { Actor, NamedText, Who } from "../../ui/Name";
 
 type Filter = "all" | ActorGroup;
 const PAGE = 30;
@@ -52,7 +52,9 @@ export function DecisionStream({ decisions, onStage }: { decisions: DecisionView
                 <Actor actor={d.agent} />
               </span>
               <span className="s-what">
-                <b>{d.summary}</b>
+                <b>
+                  <NamedText text={d.summary} />
+                </b>
                 {d.reason && <span className="muted"> {d.reason}</span>}
                 <Evidence d={d} network={meta.hederaNetwork} ledger={sees(4)} />
               </span>

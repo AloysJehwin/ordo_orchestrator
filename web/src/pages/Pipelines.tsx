@@ -10,7 +10,7 @@ import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Menu, Modal, Segmented, useToast } from "../ui/kit";
 import { MoreHorizontal, SkipForward, X } from "lucide-react";
 import { Select } from "../ui/Select";
-import { Actor, NameInput, Ref, Who } from "../ui/Name";
+import { Actor, NamedText, NameInput, Ref, Who } from "../ui/Name";
 import { SpecBand } from "../ui/SpecBand";
 import { machineless, outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline/StageParts";
@@ -349,7 +349,9 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
               {latest && (
                 <div className="block-dec">
                   <span className="label">Latest decision</span>
-                  <b>{latest.summary}</b>
+                  <b>
+                    <NamedText text={latest.summary} />
+                  </b>
                   <div className="faint small">
                     <Actor actor={latest.agent} /> · {time(latest.ts)}
                   </div>
