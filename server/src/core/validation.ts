@@ -116,9 +116,9 @@ export class Validation {
     const params = runId && this.specProofs ? await this.specProofs.bundle(runId, proofs.root) : { root: proofs.root, keys: [] };
     return { runId, lot: runId ? await this.lotLabel(siteId, runId) : "", contentHash: `0x${hashOf(content).replace("sha256:", "")}` as Hex, proofRoot: params.root, stages: proofs.stages.map((s) => s.stage), params: params.keys };
   }
-  /** The lot's ENS label, which the release signatures name, so OrdoLotResolver records it under the same name. */
+  /** The lot the release statements name: the run's full ENS name (so-7781.runs.acme.ordo.eth), which OrdoRunResolver records the release on. */
   private async lotLabel(siteId: string, runId: string): Promise<string> {
-    const named = await this.lots?.labelFor(siteId, runId);
+    const named = await this.lots?.lotNameFor(siteId, runId);
     if (named) return named;
     const r = await this.db.query<{ order_ref: string }>("SELECT order_ref FROM runs WHERE id = $1", [runId]);
     return `lot-${toLabel(r.rows[0]?.order_ref ?? runId)}`;

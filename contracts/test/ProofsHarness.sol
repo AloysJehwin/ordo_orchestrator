@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {OrdoProofs} from "../src/OrdoProofs.sol";
-import {ISpecVerifier, IStageVerifier} from "../src/OrdoLotResolver.sol";
+import {ISpecVerifier, IStageVerifier} from "../src/OrdoRunResolver.sol";
 
-/// Exposes OrdoProofs to the tests, and checks one stage or parameter proof the way OrdoLotResolver does (which needs ENSv2 to run).
+/// Exposes OrdoProofs to the tests, and checks one stage or parameter proof the way OrdoRunResolver does (which needs ENSv2 to run).
 contract ProofsHarness {
     IStageVerifier public immutable verifier;
     ISpecVerifier public immutable specVerifier;

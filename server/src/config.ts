@@ -127,17 +127,28 @@ const Env = z.object({
 
   /** Primary-name lookups for signed-in wallets (Ethereum mainnet) when IDENTITY=ens */
   ENS_RPC_URL: z.string().optional(),
-  /** ENSv2 names on Sepolia: the parent name and its registry and resolver come from the ENS setup workflow */
+  /** ENSv2 names on Sepolia under Ordo's root (ordo.eth): the root's registry and resolver come from setup:ens */
   ENS_PARENT_NAME: z.string().optional(),
   ENS_REGISTRY_ADDRESS: z.string().optional(),
   ENS_RESOLVER_ADDRESS: z.string().optional(),
   ENS_OWNER_KEY: z.string().optional(),
-  ENS_SEPOLIA_RPC_URL: z.string().default("https://ethereum-sepolia-rpc.publicnode.com"),
+  /** one or more Sepolia RPCs, comma-separated, tried in order */
+  ENS_SEPOLIA_RPC_URL: z.string().default("https://1rpc.io/sepolia,https://sepolia.drpc.org"),
   /** Tests point these at a local chain */
   ENS_CHAIN_ID: z.coerce.number().int().optional(),
   ENS_FACTORY_ADDRESS: z.string().optional(),
   ENS_USER_REGISTRY_IMPL: z.string().optional(),
-  /** OrdoEnsRoles and OrdoLotResolver on Sepolia: roles read from member names, and lot-… names for passports */
+  /** OrdoNames (issues every name in batches, roles from the names people hold) and OrdoRunResolver (releases on run names), from setup:ens-contracts */
+  ENS_NAMES_ADDRESS: z.string().optional(),
+  ENS_RUN_RESOLVER_ADDRESS: z.string().optional(),
+  /** sending pauses while Sepolia's base fee is above this (gwei) or once this much ETH went on names today */
+  ENS_MAX_FEE_GWEI: z.coerce.number().positive().default(2),
+  ENS_DAILY_ETH: z.coerce.number().positive().default(0.02),
+  /** estimated gas a batch of names may use (Sepolia caps a transaction at 16.7M) */
+  ENS_BATCH_GAS: z.coerce.number().int().min(500_000).max(15_000_000).default(9_000_000),
+  /** how long names are registered for, renewed as they near expiry */
+  ENS_NAME_YEARS: z.coerce.number().int().min(1).max(5).default(1),
+  /** retired: OrdoEnsRoles and OrdoLotResolver under ordo-mfg.eth (their names stay on-chain) */
   ENS_ROLES_ADDRESS: z.string().optional(),
   ENS_LOT_RESOLVER_ADDRESS: z.string().optional(),
 

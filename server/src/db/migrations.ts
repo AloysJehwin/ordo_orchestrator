@@ -2,7 +2,7 @@
  * Versioned, forward-only migrations. Each runs once, in order, inside a transaction.
  * v1 = the original demo schema (kept so existing databases upgrade cleanly).
  * v2 = real accounts, sites, assets, telemetry, templates, runs, inbox, validation, signatures.
- * v3 = validation workflow · v4 = onboarding and on-chain trust · v5 = agent work orders and autonomy proposals · v6 = lot passports · v7 = jobs on other networks (ENS, 0G) · v11–15 = Hedera schedules, ENS lot names and credentials, one World ID per validator, zero-knowledge spec proofs, agent licences · v34 = handles.
+ * v3 = validation workflow · v4 = onboarding and on-chain trust · v5 = agent work orders and autonomy proposals · v6 = lot passports · v7 = jobs on other networks (ENS, 0G) · v11–15 = Hedera schedules, ENS lot names and credentials, one World ID per validator, zero-knowledge spec proofs, agent licences · v34 = handles · v35 = ENS names under ordo.eth.
  */
 export const MIGRATIONS: { version: number; name: string; sql: string }[] = [
   {
@@ -550,6 +550,49 @@ CREATE UNIQUE INDEX budget_schedules_run ON budget_schedules (run_id) WHERE kind
     sql: `
 ALTER TABLE users ADD COLUMN handle TEXT;
 CREATE UNIQUE INDEX users_handle ON users (handle) WHERE handle IS NOT NULL;
+`,
+  },
+  {
+    version: 35,
+    name: "ENS names under ordo.eth: one row per name in a tree (org, collections, people, roles, machines, runs, stages), issued in batches through OrdoNames; releases on run names",
+    sql: `
+-- the names under ordo-mfg.eth stay on-chain, untouched; their rows are kept for the record
+ALTER TABLE ens_names RENAME TO ens_names_v1;
+ALTER INDEX ens_names_ref RENAME TO ens_names_v1_ref;
+ALTER INDEX ens_names_name RENAME TO ens_names_v1_name;
+ALTER INDEX ens_names_due RENAME TO ens_names_v1_due;
+ALTER TABLE ens_lots RENAME TO ens_lots_v1;
+ALTER INDEX ens_lots_ref RENAME TO ens_lots_v1_ref;
+ALTER INDEX ens_lots_lot_name RENAME TO ens_lots_v1_lot_name;
+ALTER INDEX ens_lots_due RENAME TO ens_lots_v1_due;
+ALTER INDEX ens_lots_run RENAME TO ens_lots_v1_run;
+
+CREATE TABLE ens_names (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), kind TEXT NOT NULL, ref TEXT NOT NULL,
+  parent_id TEXT, depth INTEGER NOT NULL, prio INTEGER NOT NULL, ord DOUBLE PRECISION NOT NULL DEFAULT 0,
+  label TEXT NOT NULL, name TEXT NOT NULL, salt TEXT, registry TEXT, slot INTEGER NOT NULL DEFAULT 0, member INTEGER NOT NULL DEFAULT 0,
+  address TEXT, hedera TEXT, want_json TEXT NOT NULL, have_json TEXT, sent_json TEXT,
+  status TEXT NOT NULL, batch_id TEXT, tx_hash TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+  next_try_at TIMESTAMPTZ NOT NULL DEFAULT now(), quiet_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX ens_names_name ON ens_names (name);
+CREATE INDEX ens_names_site ON ens_names (site_id, kind, ref);
+CREATE INDEX ens_names_due ON ens_names (status, prio, depth, next_try_at);
+CREATE INDEX ens_names_address ON ens_names (address);
+CREATE INDEX ens_names_parent ON ens_names (parent_id);
+
+-- one row per OrdoNames.execute transaction
+CREATE TABLE ens_batches (id TEXT PRIMARY KEY, tx_hash TEXT, rows_json TEXT NOT NULL, ops INTEGER NOT NULL, gas_limit TEXT NOT NULL,
+  status TEXT NOT NULL, gas_used TEXT, fee_wei TEXT, error TEXT, sent_at TIMESTAMPTZ, mined_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX ens_batches_status ON ens_batches (status, sent_at);
+
+-- a released package recorded on its run's name through OrdoRunResolver
+CREATE TABLE ens_releases (id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES sites(id), run_id TEXT NOT NULL, package_id TEXT NOT NULL,
+  name TEXT, status TEXT NOT NULL, payload_json TEXT NOT NULL, pending_tx TEXT, sent_at TIMESTAMPTZ, tx_hash TEXT, error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0, next_try_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX ens_releases_due ON ens_releases (status, next_try_at);
+CREATE INDEX ens_releases_run ON ens_releases (run_id);
 `,
   },
 ];

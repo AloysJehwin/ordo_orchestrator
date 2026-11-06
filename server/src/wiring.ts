@@ -9,6 +9,7 @@ import { LocalSignedAnchor, type AnchorAdapter } from "./adapters/rails.js";
 import { Agents } from "./agents/agents.js";
 import { Auth, Signatures } from "./auth/auth.js";
 import { Handles } from "./core/handles.js";
+import { NameResolver } from "./core/name-resolver.js";
 import { Assessments } from "./core/assessments.js";
 import { Machines } from "./core/machines.js";
 import { Resources } from "./core/resources.js";
@@ -78,6 +79,8 @@ export interface System {
   auth: Auth;
   /** people's handles: the label of their ENS name in each org */
   handles: Handles;
+  /** names typed where addresses go, and addresses shown as names */
+  nameResolver: NameResolver;
   sigs: Signatures;
   plant: PlantService;
   templates: Templates;
@@ -390,7 +393,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   if (!stageProofs.enabled) warnings.push("The stage-check circuit (server/zk) is missing: signed stage readings are kept but not proven");
   if (!passports.specs.enabled) warnings.push("The spec-check circuit (server/zk) is missing: public passports show criteria without zero-knowledge proofs");
 
-  // ---- ENSv2 names on Sepolia for the site, its people, assets and agents ----
+  // ---- ENSv2 names on Sepolia under Ordo's root (ordo.eth): every org, person, role, machine, run and stage ----
   let nameRail: import("./chain/ensv2.js").EnsV2 | null = null;
   const ensParts = [cfg.ENS_PARENT_NAME, cfg.ENS_REGISTRY_ADDRESS, cfg.ENS_RESOLVER_ADDRESS, cfg.ENS_OWNER_KEY];
   if (ensParts.every(Boolean)) {
@@ -405,17 +408,25 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
         factory: cfg.ENS_FACTORY_ADDRESS as Hex | undefined,
         userRegistryImpl: cfg.ENS_USER_REGISTRY_IMPL as Hex | undefined,
         chainId: cfg.ENS_CHAIN_ID,
-        credentials: cfg.ENS_ROLES_ADDRESS as Hex | undefined,
-        lotResolver: cfg.ENS_LOT_RESOLVER_ADDRESS as Hex | undefined,
+        names: cfg.ENS_NAMES_ADDRESS as Hex | undefined,
+        runResolver: cfg.ENS_RUN_RESOLVER_ADDRESS as Hex | undefined,
       },
       opts.ensTransport,
     );
+    if (!cfg.ENS_NAMES_ADDRESS) warnings.push("ENS names need ENS_NAMES_ADDRESS (OrdoNames, from setup:ens-contracts): no names are issued");
   } else if (ensParts.some(Boolean)) {
     warnings.push("ENS names need ENS_PARENT_NAME, ENS_REGISTRY_ADDRESS, ENS_RESOLVER_ADDRESS and ENS_OWNER_KEY together");
   }
-  const names = new Names(db, rec, nameRail, publicBase(cfg), () => payer?.address ?? null, now);
-  if (Boolean(cfg.ENS_ROLES_ADDRESS) !== Boolean(cfg.ENS_LOT_RESOLVER_ADDRESS)) warnings.push("ENS credentials and lot names need ENS_ROLES_ADDRESS and ENS_LOT_RESOLVER_ADDRESS together");
-  const lotNames = new LotNames(db, rec, nameRail?.credentialsLive ? nameRail : null, engine, passports, now);
+  if (cfg.ENS_ROLES_ADDRESS || cfg.ENS_LOT_RESOLVER_ADDRESS) warnings.push("ENS_ROLES_ADDRESS and ENS_LOT_RESOLVER_ADDRESS are retired (OrdoNames and OrdoRunResolver replace them): remove them");
+  const names = new Names(db, rec, nameRail?.namesLive ? nameRail : null, handles, publicBase(cfg), () => payer?.address ?? null, {
+    maxFeeGwei: cfg.ENS_MAX_FEE_GWEI,
+    dailyEth: cfg.ENS_DAILY_ETH,
+    batchGas: cfg.ENS_BATCH_GAS,
+    years: cfg.ENS_NAME_YEARS,
+    hederaNetwork: cfg.HEDERA_NETWORK,
+  }, now);
+  const lotNames = new LotNames(db, rec, nameRail?.releasesLive ? nameRail : null, names, now);
+  const nameResolver = new NameResolver(names, nameRail, (cfg.HEDERA_MIRROR_URL ?? `https://${cfg.HEDERA_NETWORK}.mirrornode.hedera.com`).replace(/\/$/, ""), cfg.HEDERA_NETWORK);
   validation.lots = lotNames;
   passports.lots = lotNames;
 
@@ -594,7 +605,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     await payOnProof.reconcile().catch((e) => console.error("[ordo] pay on proof", e));
     await machines!.topUps().catch((e) => console.error("[ordo] machine top-ups", e));
     await names.reconcile().catch((e) => console.error("[ordo] ens", e));
-    await lotNames.reconcile().catch((e) => console.error("[ordo] ens lots", e));
+    await lotNames.reconcile().catch((e) => console.error("[ordo] ens releases", e));
     await agentLicenses.reconcile().catch((e) => console.error("[ordo] licences", e));
     await inBackground("agent memory", () => agentMemory.reconcile());
     await agentNfts.reconcile().catch((e) => console.error("[ordo] inft", e));
@@ -609,8 +620,8 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const rails: RailStatus[] = [
     { rail: "database", mode: db.kind === "postgres" ? "postgres" : cfg.DATA_DIR === "memory" ? "pglite (memory)" : "pglite (disk)", live: db.kind === "postgres" },
     { rail: "identity", mode: `SIWE wallet sign-in${ensNames ? " + ENS primary names" : ""}`, live: true },
-    { rail: "ens names", mode: nameRail ? `ENSv2 on Sepolia under ${cfg.ENS_PARENT_NAME}` : "off: no names issued", live: Boolean(nameRail) },
-    { rail: "ens credentials", mode: lotNames.live ? `roles from member names (OrdoEnsRoles ${cfg.ENS_ROLES_ADDRESS}) · lot names via OrdoLotResolver ${cfg.ENS_LOT_RESOLVER_ADDRESS}` : "off: ENS names are records only", live: lotNames.live },
+    { rail: "ens names", mode: names.live ? `ENSv2 on Sepolia under ${cfg.ENS_PARENT_NAME} · OrdoNames ${cfg.ENS_NAMES_ADDRESS}` : "off: no names issued", live: names.live },
+    { rail: "ens credentials", mode: lotNames.live ? `roles from the names people hold (OrdoNames) · releases on run names via OrdoRunResolver ${cfg.ENS_RUN_RESOLVER_ADDRESS}` : "off: releases are not recorded on run names", live: lotNames.live },
     { rail: "signatures", mode: "EIP-712 typed data", live: true },
     { rail: "trust contract", mode: trustChain ? `OrdoTrust ${cfg.TRUST_CONTRACT_ADDRESS} · ${cfg.TRUST_CHAIN_NAME} (${cfg.TRUST_CHAIN_ID})` : "off: validators approved in-app, no stakes", live: Boolean(trustChain) },
     { rail: "ai", mode: llm.name === "gemini" ? `gemini:${cfg.GEMINI_MODEL}` : llm.name === "claude" ? `claude:${cfg.CLAUDE_MODEL}` : llm.name, live: llm.name !== "offline" },
@@ -675,6 +686,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     rec,
     auth,
     handles,
+    nameResolver,
     sigs,
     plant,
     series,

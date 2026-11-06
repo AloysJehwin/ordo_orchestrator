@@ -140,7 +140,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const canCreateSite = !sys.cfg.BOOTSTRAP_ADMIN_ADDRESS || sys.cfg.BOOTSTRAP_ADMIN_ADDRESS.toLowerCase() === p.user.address;
     // someone who has not chosen a handle (or was given member-…) is offered one from their display name
     const handleSuggestion = !p.user.handle || p.user.handle.startsWith("member-") ? await sys.handles.suggestion(p.user.id) : null;
-    return { user: { ...p.user, ens, handleSuggestion }, memberships: p.memberships, canCreateSite };
+    return { user: { ...p.user, ens, handleSuggestion, names: await sys.names.ofUser(p.user.id) }, memberships: p.memberships, canCreateSite };
   };
   /** an optional handle in a body: chosen before the action it comes with (joining, creating an org) */
   const takeHandle = async (c: Context, userId: string) => {
@@ -157,6 +157,17 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     if (b.displayName !== undefined) await sys.auth.setDisplayName(me(c).user.id, b.displayName);
     if (b.handle !== undefined) await sys.handles.set(me(c).user.id, b.handle);
     return c.json(await meView((await sys.auth.principal(getCookie(c, SESSION_COOKIE)))!));
+  });
+  // what an Ordo name names (for /#/name/<ens> links), signed out too
+  app.get("/v1/names/lookup", async (c) => {
+    const n = (c.req.query("name") ?? "").trim().toLowerCase();
+    if (!/^([a-z0-9-]{1,63}\.)+eth$/.test(n)) throw new HttpError(400, "Expected an ENS name");
+    const hit = await sys.names.lookup(n);
+    if (!hit) throw new HttpError(404, `${n} is not an Ordo name`);
+    const p = c.get("principal");
+    const member = p?.memberships.some((m) => m.siteId === hit.siteId) ?? false;
+    // outsiders learn the name exists and its kind; members also learn what it points at
+    return c.json(member ? hit : { name: hit.name, kind: hit.kind, status: hit.status });
   });
   // is a handle free? (signed out works too, for the join screen)
   app.get("/v1/handles/:handle", async (c) => c.json(await sys.handles.check(c.req.param("handle").slice(0, 64), c.get("principal")?.user.id)));
@@ -219,16 +230,6 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     c.header("cache-control", "public, max-age=30");
     return c.json(await sys.passports.publicView(id));
   });
-
-  // ---------------- ENS lot names: the CCIP-Read gateway (EIP-3668) OrdoLotResolver sends clients to ----------------
-  const ensGateway = async (c: Context, sender: string, data: string) => {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(sender) || !/^0x([0-9a-fA-F]{2})*$/.test(data)) throw new HttpError(400, "Expected a resolver address and calldata");
-    c.header("access-control-allow-origin", "*");
-    c.header("cache-control", "public, max-age=60");
-    return c.json({ data: await sys.lotNames.answer(sender, data as `0x${string}`) });
-  };
-  app.get("/v1/public/ens/:sender/:data", (c) => ensGateway(c, c.req.param("sender"), c.req.param("data").replace(/\.json$/, "")));
-  app.post("/v1/public/ens/:sender", async (c) => ensGateway(c, c.req.param("sender"), String(((await c.req.json().catch(() => ({}))) as { data?: unknown }).data ?? "")));
 
   app.get("/v1/public/zk/spec-check", (c) => {
     const vkey = sys.passports.specs?.verificationKey();
@@ -517,13 +518,16 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   site.get("/team", async (c) => {
     lvl(c, 1);
     const t = await sys.plant.team(sid(c));
-    const issued = await sys.names.ofPeople(sid(c));
+    const issued = await sys.names.byAddress(sid(c));
     const ens = sys.ensNames ? await sys.ensNames.lookup(t.members.map((m) => m.address)) : {};
     const manager = c.get("roles").includes("manager");
+    // each person's role names (priya.validators.acme.ordo.eth), from the org's directory
+    const dir = (await sys.names.directory(sid(c))).entries;
+    const roleNames = (userId: string) => dir.filter((e) => e.kind === "role" && e.ref.endsWith(`:${userId}`) && e.status !== "revoked").map((e) => ({ role: e.ref.split(":")[0], name: e.name, status: e.status }));
     return c.json({
       ...t,
       invites: manager ? t.invites : [],
-      members: t.members.map((m) => ({ ...m, ens: issued.get(m.address.toLowerCase()) ?? ens[m.address] ?? null })),
+      members: t.members.map((m) => ({ ...m, ens: issued.get(m.address.toLowerCase()) ?? ens[m.address] ?? null, roleNames: roleNames(m.userId) })),
       access: manager ? await sys.access.config(sid(c)) : null,
       relays: manager ? await sys.trust.roleRelays(sid(c)) : {},
     });
@@ -532,13 +536,24 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   // ---- ENS names (ENSv2 on Sepolia) ----
   site.get("/names", async (c) => {
     lvl(c, 3, "names");
-    return c.json({ live: sys.names.live, parent: sys.names.parent, items: await sys.names.list(sid(c)) });
+    const items = await sys.names.list(sid(c));
+    return c.json({ live: sys.names.live, parent: sys.names.root, root: sys.names.root, org: items.find((x) => x.kind === "org")?.name ?? null, ...(await sys.names.state(sid(c))), items });
+  });
+  // every entity's name, for showing names wherever an id, address or account appears
+  site.get("/directory", async (c) => {
+    lvl(c, 1);
+    return c.json({ live: sys.names.live, ...(await sys.names.directory(sid(c))) });
+  });
+  // a name typed into a form (or an address or account) → what it is at this org
+  site.get("/names/resolve", async (c) => {
+    lvl(c, 1);
+    return c.json(await sys.nameResolver.resolve(sid(c), (c.req.query("q") ?? "").trim()));
   });
   site.post("/names/:kind/:ref/retry", async (c) => {
     need(c, "manager");
     await sys.names.retry(sid(c), c.req.param("kind"), c.req.param("ref"));
-    // lot names and their release records live in their own queue
-    await sys.lotNames.retry(sid(c), c.req.param("kind"), c.req.param("ref"));
+    // releases on run names live in their own queue
+    if (c.req.param("kind") === "run" || c.req.param("kind") === "release") await sys.lotNames.retry(sid(c), c.req.param("ref"));
     return c.json({ ok: true });
   });
   // a manager adds someone by wallet: they join as a contributor, and a manager promotes them from there

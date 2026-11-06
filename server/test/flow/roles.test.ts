@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ensRoles } from "../../src/core/names.js";
+import { handleProblem, hederaCoin, ROLE_BITS, ROLE_COLLECTION, runLabel, stageLabel, suggestHandle, topupLabel, withSuffix } from "../../src/core/name-scheme.js";
 import { atLevel, boot, demote, enlist, join, promote, uid, wallet, type Client, type System } from "./helpers.js";
 
 /**
@@ -519,13 +519,26 @@ describe("visibility: level and scope", () => {
   });
 });
 
-describe("ENS role records", () => {
-  it("are written with the role names OrdoEnsRoles already knows", () => {
-    expect(ensRoles(["manager"])).toBe("admin,operator,plant_manager,supervisor,validator");
-    expect(ensRoles(["contributor"])).toBe("operator");
-    expect(ensRoles(["validator"])).toBe("validator");
-    expect(ensRoles(["tester"])).toBe("");
-    expect(ensRoles(["contributor", "validator"])).toBe("operator,validator");
-    expect(ensRoles(["contributor", "manager", "validator"])).toBe("admin,operator,plant_manager,supervisor,validator");
+describe("ENS name scheme", () => {
+  it("maps each role to the collection whose name holds it, and the bits OrdoNames gives", () => {
+    expect(ROLE_COLLECTION).toEqual({ manager: "managers", validator: "validators", tester: "testers", contributor: "contributors" });
+    expect(ROLE_BITS).toEqual({ manager: 31, validator: 4, tester: 128, contributor: 1 });
+  });
+  it("checks handles strictly and suggests one from a display name", () => {
+    expect(handleProblem("priya")).toBeNull();
+    expect(handleProblem("pr")).not.toBeNull();
+    expect(handleProblem("a--b")).not.toBeNull();
+    expect(handleProblem("validators")).toBe("That word is reserved");
+    expect(handleProblem("member-abc123")).not.toBeNull();
+    expect(suggestHandle("Priya Rámán")).toBe("priya-raman");
+    expect(suggestHandle("Ed")).toBeNull();
+  });
+  it("labels runs, stages and top-ups", () => {
+    expect(runLabel("SO-7781", "r-1")).toBe("so-7781");
+    expect(runLabel("", "r-1003")).toBe("r-1003");
+    expect(stageLabel("01", "Wax pattern injection")).toBe("01-wax-pattern-injection");
+    expect(topupLabel("01", "Ceramic cores")).toBe("topup-01-ceramic-cores");
+    expect(withSuffix("acme", 2)).toBe("acme-2");
+    expect(hederaCoin("testnet")).toBe(2147483944);
   });
 });
