@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { canAct, useApp } from "../lib/app";
-import { actorLabel, dateTime, shortAddr, time } from "../lib/format";
+import { dateTime, shortAddr, time } from "../lib/format";
 import { go, href, useRoute } from "../lib/router";
 import { useSign } from "../lib/sign";
 import type { PackageDetail, PackageSummary, RunView, TypedSignature } from "../types";
@@ -9,6 +9,7 @@ import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
 import { SpecBand } from "../ui/SpecBand";
+import { Actor, Ref, Who } from "../ui/Name";
 
 type Filter = "all" | "mine" | "review" | "closed";
 const STEPS = ["Draft", "Agent pre-check", "Submitted", "Review", "Approval", "Released"];
@@ -90,7 +91,7 @@ export function Validation() {
 }
 
 function PackageView({ id }: { id: string }) {
-  const { path, live, me, roles, names } = useApp();
+  const { path, live, me, roles, names, book } = useApp();
   const sign = useSign();
   const toast = useToast();
   const [p, setP] = useState<PackageDetail | null>(null);
@@ -123,12 +124,12 @@ function PackageView({ id }: { id: string }) {
     }
   };
   const stepWho = (i: number) => {
-    if (i === 0) return p.owner.name ?? shortAddr(p.owner.address);
+    if (i === 0) return names.get(p.owner.address.toLowerCase()) ?? p.owner.name ?? shortAddr(p.owner.address);
     if (i === 1) return p.assessment ? `Run ${time(p.assessment.ranAt)}` : "Not run";
     if (i === 2) return p.chain[0]?.signedAt ? time(p.chain[0].signedAt) : "—";
     const c = p.chain[i - 2];
     if (i === 5) return p.status === "released" ? "Released" : "—";
-    return c?.signer ? names.get(c.signer.address) ?? shortAddr(c.signer.address) : c?.roleLabel ?? "—";
+    return c?.signer ? (names.get(c.signer.address.toLowerCase()) ?? shortAddr(c.signer.address)) : (c?.roleLabel ?? "—");
   };
   return (
     <div className="detail">
@@ -141,10 +142,19 @@ function PackageView({ id }: { id: string }) {
           <div className="muted small">
             {p.runId ? (
               <>
-                <a href={href(`pipelines/${p.runId}`)}>{p.runId}</a> · stage {p.stageCode} ·{" "}
+                <Ref
+                  kind="stage"
+                  id={`${p.runId}:${p.stageCode}`}
+                  fallback={
+                    <>
+                      <a href={href(`pipelines/${p.runId}`)}>{p.runId}</a> · stage {p.stageCode}
+                    </>
+                  }
+                />{" "}
+                ·{" "}
               </>
             ) : null}
-            owner {p.owner.name ?? shortAddr(p.owner.address)}
+            owner <Who address={p.owner.address} fallback={p.owner.name ?? undefined} />
           </div>
         </div>
         {p.runId && (
@@ -228,7 +238,7 @@ function PackageView({ id }: { id: string }) {
             {editable ? <DateTimePicker value={p.windowEnd} onChange={(v) => save({ windowEnd: v })} clearable /> : <span>{dateTime(p.windowEnd)}</span>}
           </Field>
           <Field label="On approval">
-            <span className="small">{p.type === "stage_validation" ? (p.runId ? `Gate ${p.runId} · ${p.stageCode} released` : "Stage validated") : "Recorded as released in the ledger"}</span>
+            <span className="small">{p.type === "stage_validation" ? (p.runId ? `Gate ${book.name("stage", `${p.runId}:${p.stageCode}`) ?? `${p.runId} · ${p.stageCode}`} released` : "Stage validated") : "Recorded as released in the ledger"}</span>
           </Field>
         </div>
       </section>
@@ -254,7 +264,10 @@ function PackageView({ id }: { id: string }) {
         </div>
         {p.assessment && (
           <div className="assessment">
-            <span className="label">Agent assessment · {actorLabel(p.assessment.agent)}</span>
+            <span className="label">Agent assessment</span>
+            <div className="small">
+              <Actor actor={p.assessment.agent} />
+            </div>
             <p>{p.assessment.summary}</p>
             <div className="metric-row">
               {p.assessment.figures.map((f) => (
@@ -339,7 +352,7 @@ function PackageView({ id }: { id: string }) {
                 <div className="faint small">
                   {e.sha256 ? (
                     <>
-                      <a href={api.url(path(`/validation/${id}/evidence/${e.id}/file`))}>{e.filename}</a> · {((e.size ?? 0) / 1024).toFixed(1)} KB · v{e.version} · {actorLabel(e.origin === "agent" ? (e.uploadedBy ?? "") : `user:${e.uploadedBy}`, names)} · {time(e.uploadedAt)} · <span className="mono">{e.sha256.slice(0, 19)}…</span>
+                      <a href={api.url(path(`/validation/${id}/evidence/${e.id}/file`))}>{e.filename}</a> · {((e.size ?? 0) / 1024).toFixed(1)} KB · v{e.version} · <Actor actor={e.origin === "agent" ? (e.uploadedBy ?? "") : `user:${e.uploadedBy}`} /> · {time(e.uploadedAt)} · <span className="mono">{e.sha256.slice(0, 19)}…</span>
                       {e.zeroG && (
                         <div>
                           {e.zeroG.status === "done" && e.zeroG.root ? (
@@ -408,7 +421,7 @@ function PackageView({ id }: { id: string }) {
                 <div className="faint small">
                   {c.signer ? (
                     <>
-                      {names.get(c.signer.address) ?? shortAddr(c.signer.address)} · {dateTime(c.signedAt)} · <span className="mono">{c.signature?.slice(0, 18)}…</span>
+                      <Who address={c.signer.address} /> · {dateTime(c.signedAt)} · <span className="mono">{c.signature?.slice(0, 18)}…</span>
                     </>
                   ) : c.state === "returned" ? (
                     "Returned"
@@ -454,7 +467,9 @@ function PackageView({ id }: { id: string }) {
           {p.audit.map((a) => (
             <div key={a.seq} className="row">
               <span className="faint">{time(a.ts)}</span>
-              <span className="agent">{actorLabel(a.actor, names)}</span>
+              <span className="agent">
+                <Actor actor={a.actor} />
+              </span>
               <span>{a.type.replaceAll("_", " ").replaceAll(".", " · ")}</span>
               <span className="faint mono small r">#{a.seq}</span>
             </div>
@@ -570,7 +585,7 @@ function AttachModal({ initialName, fixedName, onClose, onUpload }: { initialNam
 }
 
 function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { path, live } = useApp();
+  const { path, live, book } = useApp();
   const [type, setType] = useState("stage_validation");
   const [title, setTitle] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
@@ -613,7 +628,7 @@ function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
         <Field label={type === "stage_validation" ? "Run" : "Linked run (optional)"}>
-          <Select value={runId} onChange={(v) => (setRunId(v), setStage(null))} options={runs.map((r) => ({ value: r.id, label: `${r.id} · ${r.templateName}`, hint: r.orderRef }))} placeholder="Choose run" />
+          <Select value={runId} onChange={(v) => (setRunId(v), setStage(null))} options={runs.map((r) => ({ value: r.id, label: `${book.name("run", r.id) ?? r.id} · ${r.templateName}`, hint: r.orderRef }))} placeholder="Choose run" />
         </Field>
         <Field label="Stage" hint="Checks are seeded from the stage's success criteria.">
           <Select

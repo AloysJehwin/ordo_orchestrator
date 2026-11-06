@@ -5,6 +5,7 @@ import { outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { go } from "../lib/router";
 import type { TemplateView } from "../types";
 import { Loading, Segmented } from "../ui/kit";
+import { Ref } from "../ui/Name";
 
 /** "01 → 02a + 02b → 03" */
 export function chain(t: TemplateView) {
@@ -54,6 +55,9 @@ export function Templates() {
                 </span>
               </div>
               <h3>{t.name}</h3>
+              <div className="small">
+                <Ref kind="pipeline" id={t.id} fallback={null} />
+              </div>
               {outcomeCount(t) > 0 && (
                 <p className="small">
                   <span className="tag ok">

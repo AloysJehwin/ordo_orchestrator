@@ -6,6 +6,7 @@ import { go } from "../lib/router";
 import type { RunView } from "../types";
 import { dayKey, DateRangePicker, parseDay, type Range } from "../ui/Calendar";
 import { Empty, Loading, Segmented } from "../ui/kit";
+import { Ref } from "../ui/Name";
 
 type Outcome = "all" | "running" | "completed" | "aborted";
 
@@ -66,7 +67,9 @@ export function History() {
               {shown.map((r) => (
                 <tr key={r.id} className="click" onClick={() => go(`pipelines/${r.id}`)}>
                   <td>
-                    <b className="mono">{r.id}</b>
+                    <b>
+                      <Ref kind="run" id={r.id} link={false} fallback={<span className="mono">{r.id}</span>} />
+                    </b>
                     <div className="faint small">
                       {r.orderRef} · {r.quantity} u
                     </div>

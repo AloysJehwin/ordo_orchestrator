@@ -7,6 +7,7 @@ import { useSign } from "../lib/sign";
 import { fromUnits, fundTx } from "../lib/wallet";
 import type { AssessmentView, TypedSignature, WorkOrderStatus, WorkOrdersResponse, WorkOrderView } from "../types";
 import { Action, Empty, Field, Loading, Modal, useToast } from "../ui/kit";
+import { Ref } from "../ui/Name";
 
 const STATUS: Record<WorkOrderStatus, [string, string]> = {
   unassigned: ["No vendor", "warn"],
@@ -47,7 +48,7 @@ function Assessment({ a }: { a: AssessmentView | null }) {
 }
 
 export function WorkOrders() {
-  const { path, me, siteId, status, can } = useApp();
+  const { path, me, siteId, status, can, names } = useApp();
   const [data, setData] = useState<WorkOrdersResponse | null>(null);
   const [capsOpen, setCapsOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
@@ -98,7 +99,7 @@ export function WorkOrders() {
             {setup.agent ? (
               <>
                 {" "}
-                <span className="mono">{link(explorer ? `${explorer}/account/${setup.agent.address}` : null, shortAddr(setup.agent.address))}</span>
+                <span className="mono">{link(explorer ? `${explorer}/account/${setup.agent.address}` : null, names.get(setup.agent.address.toLowerCase()) ?? shortAddr(setup.agent.address))}</span>
                 {setup.agent.via === "hedera-agent-kit" ? " through Hedera Agent Kit" : ""}
               </>
             ) : (
@@ -175,7 +176,7 @@ export function WorkOrders() {
                       <td>
                         <b>{w.title}</b>
                         <div className="faint small">
-                          <span className="mono">{w.id}</span> · {w.priority} · opened {ago(w.createdAt)}
+                          <Ref kind="workorder" id={w.id} link={false} /> · {w.priority} · opened {ago(w.createdAt)}
                           {w.runId && (
                             <>
                               {" "}

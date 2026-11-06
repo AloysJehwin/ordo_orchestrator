@@ -6,6 +6,7 @@ import { useSign } from "../lib/sign";
 import { fromUnits, trustTx } from "../lib/wallet";
 import type { ChainStatus, Role, StakersView, TypedSignature, VendorRow } from "../types";
 import { Action, Empty, Field, Loading, Modal, useToast } from "../ui/kit";
+import { NameInput, Who } from "../ui/Name";
 import { VendorOffers } from "./VendorOffers";
 
 /** Signs and sends the org's registration in OrdoTrust. Returns true when it went through. */
@@ -102,15 +103,20 @@ export function MissingCredentials({ registered }: { registered: boolean }) {
       <div className="card-b">
         <p className="muted small">
           These roles are given in Ordo but OrdoTrust does not hold them yet, so the contract refuses what they sign or stake.{" "}
-          {canSign ? "Sign each one with your wallet." : `Only a manager OrdoTrust knows can sign them: ${c.admins.map((a) => names.get(a) ?? shortAddr(a)).join(", ") || "nobody yet"}.`}
+          {canSign ? "Sign each one with your wallet." : `Only a manager OrdoTrust knows can sign them: ${c.admins.map((a) => names.get(a.toLowerCase()) ?? shortAddr(a)).join(", ") || "nobody yet"}.`}
         </p>
         <table className="t">
           <tbody>
             {c.missing.map((m) => (
               <tr key={`${m.address}:${m.role}`}>
                 <td>
-                  <b>{m.name ?? names.get(m.address) ?? shortAddr(m.address)}</b>
-                  <div className="faint small mono">{m.address}</div>
+                  <b>
+                    <Who address={m.address} fallback={m.name ?? undefined} />
+                  </b>
+                  <div className="faint small mono">
+                    {m.name ? `${m.name} · ` : ""}
+                    {m.address}
+                  </div>
                 </td>
                 <td>{m.label}</td>
                 <td className="r">
@@ -119,7 +125,7 @@ export function MissingCredentials({ registered }: { registered: boolean }) {
                     disabled={!canSign}
                     onClick={async () => {
                       const r = await sign<{ status: string; error: string | null }>({
-                        title: `Record ${m.name ?? shortAddr(m.address)} as ${m.label} in OrdoTrust`,
+                        title: `Record ${names.get(m.address.toLowerCase()) ?? m.name ?? shortAddr(m.address)} as ${m.label} in OrdoTrust`,
                         request: () => api.post<TypedSignature>(path("/chain/credentials/sign-request"), { address: m.address, role: m.role }),
                         submit: (proof) => api.post(path("/chain/credentials/grant"), { address: m.address, role: m.role, ...proof }),
                       });
@@ -202,8 +208,13 @@ export function Stakes() {
                   return (
                     <tr key={x.userId}>
                       <td>
-                        <b>{x.name ?? names.get(x.address) ?? shortAddr(x.address)}</b>
-                        <div className="faint small mono">{x.address}</div>
+                        <b>
+                          <Who address={x.address} fallback={x.name ?? undefined} />
+                        </b>
+                        <div className="faint small mono">
+                          {x.name ? `${x.name} · ` : ""}
+                          {x.address}
+                        </div>
                       </td>
                       <td>{x.roles.filter((r) => STAKING.includes(r)).map(label).join(", ")}</td>
                       {info && <td className="r num">{x.onchain ? unit(x.onchain.stake) : "—"}</td>}
@@ -287,7 +298,9 @@ export function Vendors() {
     void load();
   }, [load]);
   if (!rows) return <Loading />;
-  const valid = /^0x[0-9a-fA-F]{40}$/.test(form.address.trim()) && form.company.trim().length >= 2;
+  // a wallet address, or a name that resolves to one (the server resolves it)
+  const addrOk = /^0x[0-9a-fA-F]{40}$/.test(form.address.trim()) || /^([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(form.address.trim());
+  const valid = addrOk && form.company.trim().length >= 2;
   const body = () => ({
     address: form.address.trim(),
     company: form.company.trim(),
@@ -328,7 +341,9 @@ export function Vendors() {
                   <td>{v.categories || "—"}</td>
                   <td className="num">{v.hourlyRate ?? "—"}</td>
                   <td>{v.responseMinutes ? `${v.responseMinutes} min` : "—"}</td>
-                  <td className="mono small">{v.address}</td>
+                  <td className="small">
+                    <Who address={v.address} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -367,8 +382,8 @@ export function Vendors() {
           </div>
         }
       >
-        <Field label="Vendor wallet" error={form.address && !/^0x[0-9a-fA-F]{40}$/.test(form.address.trim()) ? "Enter a 0x address with 40 hex characters" : null}>
-          <input className="input mono" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="0x…" autoFocus />
+        <Field label="Vendor wallet" hint="A 0x address, or an ENS name that resolves to one" error={form.address && !addrOk ? "Enter a 0x address with 40 hex characters, or an ENS name" : null}>
+          <NameInput accept="evm" value={form.address} onChange={(v) => setForm({ ...form, address: v })} placeholder="0x… or acme-steel.eth" />
         </Field>
         <Field label="Company">
           <input className="input" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />

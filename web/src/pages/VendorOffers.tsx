@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useApp } from "../lib/app";
 import type { OfferView, SupplierView } from "../types";
 import { Action, Field, Loading, Modal, useToast } from "../ui/kit";
+import { Ref, Who } from "../ui/Name";
 
 interface Form {
   kind: string;
@@ -76,7 +77,18 @@ export function VendorOffers() {
           <div className="row-between">
             <div>
               <b>{v.company}</b> {v.demo && <span className="tag">Demo supplier</span>}
-              <div className="faint small">{v.payTo ? <>Paid to {v.payTo}</> : "No Hedera account: its offers cannot be bought"}</div>
+              <div className="small">
+                <Ref kind="vendor" id={v.id} fallback={null} />
+              </div>
+              <div className="faint small">
+                {v.payTo ? (
+                  <>
+                    Paid to <Who hedera={/^0\.0\.\d+$/.test(v.payTo) ? v.payTo : null} address={/^0x/i.test(v.payTo) ? v.payTo : null} link={false} />
+                  </>
+                ) : (
+                  "No Hedera account: its offers cannot be bought"
+                )}
+              </div>
             </div>
             {manager && (
               <button type="button" className="btn sm" onClick={() => open(v, null)}>

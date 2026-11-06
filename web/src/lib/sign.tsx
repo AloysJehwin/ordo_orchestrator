@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Spinner, useToast } from "../ui/kit";
 import type { ReleaseTyped, TrustChainInfo, TypedSignature } from "../types";
+import { Name } from "../ui/Name";
+import { useAppMaybe } from "./app";
 import { discoverWallets, ensureChain, hasActiveWallet, rememberedWallet, setActiveWallet, short, signTyped, walletChainId, type WalletInfo } from "./wallet";
 
 export interface SignJob<T> {
@@ -122,7 +124,9 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
             <p className="sig-meaning">{typed.message.meaning}</p>
             <dl className="kv">
               <dt>Signer</dt>
-              <dd className="mono">{short(props.address)}</dd>
+              <dd>
+                <Signer address={props.address} />
+              </dd>
               <dt>Action</dt>
               <dd className="mono">{typed.message.action}</dd>
               <dt>Entity</dt>
@@ -161,6 +165,18 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
   );
 }
 
+/** Who signs: their ENS name at this org when they have one, with the address; the typed data itself is unchanged. */
+function Signer({ address }: { address: string }) {
+  const name = useAppMaybe()?.book.byAddress(address)?.name ?? null;
+  return name ? (
+    <>
+      <Name name={name} link={false} /> <span className="mono faint">{short(address)}</span>
+    </>
+  ) : (
+    <span className="mono">{short(address)}</span>
+  );
+}
+
 const ZERO = `0x${"00".repeat(32)}`;
 /** A release statement: exactly what is released, the same for all three signers. */
 function ReleaseView({ typed, address }: { typed: ReleaseTyped; address: string }) {
@@ -170,9 +186,11 @@ function ReleaseView({ typed, address }: { typed: ReleaseTyped; address: string 
       <p className="sig-meaning">{m.statement}</p>
       <dl className="kv">
         <dt>Signer</dt>
-        <dd className="mono">{short(address)}</dd>
+        <dd>
+          <Signer address={address} />
+        </dd>
         <dt>Lot</dt>
-        <dd className="mono">{m.lot || "none"}</dd>
+        <dd>{m.lot && m.lot.includes(".") ? <Name name={m.lot} /> : <span className="mono">{m.lot || "none"}</span>}</dd>
         <dt>Content hash</dt>
         <dd className="mono">{short(m.contentHash)}</dd>
         <dt>Stage proofs</dt>

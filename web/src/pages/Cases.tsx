@@ -5,6 +5,7 @@ import { ago, dateTime, shortAddr } from "../lib/format";
 import { useSign } from "../lib/sign";
 import type { CaseCandidate, CaseView, RelayView, RewardsView, SealedRecordView, TypedSignature } from "../types";
 import { Drawer, Empty, Field, Loading, Modal, Tabs, useToast } from "../ui/kit";
+import { Ref, Who } from "../ui/Name";
 
 const STATUS: Record<CaseView["status"], [string, string]> = {
   open: ["Waiting for the validator", "warn"],
@@ -35,7 +36,9 @@ function Relay({ r, label }: { r: RelayView | null; label: string }) {
  * stake is cut, half to the tester) or rejects (the tester loses a share of theirs to the validator).
  */
 export function Cases() {
-  const { path, roles, sees, me } = useApp();
+  const { path, roles, sees, me, names, book } = useApp();
+  // a person by their ENS name, else their display name, else a short address (for text where a <Who> can't go)
+  const label = (x: { address: string; name: string | null }) => names.get(x.address.toLowerCase()) ?? x.name ?? shortAddr(x.address);
   const tester = roles.includes("tester");
   const [tab, setTab] = useState<"cases" | "selected">("cases");
   const [cases, setCases] = useState<CaseView[] | null>(null);
@@ -87,12 +90,12 @@ export function Cases() {
                 <button type="button" className="card-b case-row" onClick={() => setView(k.id)}>
                   <div className="row-between">
                     <span>
-                      Stage <b>{k.stageCode}</b> <span className="faint small mono">{k.runId}</span>
+                      Stage <b>{k.stageCode}</b> <span className="faint small mono">{book.name("run", k.runId) ?? k.runId}</span>
                     </span>
                     <span className={`tag ${STATUS[k.status][1]}`}>{STATUS[k.status][0]}</span>
                   </div>
                   <div className="small muted">
-                    {mine(k.tester.address) ? "You" : (k.tester.name ?? shortAddr(k.tester.address))} against {mine(k.validator.address) ? "you" : (k.validator.name ?? shortAddr(k.validator.address))} ·{" "}
+                    {mine(k.tester.address) ? "You" : label(k.tester)} against {mine(k.validator.address) ? "you" : label(k.validator)} ·{" "}
                     <span className="num">{pctOf(k.bps)}</span> of the stake · {ago(k.createdAt)}
                   </div>
                   {(k.can.respond || k.can.decide) && <span className="tag warn">{k.can.respond ? "Your answer is due " + dateTime(k.respondBy) : "Ready for your decision"}</span>}
@@ -119,12 +122,15 @@ export function Cases() {
                 <tr key={c.contributionId}>
                   <td data-label="Stage">
                     <b>{c.stageCode}</b> {c.stageName}
+                    <div className="small">
+                      <Ref kind="stage" id={`${c.runId}:${c.stageCode}`} fallback={c.orderRef} link={false} />
+                    </div>
                     <div className="faint small">
-                      {c.orderRef} · from {c.contributor.name ?? shortAddr(c.contributor.address)}
+                      from <Who address={c.contributor.address} fallback={c.contributor.name ?? undefined} link={false} />
                     </div>
                   </td>
                   <td data-label="Selected by">
-                    {c.validator.name ?? shortAddr(c.validator.address)}
+                    <Who address={c.validator.address} fallback={c.validator.name ?? undefined} link={false} />
                     <div className="faint small">{ago(c.selectedAt)}</div>
                   </td>
                   <td data-label="What went wrong">{c.wentWrong.length ? <span className="tag bad">{c.wentWrong.join(" · ")}</span> : <span className="faint small">Nothing flagged</span>}</td>
@@ -155,7 +161,9 @@ export function Cases() {
 }
 
 function OpenCase({ c, rewards, onClose, onDone }: { c: CaseCandidate; rewards: RewardsView; onClose: () => void; onDone: (id: string) => void }) {
-  const { path } = useApp();
+  const { path, names, book } = useApp();
+  // a person by their ENS name, else their display name, else a short address (for text where a <Who> can't go)
+  const label = (x: { address: string; name: string | null }) => names.get(x.address.toLowerCase()) ?? x.name ?? shortAddr(x.address);
   const sign = useSign();
   const [evidence, setEvidence] = useState(c.wentWrong.length ? `The stage ${c.wentWrong.join(", ")}. ` : "");
   const [pct, setPct] = useState(String(rewards.settings.defaultSlashBps / 100));
@@ -165,7 +173,7 @@ function OpenCase({ c, rewards, onClose, onDone }: { c: CaseCandidate; rewards: 
   const go = async () => {
     let caseId = "";
     const r = await sign<CaseView>({
-      title: `Open a case against ${c.validator.name ?? shortAddr(c.validator.address)}`,
+      title: `Open a case against ${label(c.validator)}`,
       request: async (chainId) => {
         const x = await api.post<{ caseId: string; typed: TypedSignature }>(path("/cases/sign-request"), { contributionId: c.contributionId, bps, evidence, chainId });
         caseId = x.caseId;
@@ -180,7 +188,7 @@ function OpenCase({ c, rewards, onClose, onDone }: { c: CaseCandidate; rewards: 
     <Modal
       open
       onClose={onClose}
-      eyebrow={`${c.orderRef} · stage ${c.stageCode}`}
+      eyebrow={`${book.name("run", c.runId) ?? c.orderRef} · stage ${c.stageCode}`}
       title="Open a case"
       width={600}
       footer={
@@ -196,7 +204,7 @@ function OpenCase({ c, rewards, onClose, onDone }: { c: CaseCandidate; rewards: 
     >
       <div className="stack">
         <p className="small">
-          Against <b>{c.validator.name ?? shortAddr(c.validator.address)}</b>, who selected {c.contributor.name ?? shortAddr(c.contributor.address)}'s proof of work. While the case is open you can read the sealed record. If the manager upholds
+          Against <b>{label(c.validator)}</b>, who selected {label(c.contributor)}'s proof of work. While the case is open you can read the sealed record. If the manager upholds
           it, you receive {pctOf(rewards.settings.bountyBps)} of what is cut; if they reject it, {pctOf(rewards.settings.falseClaimBps)} of your own stake goes to the validator.
         </p>
         <Field label="Evidence" hint="What is wrong with the selected record. Its hash is signed; the text stays with the org.">
@@ -211,7 +219,7 @@ function OpenCase({ c, rewards, onClose, onDone }: { c: CaseCandidate; rewards: 
 }
 
 function CaseDrawer({ id, onClose, onChange }: { id: string; onClose: () => void; onChange: () => void }) {
-  const { path } = useApp();
+  const { path, book } = useApp();
   const sign = useSign();
   const toast = useToast();
   const [k, setK] = useState<CaseView | null>(null);
@@ -243,7 +251,7 @@ function CaseDrawer({ id, onClose, onChange }: { id: string; onClose: () => void
   };
   const waiting = k?.status === "open" && Date.parse(k.respondBy) > Date.now();
   return (
-    <Drawer open onClose={onClose} eyebrow={k ? `Stage ${k.stageCode} · ${k.runId}` : ""} title="Case">
+    <Drawer open onClose={onClose} eyebrow={k ? `Stage ${k.stageCode} · ${book.name("run", k.runId) ?? k.runId}` : ""} title="Case">
       {!k ? (
         <Loading />
       ) : (
@@ -260,7 +268,7 @@ function CaseDrawer({ id, onClose, onChange }: { id: string; onClose: () => void
           <section className="dsec">
             <h3>Evidence</h3>
             <p className="small muted">
-              {k.tester.name ?? shortAddr(k.tester.address)} · {dateTime(k.createdAt)}
+              <Who address={k.tester.address} fallback={k.tester.name ?? undefined} /> · {dateTime(k.createdAt)}
             </p>
             <p className="prewrap">{k.evidence}</p>
           </section>
@@ -269,7 +277,7 @@ function CaseDrawer({ id, onClose, onChange }: { id: string; onClose: () => void
             {k.response ? (
               <>
                 <p className="small muted">
-                  {k.validator.name ?? shortAddr(k.validator.address)} · {dateTime(k.respondedAt)}
+                  <Who address={k.validator.address} fallback={k.validator.name ?? undefined} /> · {dateTime(k.respondedAt)}
                 </p>
                 <p className="prewrap">{k.response}</p>
               </>
@@ -303,7 +311,7 @@ function CaseDrawer({ id, onClose, onChange }: { id: string; onClose: () => void
           )}
           {k.status === "upheld" || k.status === "rejected" ? (
             <p className="small muted">
-              Decided by {k.decidedBy ? shortAddr(k.decidedBy) : "a manager"} {ago(k.decidedAt)}.
+              Decided by {k.decidedBy ? <Who address={k.decidedBy} /> : "a manager"} {ago(k.decidedAt)}.
             </p>
           ) : (
             k.can.decide && (

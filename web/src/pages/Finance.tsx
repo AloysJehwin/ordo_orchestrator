@@ -5,6 +5,7 @@ import { ago, dateTime, shortAddr } from "../lib/format";
 import { fromUnits } from "../lib/wallet";
 import type { FinanceOrder, FinanceParty, FinanceResponse, PackageSummary } from "../types";
 import { Action, Empty, Field, Loading, Modal, Tabs, useToast } from "../ui/kit";
+import { Name, Ref } from "../ui/Name";
 import { MachineBudgets } from "./MachineBudgets";
 import { Select } from "../ui/Select";
 
@@ -32,7 +33,7 @@ const link = (url: string | null | undefined, text: string) =>
  * until OrdoTrust records the lot's three-signature release; until then the plant can sell the receivable for cash now.
  */
 function PayOnProof() {
-  const { path, can } = useApp();
+  const { path, can, book } = useApp();
   const [data, setData] = useState<FinanceResponse | null>(null);
   const [adding, setAdding] = useState<"customer" | "financier" | null>(null);
   const [cashIn, setCashIn] = useState<FinanceParty | null>(null);
@@ -108,6 +109,9 @@ function PayOnProof() {
                   <tr key={p.id}>
                     <td>
                       <b>{p.name}</b>
+                      <div className="small">
+                        {p.kind === "plant" ? book.org ? <Name name={book.org} link={false} /> : null : <Ref kind={p.kind === "financier" ? "financier" : "customer"} id={p.id} fallback={null} link={false} />}
+                      </div>
                       <div className="faint small">{p.kind === "plant" ? "This plant: paid on proof" : p.kind}</div>
                     </td>
                     <td className="small">
@@ -165,6 +169,11 @@ function PayOnProof() {
                     <tr key={o.id}>
                       <td>
                         <b>{o.packageTitle}</b>
+                        {o.runId && (
+                          <div className="small">
+                            <Ref kind="run" id={o.runId} fallback={null} link={false} />
+                          </div>
+                        )}
                         <div className="faint small">
                           package {o.packageStatus.replace("_", " ")} · opened {ago(o.createdAt)}
                           {o.runId && (

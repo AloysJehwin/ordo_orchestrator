@@ -5,6 +5,7 @@ import { ago, dateTime, shortAddr } from "../lib/format";
 import { useSign } from "../lib/sign";
 import { TRUST_TEXT, type ContributionView, type PowSession, type PublicContribution, type TypedSignature } from "../types";
 import { Empty, Loading } from "../ui/kit";
+import { Ref } from "../ui/Name";
 import { CancelSession, ContributionRow, StatusTag, TeeBadge } from "./pipeline/Contribute";
 import { ContributionOutcomes } from "./pipeline/PowOutcomes";
 
@@ -41,7 +42,7 @@ export function PowPage() {
                 {open.map((s) => (
                   <tr key={s.id}>
                     <td>
-                      Stage <b>{s.stageCode}</b> <span className="faint small mono">{s.runId}</span>
+                      Stage <b>{s.stageCode}</b> <span className="small"><Ref kind="run" id={s.runId} link={false} /></span>
                     </td>
                     <td className="small muted">until {dateTime(s.expiresAt)}</td>
                     <td className="r">
@@ -67,7 +68,7 @@ export function PowPage() {
               <li key={c.id} className="card">
                 <div className="card-b">
                   <div className="faint small">
-                    Stage {c.stageCode} · <span className="mono">{c.runId}</span>
+                    Stage {c.stageCode} · <Ref kind="run" id={c.runId} link={false} />
                   </div>
                   <ContributionRow c={c} mine={c.contributor.userId === me.user!.id} siteId={siteId} />
                 </div>
@@ -103,7 +104,7 @@ export function PowSign({ id }: { id: string }) {
   return (
     <div className="narrow">
       <div className="eyebrow">
-        Stage {c.stageCode} · <span className="mono">{c.runId}</span>
+        Stage {c.stageCode} · <Ref kind="run" id={c.runId} />
       </div>
       <h1>{c.status === "unsigned" ? "Sign your proof of work" : "Your proof of work"}</h1>
       <section className="section card">

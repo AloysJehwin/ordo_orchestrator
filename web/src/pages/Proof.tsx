@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
-import { actorLabel, dateTime } from "../lib/format";
+import { dateTime } from "../lib/format";
 import type { AnchorDto, LedgerEntryDto, VerifyReport } from "../types";
 import { Action, Loading } from "../ui/kit";
+import { Actor } from "../ui/Name";
 import { Select } from "../ui/Select";
 
 export function Proof() {
-  const { path, live, names, can } = useApp();
+  const { path, live, can } = useApp();
   const [ledger, setLedger] = useState<{ entries: LedgerEntryDto[]; anchors: AnchorDto[]; anchorKind: string } | null>(null);
   const [report, setReport] = useState<VerifyReport | null>(null);
   const [subject, setSubject] = useState<string | null>(null);
@@ -119,7 +120,9 @@ export function Proof() {
                   <tr key={e.seq} className="click" onClick={() => setOpen(open === e.seq ? null : e.seq)}>
                     <td className="mono">{e.seq}</td>
                     <td>{dateTime(e.ts)}</td>
-                    <td className="agent">{actorLabel(e.actor, names)}</td>
+                    <td className="agent">
+                      <Actor actor={e.actor} />
+                    </td>
                     <td>{e.type}</td>
                     <td className="mono small">{e.subject ?? "—"}</td>
                     <td className="mono small">{e.entryHash.slice(7, 23)}…</td>

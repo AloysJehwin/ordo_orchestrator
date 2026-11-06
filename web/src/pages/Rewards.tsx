@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { parseUnits } from "viem";
 import { api } from "../api";
 import { useApp } from "../lib/app";
-import { ago, dateTime, shortAddr } from "../lib/format";
+import { ago, dateTime } from "../lib/format";
 import { useSign } from "../lib/sign";
 import { fromUnits, fundRewardsTx } from "../lib/wallet";
 import type { AcceptanceView, RelayView, RewardSettings, RewardsView, TypedSignature } from "../types";
 import { Action, Empty, Field, Loading, useToast } from "../ui/kit";
+import { Ref, Who } from "../ui/Name";
 
 const pct = (bps: number) => `${(bps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
 
@@ -122,7 +123,7 @@ export function Rewards() {
 function AcceptanceRow({ a, v3, unit, me, onChange }: { a: AcceptanceView; v3: boolean; unit: (x: string | null) => string; me: string; onChange: () => void }) {
   const { path } = useApp();
   const toast = useToast();
-  const who = (p: { address: string; name: string | null }) => (p.address === me ? "You" : (p.name ?? shortAddr(p.address)));
+  const who = (p: { address: string; name: string | null }) => (p.address === me ? "You" : <Who address={p.address} fallback={p.name ?? undefined} link={false} />);
   const o = a.onchain;
   const vested = o ? o.vestAt * 1000 <= Date.now() : false;
   let state: [string, string];
@@ -136,7 +137,7 @@ function AcceptanceRow({ a, v3, unit, me, onChange }: { a: AcceptanceView; v3: b
   return (
     <tr>
       <td data-label="Stage">
-        <b>{a.stageCode}</b> <span className="faint small mono">{a.runId}</span>
+        <b>{a.stageCode}</b> <span className="small"><Ref kind="run" id={a.runId} link={false} /></span>
         <div className="faint small">selected {ago(a.selectedAt)}</div>
       </td>
       <td data-label="Contributor">
