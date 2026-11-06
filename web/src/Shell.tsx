@@ -3,7 +3,7 @@ import { ChevronsUpDown, Hexagon, MoreHorizontal } from "lucide-react";
 import { api } from "./api";
 import { useApp } from "./lib/app";
 import { LEVEL_LABEL, shortAddr } from "./lib/format";
-import { href, useRoute } from "./lib/router";
+import { go, href, useRoute } from "./lib/router";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Action, Field, Icon, Menu, Modal, useToast } from "./ui/kit";
 import { useDismiss } from "./ui/hooks";
@@ -23,7 +23,7 @@ import { WorkOrders } from "./pages/WorkOrders";
 import { PowPage, PowSign } from "./pages/Pow";
 import { Cases } from "./pages/Cases";
 import { Rewards } from "./pages/Rewards";
-import { NameOpener, Names } from "./pages/Names";
+import { NameOpener } from "./pages/Names";
 import { HandlePicker } from "./ui/HandlePicker";
 import { useRegisterOrg } from "./pages/Stakes";
 import type { AccessLevel, ChainStatus, Role } from "./types";
@@ -51,11 +51,16 @@ const NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { page: "team", label: "Team", icon: "team" },
   { page: "proof", label: "Proof & ledger", short: "Proof", icon: "proof", level: 4 },
-  { page: "names", label: "Names", icon: "names", level: 3 },
   { page: "settings", label: "Settings", icon: "settings", count: "autonomy", manager: true },
 ];
 // the phone tab bar holds the first four of these that the person can open; the rest live under More
 const PRIMARY = ["pipelines", "floor", "validation", "approvals", "pow", "cases", "history", "team", "templates"];
+
+/** A route that moved: go to where it lives now. */
+function GoTo({ path }: { path: string }) {
+  useEffect(() => go(path), [path]);
+  return null;
+}
 
 function Clock({ tz }: { tz: string }) {
   const [now, setNow] = useState(new Date());
@@ -148,10 +153,11 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
       page = <Rewards />;
       break;
     case "names":
-      page = <Names />;
+      // names live on the Team page now
+      page = <GoTo path={`team?tab=names${route.query.get("q") ? `&q=${encodeURIComponent(route.query.get("q")!)}` : ""}`} />;
       break;
     case "name":
-      page = route.id ? <NameOpener name={route.id} /> : <Names />;
+      page = route.id ? <NameOpener name={route.id} /> : <GoTo path="team?tab=names" />;
       break;
     case "pow":
       page = route.id && route.sub === "sign" ? <PowSign id={route.id} /> : <PowPage />;

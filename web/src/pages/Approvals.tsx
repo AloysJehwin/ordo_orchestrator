@@ -7,11 +7,12 @@ import { go, href, useRoute } from "../lib/router";
 import type { InboxItemView } from "../types";
 import { Action, Empty, Field, Loading, Segmented } from "../ui/kit";
 import { SpecBand } from "../ui/SpecBand";
+import { Actor, Ref, Who } from "../ui/Name";
 
 type Filter = "pending" | "approved" | "rejected" | "all";
 
 export function Approvals() {
-  const { path, live, names, roles } = useApp();
+  const { path, live, names, roles, book } = useApp();
   const route = useRoute();
   const [filter, setFilter] = useState<Filter>("pending");
   const [items, setItems] = useState<InboxItemView[] | null>(null);
@@ -50,7 +51,7 @@ export function Approvals() {
               </div>
               <b>{i.title}</b>
               <span className="faint small">
-                {actorLabel(i.agent, names)} · {i.category}
+                {book.actor(i.agent) ?? actorLabel(i.agent, names)} · {i.category}
                 {i.severity ? ` · ${i.severity}` : ""}
                 {i.status !== "pending" ? ` · ${i.status}` : ""}
               </span>
@@ -64,7 +65,7 @@ export function Approvals() {
 }
 
 function Detail({ item }: { item: InboxItemView }) {
-  const { names, roles } = useApp();
+  const { roles, book } = useApp();
   const decide = useDecide();
   const [choice, setChoice] = useState<number>(item.recommended ?? 0);
   const [comment, setComment] = useState("");
@@ -73,9 +74,14 @@ function Detail({ item }: { item: InboxItemView }) {
   return (
     <div className="detail">
       <div className="eyebrow">
-        {item.kind === "approval" ? "Approval" : "Exception"} · {item.category} · raised by {actorLabel(item.agent, names)}
+        {item.kind === "approval" ? "Approval" : "Exception"} · {item.category} · raised by <Actor actor={item.agent} />
       </div>
       <h1>{item.title}</h1>
+      {item.runId && (book.of("stage", item.stageCode ? `${item.runId}:${item.stageCode}` : null) || book.of("run", item.runId)) && (
+        <p className="small">
+          {item.stageCode && book.of("stage", `${item.runId}:${item.stageCode}`) ? <Ref kind="stage" id={`${item.runId}:${item.stageCode}`} /> : <Ref kind="run" id={item.runId} />}
+        </p>
+      )}
       <p className="lede">{item.body}</p>
       {item.metrics.length > 0 && (
         <div className="metric-row">
@@ -127,7 +133,7 @@ function Detail({ item }: { item: InboxItemView }) {
         </>
       ) : (
         <div className="notice">
-          <b>{item.status === "approved" ? "Approved" : item.status === "rejected" ? "Rejected" : "Expired"}</b> by {item.decidedBy ? names.get(item.decidedBy) ?? item.decidedBy : "—"} · {dateTime(item.decidedAt)}
+          <b>{item.status === "approved" ? "Approved" : item.status === "rejected" ? "Rejected" : "Expired"}</b> by {item.decidedBy ? <Who address={item.decidedBy} fallback={item.decidedBy} /> : "—"} · {dateTime(item.decidedAt)}
           {item.reason && <p className="muted">“{item.reason}”</p>}
           {item.signatureId && <p className="faint small mono">EIP-712 signature {item.signatureId}</p>}
         </div>

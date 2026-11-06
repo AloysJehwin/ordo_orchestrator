@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { dateTime, shortAddr } from "../lib/format";
+import { Name } from "../ui/Name";
 import { fromUnits } from "../lib/wallet";
 import type { PassportStatus, PublicPassport, SpecProof, StageWork } from "../types";
 import { QR } from "../ui/QR";
@@ -96,6 +97,16 @@ async function verifyWorkInBrowser(work: StageWork[]): Promise<{ ok: number; of:
   return { ok, of: work.length };
 }
 
+/** A signer by the ENS name the org issued them, else their address shortened. */
+const Signer = ({ ens, address }: { ens: string | null | undefined; address: string | null | undefined }) =>
+  ens ? (
+    <Name name={ens} />
+  ) : (
+    <span className="mono" title={address ?? undefined}>
+      {shortAddr(address ?? "")}
+    </span>
+  );
+
 /** The lot's public passport: what anyone scanning the QR code on a shipped lot sees, without signing in. */
 export function Passport({ runId }: { runId: string }) {
   const [p, setP] = useState<PublicPassport | null>(null);
@@ -139,15 +150,31 @@ export function Passport({ runId }: { runId: string }) {
       .catch((e) => setWorkCheck({ state: "error", message: e instanceof Error ? e.message : String(e) }));
   };
   const pageUrl = x.pageUrl.startsWith("http") ? x.pageUrl : `${window.location.origin}${x.pageUrl}`;
+  // the lot's ENS name (its run: so-7781.runs.acme.ordo.eth) and its org's, when this Ordo issues names
+  const props = p.properties as PublicPassport["properties"] & { ens?: string; org?: string };
+  const lotEns = props.ens ?? x.ens?.name ?? null;
+  const orgEns = props.org ?? null;
+  const stageEns = (st: (typeof x.stages)[number]) => st as typeof st & { ens?: string | null; machineEns?: string | null };
   return (
     <div className="pp">
       <header className="pp-head">
         <div>
           <div className="pp-brand">Ordo · Lot passport</div>
           <h1>{p.name}</h1>
+          {lotEns && (
+            <p className="pp-ens">
+              <Name name={lotEns} />
+            </p>
+          )}
           <p className="muted">
             {x.quantity} units of <b>{x.product.name}</b> v{x.product.version} · {x.product.category}
             {x.site ? ` · made at ${x.site}` : ""}
+            {orgEns ? (
+              <>
+                {" "}
+                · <Name name={orgEns} />
+              </>
+            ) : null}
           </p>
           <p className="small muted">
             Started {dateTime(x.startedAt)}
@@ -240,10 +267,7 @@ export function Passport({ runId }: { runId: string }) {
           )}
           {x.ens && (
             <Check ok={x.ens.releases.every((r) => r.status === "done") ? true : x.ens.releases.some((r) => r.status === "failed") ? false : null}>
-              ENS name{" "}
-              <a href={x.ens.url} target="_blank" rel="noreferrer" className="mono">
-                {x.ens.name}
-              </a>
+              ENS name <Name name={x.ens.name} />
               {x.ens.releases.length === 0
                 ? " · resolves to this passport"
                 : x.ens.releases.map((r) => (
@@ -307,7 +331,7 @@ export function Passport({ runId }: { runId: string }) {
               <ul className="pp-signers">
                 {r.signers.map((s) => (
                   <li key={s.meaning}>
-                    {MEANING[s.meaning] ?? s.meaning} <span className="mono" title={s.address}>{s.ens ?? shortAddr(s.address)}</span>
+                    {MEANING[s.meaning] ?? s.meaning} <Signer ens={s.ens} address={s.address} />
                     {s.stake && (
                       <span className={`tag ${s.stake.active ? "ok" : "warn"}`}>
                         {s.stake.active ? "staked" : "not staked now"} {fromUnits(s.stake.amount, s.stake.decimals)} {s.stake.symbol}
@@ -318,7 +342,7 @@ export function Passport({ runId }: { runId: string }) {
               </ul>
               {r.statement && (
                 <p className="faint small">
-                  All three signed lot <span className="mono">{r.statement.lot || "—"}</span>, content <span className="mono">{shortAddr(r.statement.contentHash)}</span>
+                  All three signed lot {r.statement.lot && r.statement.lot.includes(".") ? <Name name={r.statement.lot} /> : <span className="mono">{r.statement.lot || "—"}</span>}, content <span className="mono">{shortAddr(r.statement.contentHash)}</span>
                   {r.statement.stagesProven.length > 0 ? (
                     <>
                       {" "}
@@ -348,7 +372,20 @@ export function Passport({ runId }: { runId: string }) {
                 <tr key={s.code}>
                   <td>
                     <b>{s.code}</b> {s.name}
-                    <div className="faint small">{s.resource}</div>
+                    {stageEns(s).ens && (
+                      <div className="small">
+                        <Name name={stageEns(s).ens!} />
+                      </div>
+                    )}
+                    <div className="faint small">
+                      {stageEns(s).machineEns ? (
+                        <>
+                          on <Name name={stageEns(s).machineEns!} />
+                        </>
+                      ) : (
+                        s.resource
+                      )}
+                    </div>
                     {s.criteria.map((c) => (
                       <div key={c.label} className="small pp-crit">
                         <span>
@@ -371,7 +408,7 @@ export function Passport({ runId }: { runId: string }) {
                               "value committed by Ordo"
                             ) : (
                               <>
-                                value signed by {c.zk.signerKind === "device" ? "the instrument's gateway" : "the operator"} <span className="mono">{c.zk.signerEns ?? shortAddr(c.zk.signer ?? "")}</span>
+                                value signed by {c.zk.signerKind === "device" ? "the instrument's gateway" : "the operator"} <Signer ens={c.zk.signerEns} address={c.zk.signer} />
                               </>
                             )}
                           </span>
@@ -383,7 +420,7 @@ export function Passport({ runId }: { runId: string }) {
                         <span className={`tag ${s.work.status === "proven" && s.work.verified ? "ok" : s.work.status === "pending" ? "warn" : "bad"}`} title={s.work.detail}>
                           {s.work.status === "proven" ? (s.work.verified ? "Work proven" : "Work proof invalid") : s.work.status === "pending" ? "Work proof pending" : s.work.status === "not_met" ? "Signed counts miss a criterion" : "No work proof"}
                         </span>{" "}
-                        counts signed by {s.work.signerKind === "device" ? "the machine's gateway" : "the operator"} <span className="mono">{s.work.signerEns ?? shortAddr(s.work.signer)}</span>
+                        counts signed by {s.work.signerKind === "device" ? "the machine's gateway" : "the operator"} <Signer ens={s.work.signerEns} address={s.work.signer} />
                         {!s.work.matches && <span className="bad-text"> · differ from Ordo&apos;s record</span>}
                       </div>
                     )}
@@ -407,7 +444,7 @@ export function Passport({ runId }: { runId: string }) {
                 <span>{d.summary}</span>
                 <span className="faint small">
                   {" "}
-                  · signed by <span className="mono" title={d.by}>{d.ens ?? shortAddr(d.by)}</span> · {dateTime(d.at)}
+                  · signed by <Signer ens={d.ens} address={d.by} /> · {dateTime(d.at)}
                   {d.ledgerSeq ? ` · ledger #${d.ledgerSeq}` : ""}
                 </span>
               </li>

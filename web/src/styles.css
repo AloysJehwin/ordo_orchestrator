@@ -973,3 +973,4 @@ svg.flow { display: block; margin: 0 auto; overflow: visible; }
 .name-lookup input { flex: 1; min-width: 0; }
 .names-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 720px) { .names-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .names-kpis .kpi:nth-child(2) { border-right: 0; } .name-row { grid-template-columns: minmax(0, 1fr) auto; } .name-row > :last-child { grid-column: 1 / -1; text-align: left; } }
+.names-head { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 16px; }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, shortAddr } from "../../lib/format";
+import { Who } from "../../ui/Name";
 import { MEDIA_ICON, metricText } from "../../lib/outcomes";
 import type { OutcomeView, RunView, StageRunView } from "../../types";
 import { Modal } from "../../ui/kit";
@@ -75,7 +76,7 @@ export function StageOutcomes({ run, stage }: { run: RunView; stage: StageRunVie
             {o.output && (
               <div className="oc-proof small">
                 <span className="tag" title={`Signed by the machine's key ${o.output.device}: an EIP-712 OrdoOutput binding the file's hash, the lot, the stage and the value`}>
-                  ✓ Signed by {shortAddr(o.output.device)}
+                  ✓ Signed by <Who address={o.output.device} fallback={shortAddr(o.output.device)} link={false} />
                 </span>
                 {o.output.analysis?.requestId && (
                   <span className="tag" title={`${o.output.analysis.model ?? "0G"}${o.output.analysis.provider ? ` · ${o.output.analysis.provider}` : ""}${o.output.analysis.teeVerified ? " · TEE verified" : ""}`}>

@@ -3,6 +3,7 @@ import { Check, Copy, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, shortAddr } from "../../lib/format";
+import { Who } from "../../ui/Name";
 import { useSign } from "../../lib/sign";
 import { TRUST_TEXT, type ContributionView, type PowStart, type RunView, type StageRunView, type TeeSummary, type TypedSignature } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
@@ -34,7 +35,7 @@ export const StatusTag = ({ c }: { c: ContributionView }) => <span className={`t
 
 /** The command a contributor pastes into a terminal, and the session's live state until they have signed. */
 export function ContributeModal({ run, stage, onClose, onDone }: { run: RunView; stage: StageRunView; onClose: () => void; onDone: () => void }) {
-  const { path, siteId } = useApp();
+  const { path, siteId, book } = useApp();
   const toast = useToast();
   const [s, setS] = useState<PowStart | null>(null);
   const [copied, setCopied] = useState(false);
@@ -72,7 +73,7 @@ export function ContributeModal({ run, stage, onClose, onDone }: { run: RunView;
     <Modal
       open
       onClose={onClose}
-      eyebrow={`${run.orderRef} · stage ${stage.code}`}
+      eyebrow={book.name("stage", `${run.id}:${stage.code}`) ?? `${run.orderRef} · stage ${stage.code}`}
       title="Contribute proof of work"
       width={640}
       footer={
@@ -164,13 +165,12 @@ export function StageContributions({ run, stage }: { run: RunView; stage: StageR
 }
 
 export function ContributionRow({ c, mine, siteId, onSelect }: { c: ContributionView; mine: boolean; siteId: string; onSelect?: () => void }) {
-  const { names } = useApp();
-  const who = c.contributor.name ?? names.get(c.contributor.address) ?? shortAddr(c.contributor.address);
   return (
     <div className="pow-row">
       <div className="row-between">
         <span>
-          <b>{mine ? "You" : who}</b> <span className="faint small">· {ago(c.signedAt ?? c.createdAt)}</span>
+          <b>{mine ? "You" : <Who address={c.contributor.address} fallback={c.contributor.name ?? shortAddr(c.contributor.address)} />}</b>
+          {!mine && c.contributor.name && <span className="small muted"> {c.contributor.name}</span>} <span className="faint small">· {ago(c.signedAt ?? c.createdAt)}</span>
         </span>
         <StatusTag c={c} />
       </div>
@@ -210,7 +210,11 @@ export function ContributionRow({ c, mine, siteId, onSelect }: { c: Contribution
       )}
       {c.selection && (
         <p className="small">
-          Selected by <b>{c.selection.byName ?? names.get(c.selection.by) ?? shortAddr(c.selection.by)}</b> {ago(c.selection.at)}
+          Selected by{" "}
+          <b>
+            <Who address={c.selection.by} fallback={c.selection.byName ?? shortAddr(c.selection.by)} />
+          </b>{" "}
+          {ago(c.selection.at)}
           {c.selection.comment ? `: “${c.selection.comment}”` : ""}
         </p>
       )}
@@ -246,7 +250,7 @@ function SelectModal({ c, stage, onClose, onDone }: { c: ContributionView; stage
   const sign = useSign();
   const toast = useToast();
   const [comment, setComment] = useState("");
-  const who = c.contributor.name ?? names.get(c.contributor.address) ?? shortAddr(c.contributor.address);
+  const who = names.get(c.contributor.address.toLowerCase()) ?? c.contributor.name ?? shortAddr(c.contributor.address);
   const go = async () => {
     const r = await sign<{ stageClosed: boolean; chain: { status: string; error: string | null } | null }>({
       title: `Select ${who}'s proof of work for stage ${stage.code}`,

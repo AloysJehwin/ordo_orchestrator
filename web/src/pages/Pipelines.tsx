@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
-import { actorLabel, AGENT_LABEL, dateTime, dur, LEVEL_LABEL, LEVEL_TEXT, num, pct, STATE_LABEL, time } from "../lib/format";
+import { AGENT_LABEL, dateTime, dur, LEVEL_LABEL, LEVEL_TEXT, num, pct, STATE_LABEL, time } from "../lib/format";
 import { go, href, useRoute } from "../lib/router";
 import { useSign } from "../lib/sign";
 import type { AutonomyLevel, AutonomyProposalView, DecisionView, InboxItemView, PassportView, RunView, StageRunView, TemplateView, TypedSignature } from "../types";
@@ -9,6 +9,7 @@ import { QR } from "../ui/QR";
 import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
+import { Actor, NameInput, Ref, Who } from "../ui/Name";
 import { SpecBand } from "../ui/SpecBand";
 import { machineless, outcomeCount, outcomesFirst } from "../lib/outcomes";
 import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline/StageParts";
@@ -49,7 +50,7 @@ export function Pipelines() {
 }
 
 function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onNew: () => void }) {
-  const { path, live, names, can, refresh, site } = useApp();
+  const { path, live, can, refresh, site, book } = useApp();
   const [data, setData] = useState<{ run: RunView; decisions: DecisionView[]; inbox: InboxItemView[] } | null>(null);
   const [view, setView] = useState<View>("flow");
   const [sel, setSel] = useState<{ code: string; x: number; y: number } | null>(null);
@@ -69,10 +70,10 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
       runs.map((r) => ({
         value: r.id,
         label: `${r.id} · ${r.templateName}`,
-        hint: `${r.orderRef} · ${r.status === "running" ? `${r.metrics.completed}/${r.metrics.total} stages` : r.status}`,
+        hint: `${book.name("run", r.id) ?? r.orderRef} · ${r.status === "running" ? `${r.metrics.completed}/${r.metrics.total} stages` : r.status}`,
         group: r.status === "running" ? "Running" : "Last 7 days",
       })),
-    [runs],
+    [runs, book],
   );
   if (!data) return <Loading text="Loading run…" />;
   const { run, decisions, inbox } = data;
@@ -100,6 +101,11 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
             {run.status !== "running" && <span className={`tag ${run.status === "completed" ? "ok" : "bad"}`}>{run.status}</span>}
           </div>
           <h1>{run.templateName}</h1>
+          {book.of("run", run.id) && (
+            <p className="small">
+              <Ref kind="run" id={run.id} />
+            </p>
+          )}
           <p className="muted lede">{run.templateDescription}</p>
         </div>
         <div className="ph-actions">
@@ -220,8 +226,13 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
               </button>
             </div>
             <h3 className="block-title">{s.name}</h3>
+            {book.of("stage", `${run.id}:${s.code}`) && (
+              <div className="small">
+                <Ref kind="stage" id={`${run.id}:${s.code}`} />
+              </div>
+            )}
             <div className="faint small">
-              {AGENT_LABEL[s.agent]} · {s.assetName ?? "no asset"}
+              {AGENT_LABEL[s.agent]} · {s.assetId ? <Ref kind="machine" id={s.assetId} fallback={s.assetName ?? "no asset"} link={false} /> : (s.assetName ?? "no asset")}
             </div>
             <p className="block-body">{s.outcome ?? s.waitingReason ?? (s.state === "queued" ? "Waiting on upstream stages." : "In progress.")}</p>
             {(s.state === "awaiting_approval" || s.state === "held") && s.criteriaResults.some((c) => c.ok !== true) && (
@@ -267,7 +278,7 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
                 <span className="label">Latest decision</span>
                 <b>{latest.summary}</b>
                 <div className="faint small">
-                  {actorLabel(latest.agent, names)} · {time(latest.ts)}
+                  <Actor actor={latest.agent} /> · {time(latest.ts)}
                 </div>
               </div>
             )}
@@ -314,7 +325,9 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
           {decisions.slice(0, 40).map((d) => (
             <div key={d.id} className="row">
               <span className="faint">{time(d.ts)}</span>
-              <span className="agent">{actorLabel(d.agent, names)}</span>
+              <span className="agent">
+                <Actor actor={d.agent} />
+              </span>
               <span>
                 <b>{d.summary}</b>
                 {d.reason && <span className="muted"> — {d.reason}</span>}
@@ -480,7 +493,8 @@ function PassportButton({ runId, orderRef }: { runId: string; orderRef: string }
     if (open) void load();
   }, [open, runId]);
   const url = p ? (p.pageUrl.startsWith("http") ? p.pageUrl : `${window.location.origin}${p.pageUrl}`) : "";
-  const validTo = /^(0\.0\.\d+|0x[0-9a-fA-F]{40})$/.test(to.trim());
+  // a Hedera account, an EVM address, or a name the server resolves to one (acme-buyer.customers.acme.ordo.eth)
+  const validTo = /^(0\.0\.\d+|0x[0-9a-fA-F]{40})$/.test(to.trim()) || /^([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(to.trim());
   return (
     <>
       <button type="button" className="btn" onClick={() => setOpen(true)}>
@@ -517,10 +531,10 @@ function PassportButton({ runId, orderRef }: { runId: string; orderRef: string }
               ) : (
                 <p className="small muted">No HTS collection is configured: the passport lives in Ordo. Set HEDERA_PASSPORT_TOKEN_ID to mint each lot as an NFT.</p>
               )}
-              <p className="small muted">Anyone with the code sees what was made, stage by stage, who signed each gate and release, and the ledger anchor that proves it. People appear by wallet address, never by name.</p>
+              <p className="small muted">Anyone with the code sees what was made, stage by stage, who signed each gate and release, and the ledger anchor that proves it. People appear by their ENS names (the handles they chose), never by their display names.</p>
               {p.shipment ? (
                 <p className="small">
-                  Shipped {dateTime(p.shipment.at)} to <span className="mono">{p.shipment.to}</span>
+                  Shipped {dateTime(p.shipment.at)} to {p.shipment.to.startsWith("0x") ? <Who address={p.shipment.to} /> : <Who hedera={p.shipment.to} />}
                   {p.shipment.txUrl && (
                     <>
                       {" "}
@@ -535,8 +549,8 @@ function PassportButton({ runId, orderRef }: { runId: string; orderRef: string }
                 p.status === "completed" &&
                 can("manager") && (
                   <div className="pp-ship">
-                    <Field label="Ship to (customer's Hedera account or EVM address)">
-                      <input className="input" value={to} onChange={(e) => setTo(e.target.value)} placeholder="0.0.12345" />
+                    <Field label="Ship to (the customer's ENS name, Hedera account or EVM address)">
+                      <NameInput accept="any" value={to} onChange={setTo} placeholder="buyer.customers.acme.ordo.eth or 0.0.12345" />
                     </Field>
                     <Action
                       className="btn accent"

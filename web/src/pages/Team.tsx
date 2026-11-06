@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
 import { ago, shortAddr } from "../lib/format";
+import { useRoute } from "../lib/router";
 import { useSign } from "../lib/sign";
 import type { AccessLevel, AccessScope, Role, Team, TypedSignature } from "../types";
 import { Action, Empty, Field, Menu, Modal, Tabs, useToast } from "../ui/kit";
+import { Name, NameInput, Who } from "../ui/Name";
 import { Select } from "../ui/Select";
+import { Names } from "./Names";
 import { Stakes, Vendors } from "./Stakes";
 
 type Member = Team["members"][number];
@@ -71,7 +74,7 @@ function AccessEditor(props: { level: AccessLevel; scope: AccessScope; onChange:
 }
 
 function Members() {
-  const { team, meta, can, path, reloadSite, me, site, status } = useApp();
+  const { team, meta, can, path, reloadSite, me, site, status, book } = useApp();
   const sign = useSign();
   const toast = useToast();
   const [invite, setInvite] = useState(false);
@@ -80,8 +83,9 @@ function Members() {
   const manager = can("manager");
   const label = (r: Role) => meta.roles.find((x) => x.key === r)?.label ?? r;
   const lineName = (id: string) => site.lines.find((l) => l.id === id)?.name ?? id;
-  const valid = /^0x[0-9a-fA-F]{40}$/.test(addr.trim());
-  const who = (m: Member) => m.name ?? m.ens ?? shortAddr(m.address);
+  // an address, or a name the server resolves to one (priya.acme.ordo.eth)
+  const valid = /^0x[0-9a-fA-F]{40}$/.test(addr.trim()) || /^([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(addr.trim());
+  const who = (m: Member) => book.byAddress(m.address)?.name ?? m.ens ?? m.name ?? shortAddr(m.address);
 
   const change = async (m: Member, role: Role, grant: boolean) => {
     const r = await sign<{ chain: { status: string; error: string | null } | null; reissue?: string[] }>({
@@ -124,7 +128,7 @@ function Members() {
         {manager && (
           <div className="ph-actions">
             <button type="button" className="btn accent" onClick={() => setInvite(true)}>
-              Add by wallet address
+              Add by address or name
             </button>
           </div>
         )}
@@ -148,9 +152,21 @@ function Members() {
               return (
                 <tr key={m.userId}>
                   <td>
-                    <b>{who(m)}</b>
+                    <b>
+                      <Who address={m.address} fallback={m.name ?? shortAddr(m.address)} />
+                    </b>
                     {m.address === me.user!.address && <span className="tag accent">you</span>}
+                    {m.name && <div className="small muted">{m.name}</div>}
                     <div className="faint small mono">{m.address}</div>
+                    {(m.roleNames ?? []).length > 0 && (
+                      <div className="small" title="Holding the name is holding the role">
+                        {m.roleNames!.map((rn) => (
+                          <div key={rn.name}>
+                            <Name name={rn.name} status={rn.status} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div className="chips">
@@ -218,7 +234,9 @@ function Members() {
               <tbody>
                 {team.invites.map((i) => (
                   <tr key={i.id}>
-                    <td className="mono small">{i.address}</td>
+                    <td className="small">
+                      <Who address={i.address} fallback={<span className="mono">{i.address}</span>} />
+                    </td>
                     <td className="faint">{ago(i.createdAt)}</td>
                     <td className="r">
                       <Action className="btn sm" onClick={async () => (await api.del(path(`/team/invites/${i.id}`)), await reloadSite())}>
@@ -246,7 +264,8 @@ function Members() {
               disabled={!valid}
               onClick={async () => {
                 const r = await api.post<{ added: boolean }>(path("/team/invites"), { address: addr.trim() });
-                toast(r.added ? `Added ${shortAddr(addr.trim())} as a contributor` : `${shortAddr(addr.trim())} joins at first sign-in`, "ok");
+                const shown = addr.trim().startsWith("0x") ? shortAddr(addr.trim()) : addr.trim();
+                toast(r.added ? `Added ${shown} as a contributor` : `${shown} joins at first sign-in`, "ok");
                 setAddr("");
                 setInvite(false);
                 await reloadSite();
@@ -257,8 +276,8 @@ function Members() {
           </div>
         }
       >
-        <Field label="Wallet address" error={addr && !valid ? "Enter a 0x address with 40 hex characters" : null}>
-          <input className="input mono" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="0x…" autoFocus />
+        <Field label="Wallet address or ENS name" error={addr && !valid ? "Enter a 0x address with 40 hex characters, or a name like priya.acme.ordo.eth" : null}>
+          <NameInput accept="evm" value={addr} onChange={setAddr} placeholder="0x… or priya.acme.ordo.eth" />
         </Field>
         <p className="faint small">Everyone starts as a contributor. Promote them from the list afterwards; each promotion is signed.</p>
       </Modal>
@@ -285,7 +304,7 @@ function MemberAccess({ member, onClose, lineName }: { member: Member; onClose: 
       open
       onClose={onClose}
       eyebrow="Visibility"
-      title={`What ${member.name ?? shortAddr(member.address)} sees`}
+      title={`What ${member.ens ?? member.name ?? shortAddr(member.address)} sees`}
       footer={
         <div className="btns end">
           {own && (
@@ -401,25 +420,33 @@ function RoleAccess() {
   );
 }
 
-type TeamTab = "members" | "access" | "stakes" | "vendors";
+type TeamTab = "members" | "access" | "stakes" | "vendors" | "names";
 export function TeamPage() {
-  const { team, can, sees } = useApp();
-  const [tab, setTab] = useState<TeamTab>("members");
+  const { team, can, sees, book } = useApp();
+  const route = useRoute();
+  const [tab, setTab] = useState<TeamTab>(() => (route.query.get("tab") as TeamTab | null) ?? "members");
+  useEffect(() => {
+    const t = route.query.get("tab") as TeamTab | null;
+    if (t) setTab(t);
+  }, [route.query]);
   const tabs: { value: TeamTab; label: string; count?: number }[] = [
     { value: "members", label: "Members", count: team?.members.length },
     ...(can("manager") ? [{ value: "access" as TeamTab, label: "Visibility" }] : []),
     { value: "stakes", label: "Stakes" },
     ...(sees(4) ? [{ value: "vendors" as TeamTab, label: "Vendors" }] : []),
+    // every name in the org (ENSv2 under the root), with what is on-chain and what waits
+    ...(sees(3) && book.live ? [{ value: "names" as TeamTab, label: "Names", count: book.entries.length }] : []),
   ];
   return (
     <div>
-      <div className="eyebrow">People, roles and stakes</div>
+      <div className="eyebrow">People, roles, stakes and names</div>
       <h1>Team</h1>
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
       {tab === "members" && <Members />}
       {tab === "access" && <RoleAccess />}
       {tab === "stakes" && <Stakes />}
       {tab === "vendors" && <Vendors />}
+      {tab === "names" && <Names />}
     </div>
   );
 }

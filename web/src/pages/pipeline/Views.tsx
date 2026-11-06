@@ -1,6 +1,7 @@
 import type { RunView, StageRunView } from "../../types";
 import { AGENT_LABEL, STATE_LABEL, dur, num } from "../../lib/format";
 import { SpecBand } from "../../ui/SpecBand";
+import { Ref } from "../../ui/Name";
 import { edgeClass, layout } from "./layout";
 
 /** An arc from angle a0 to a1 (degrees, clockwise from the top). */
@@ -186,7 +187,7 @@ export function LedgerView({ run, onOpen }: { run: RunView; onOpen: (code: strin
               </td>
               <td>
                 {AGENT_LABEL[s.agent]}
-                <div className="faint small">{s.assetName ?? "—"}</div>
+                <div className="faint small">{s.assetId ? <Ref kind="machine" id={s.assetId} fallback={s.assetName ?? "—"} link={false} /> : (s.assetName ?? "—")}</div>
               </td>
               <td>{s.startedAt ? new Date(s.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
               <td>{dur(s.durationMin)}</td>

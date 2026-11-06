@@ -33,7 +33,7 @@ export function routeFor(e: Pick<DirectoryEntry, "kind" | "ref" | "name">, entri
       return `pipelines/${e.ref}`;
     case "topup": {
       const run = runOf(e.name);
-      return run ? `pipelines/${run}` : "names";
+      return run ? `pipelines/${run}` : "team?tab=names";
     }
     case "person":
     case "role":
@@ -50,10 +50,11 @@ export function routeFor(e: Pick<DirectoryEntry, "kind" | "ref" | "name">, entri
     case "pipeline":
       return "templates";
     default:
-      return `names?q=${encodeURIComponent(e.name)}`;
+      return `team?tab=names&q=${encodeURIComponent(e.name)}`;
   }
 }
 
+/** The org's names, as a tab of the Team page: who and what is named, what is on-chain, and what waits. */
 export function Names() {
   const { path, site, can, book } = useApp();
   const route = useRoute();
@@ -80,23 +81,15 @@ export function Names() {
 
   if (error) return <Empty title="Names are not available">{error}</Empty>;
   if (!data) return <Loading />;
-  if (!data.live)
-    return (
-      <div>
-        <div className="eyebrow">{site.name}</div>
-        <h1>Names</h1>
-        <Empty title="ENS names are off">This Ordo has no ENSv2 root configured (ENS_PARENT_NAME, ENS_NAMES_ADDRESS).</Empty>
-      </div>
-    );
+  if (!data.live) return <Empty title="ENS names are off">This Ordo has no ENSv2 root configured (ENS_PARENT_NAME, ENS_NAMES_ADDRESS).</Empty>;
   return (
-    <div>
-      <div className="eyebrow">
-        {site.name} · ENSv2 on Sepolia under {data.root}
+    <div className="section">
+      <div className="names-head">
+        {data.org ? <Name name={data.org} /> : null}
+        <span className="faint small">
+          ENSv2 on Sepolia under {data.root} · people by handle, the roles they hold, machines, agents, lines, vendors, runs, stages, budgets and work orders, registered in batches
+        </span>
       </div>
-      <h1>{data.org ? <Name name={data.org} /> : "Names"}</h1>
-      <p className="lede">
-        Everything in the org has an ENS name: its people by handle, the roles they hold, its machines, agents, lines, vendors, runs, stages, budgets and work orders. Ordo registers them in batches, many to a transaction.
-      </p>
       <div className="kpis names-kpis">
         <div className="kpi">
           <div className="label">On-chain</div>

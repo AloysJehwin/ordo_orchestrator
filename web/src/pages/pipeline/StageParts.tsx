@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useDecide } from "../../lib/actions";
 import { useApp } from "../../lib/app";
-import { actorLabel, AGENT_LABEL, computeProof, dur, num, STATE_LABEL, time } from "../../lib/format";
+import { AGENT_LABEL, computeProof, dur, num, STATE_LABEL, time } from "../../lib/format";
+import { Actor, Ref } from "../../ui/Name";
 import { go } from "../../lib/router";
 import { signTyped } from "../../lib/wallet";
 import { kindOf, signalsOf, targetText } from "../../lib/criteria";
@@ -194,7 +195,7 @@ export function StageDrawer(props: {
   onRecord: (s: StageRunView) => void;
   onHold: (s: StageRunView) => void;
 }) {
-  const { names, can } = useApp();
+  const { can, book } = useApp();
   const s = props.stage;
   const series = useStageSeries(props.run.id, s?.code ?? null, Boolean(s && signalsOf(s.criteria).length));
   if (!s) return null;
@@ -205,10 +206,25 @@ export function StageDrawer(props: {
   return (
     <Drawer open onClose={props.onClose} eyebrow={`Stage ${s.code} · ${STATE_LABEL[s.state]}`} title={s.name} width={480}>
       <dl className="kv">
+        {book.of("stage", `${props.run.id}:${s.code}`) && (
+          <>
+            <dt>ENS name</dt>
+            <dd>
+              <Ref kind="stage" id={`${props.run.id}:${s.code}`} />
+            </dd>
+          </>
+        )}
         <dt>Agent</dt>
         <dd>{AGENT_LABEL[s.agent]}</dd>
         <dt>Resource</dt>
-        <dd>{s.assetName ?? <span className="faint">none assigned</span>}</dd>
+        <dd>
+          {s.assetName ?? <span className="faint">none assigned</span>}
+          {s.assetId && book.of("machine", s.assetId) && (
+            <div className="small">
+              <Ref kind="machine" id={s.assetId} />
+            </div>
+          )}
+        </dd>
         <dt>Mode</dt>
         <dd>{s.mode === "auto" ? "Auto" : s.mode === "approve" ? "Approve" : "Manual"}</dd>
         <dt>Escalation</dt>
@@ -328,7 +344,7 @@ export function StageDrawer(props: {
               <b>{d.summary}</b>
               {d.reason && <div className="muted small">{d.reason}</div>}
               <div className="faint small">
-                {actorLabel(d.agent, names)}
+                <Actor actor={d.agent} />
                 {d.confidence !== null ? ` · conf. ${d.confidence.toFixed(2)}` : ""}
                 {computeProof(d)} · ledger #{d.ledgerSeq}
               </div>

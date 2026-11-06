@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import { useApp } from "../../lib/app";
 import { ago, num, shortAddr } from "../../lib/format";
+import { Ref, Who } from "../../ui/Name";
 import { useSign } from "../../lib/sign";
 import type { RunView, StageResourceView, StageResourcesView, StageRunView, TypedSignature } from "../../types";
 import { Field, Modal } from "../../ui/kit";
@@ -20,7 +21,7 @@ const qty = (n: number, unit: string) => `${num(n, 3)}${unit ? ` ${unit}` : ""}`
  * manager can sign a waiver to start without them. Offers and purchases (finance) need level 4.
  */
 export function StageResources({ run, stage }: { run: RunView; stage: StageRunView }) {
-  const { path, sees, can, live, refresh } = useApp();
+  const { path, sees, can, live, refresh, book } = useApp();
   const sign = useSign();
   const [view, setView] = useState<StageResourcesView | null>(null);
   const [waiving, setWaiving] = useState(false);
@@ -70,7 +71,7 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
       {!view && <p className="faint small">Loading what the stage has received…</p>}
       {view?.waived && (
         <p className="small res-waived">
-          <span className="tag warn">Waived</span> {shortAddr(view.waived.by)} signed to start without them {ago(view.waived.at)}: <i>{view.waived.reason}</i>
+          <span className="tag warn">Waived</span> <Who address={view.waived.by} fallback={shortAddr(view.waived.by)} /> signed to start without them {ago(view.waived.at)}: <i>{view.waived.reason}</i>
         </p>
       )}
       <div className="oc-grid">
@@ -97,7 +98,14 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
               </div>
               {r.bestOffer && (
                 <div className="small res-offer">
-                  Best offer: <b>{r.bestOffer.vendor}</b> · {r.bestOffer.label} · {r.bestOffer.price} HBAR per {r.bestOffer.unit || "unit"}
+                  Best offer: <b>{r.bestOffer.vendor}</b>
+                  {book.of("vendor", r.bestOffer.vendorId) && (
+                    <>
+                      {" "}
+                      <Ref kind="vendor" id={r.bestOffer.vendorId} link={false} />
+                    </>
+                  )}{" "}
+                  · {r.bestOffer.label} · {r.bestOffer.price} HBAR per {r.bestOffer.unit || "unit"}
                   {r.bestOffer.leadMin ? ` · ${r.bestOffer.leadMin} min lead` : ""}{" "}
                   <span
                     className={`tag ${r.bestOffer.withinMax ? "ok" : "bad"}`}
@@ -120,7 +128,19 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
                     <li key={p.id} className="small">
                       <span className={`tag ${p.status === "delivered" ? (p.arrived ? "ok" : "warn") : p.status === "expired" ? "bad" : ""}`}>{p.status === "delivered" ? (p.arrived ? "Delivered" : "Arriving") : p.status === "expired" ? "Not settled" : "Paying"}</span>{" "}
                       {qty(p.qty, p.unit)} · <b>{p.amount} HBAR</b> to {p.vendor}
-                      {p.byAssetName ? ` · bought by ${p.byAssetName}` : p.buyer ? ` · by ${p.buyer}` : ""}
+                      {p.byAsset ? (
+                        <>
+                          {" "}
+                          · bought by <Ref kind="machine" id={p.byAsset} fallback={p.byAssetName ?? p.byAsset} link={false} />
+                        </>
+                      ) : p.buyer ? (
+                        <>
+                          {" "}
+                          · by <Who hedera={p.buyer} fallback={p.buyer} link={false} />
+                        </>
+                      ) : (
+                        ""
+                      )}
                       {p.buyer && p.byAssetName ? <span className="faint mono"> ({p.buyer})</span> : null}
                       <span className="faint"> · {ago(p.at)}</span>
                       <span className="res-links">

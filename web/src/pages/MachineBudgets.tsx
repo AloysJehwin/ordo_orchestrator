@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
 import { ago, dateTime, shortAddr } from "../lib/format";
+import { NameInput, Ref, Who } from "../ui/Name";
 import { checkSchedule } from "../lib/schedule-body";
 import { useSign } from "../lib/sign";
 import type { BudgetSchedule, BudgetStatus, BudgetsResponse, TypedSignature } from "../types";
@@ -33,7 +34,7 @@ const link = (url: string | null | undefined, text: string) =>
  * Hedera's mirror node itself and refuses to sign a transfer other than the one shown here.
  */
 export function MachineBudgets() {
-  const { path, can } = useApp();
+  const { path, can, siteId, book } = useApp();
   const [data, setData] = useState<BudgetsResponse | null>(null);
   const [declining, setDeclining] = useState<BudgetSchedule | null>(null);
   const [linking, setLinking] = useState(false);
@@ -126,6 +127,11 @@ export function MachineBudgets() {
       ) : (
         <div className="notice ok">
           <b>Treasury {link(data.treasury.accountUrl, data.treasury.accountId)}</b> · {hbar(data.treasury.balance)}
+          {book.of("treasury", siteId) && (
+            <div className="small">
+              <Ref kind="treasury" id={siteId} />
+            </div>
+          )}
           <div className="small">
             Its key is this org&apos;s contract {link(data.treasury.keyUrl, data.treasury.keyContractId)} ({shortAddr(data.treasury.keyAddress)}), which signs only what{" "}
             {link(data.treasury.contractUrl, `OrdoTreasury ${shortAddr(data.treasury.contract)}`)} verified a manager approved (HIP-755). No server key can move it; anyone can fund it with a plain transfer. Each run&apos;s budget and each top-up is a Hedera schedule: approved, it executes at once; otherwise it lapses at its expiry.
@@ -158,6 +164,11 @@ export function MachineBudgets() {
                     <tr key={b.id}>
                       <td>
                         <b>{b.credits[0]?.assetName ?? b.assetId}</b>
+                        {book.of("topup", b.id) && (
+                          <div className="small">
+                            <Ref kind="topup" id={b.id} />
+                          </div>
+                        )}
                         <div className="faint small">
                           {line?.label ?? b.resource} for stage {b.stageCode} of {b.orderRef ?? b.runId}
                           {line && (
@@ -192,7 +203,9 @@ export function MachineBudgets() {
                       </td>
                       <td className="r">
                         {hbar(b.total)}
-                        <div className="faint small mono">{b.credits[0]?.accountId}</div>
+                        <div className="faint small mono">
+                          {b.credits[0]?.accountId && <Who hedera={b.credits[0].accountId} fallback={b.credits[0].accountId} link={false} />}
+                        </div>
                       </td>
                       <td>{state(b)}</td>
                       <td className="r">{actions(b)}</td>
@@ -228,6 +241,11 @@ export function MachineBudgets() {
                   <tr key={b.id}>
                     <td>
                       <b>{b.orderRef ?? b.runId}</b>
+                      {book.of("budget", b.runId) && (
+                        <div className="small">
+                          <Ref kind="budget" id={b.runId} />
+                        </div>
+                      )}
                       <div className="faint small">
                         {b.templateName ?? "run"} · {ago(b.createdAt)}
                       </div>
@@ -235,7 +253,7 @@ export function MachineBudgets() {
                     <td className="small">
                       {b.credits.map((c) => (
                         <div key={c.accountId}>
-                          {c.assetName} <span className="mono faint">{c.accountId}</span> · {hbar(c.amount)}
+                          <Who hedera={c.accountId} fallback={c.assetName} link={false} /> <span className="mono faint">{c.accountId}</span> · {hbar(c.amount)}
                           <span className="faint"> · buys for {c.stages.join(", ")}</span>
                         </div>
                       ))}
@@ -319,7 +337,8 @@ function Decline({ budget, onClose, submit }: { budget: BudgetSchedule | null; o
 
 function LinkAccount({ open, onClose, submit }: { open: boolean; onClose: () => void; submit: (accountId: string) => Promise<void> }) {
   const [id, setId] = useState("");
-  const valid = /^0\.0\.\d+$/.test(id.trim());
+  // an account, or a name standing for one (the server resolves it)
+  const valid = /^0\.0\.\d+$/.test(id.trim()) || /^([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(id.trim());
   return (
     <Modal
       open={open}
@@ -344,8 +363,8 @@ function LinkAccount({ open, onClose, submit }: { open: boolean; onClose: () => 
       <p className="small muted">
         <span className="mono">pnpm setup:hedera treasury &lt;site&gt; &lt;hbar&gt;</span> opens this org&apos;s key contract and an account keyed to it. Ordo checks the account&apos;s key is exactly that contract before it links it.
       </p>
-      <Field label="Hedera account">
-        <input className="input mono" value={id} onChange={(e) => setId(e.target.value)} placeholder="0.0.123456" />
+      <Field label="Hedera account or ENS name">
+        <NameInput accept="hedera" value={id} onChange={setId} placeholder="0.0.123456" />
       </Field>
     </Modal>
   );

@@ -7,6 +7,7 @@ import { useSign } from "../lib/sign";
 import type { MachineWallet, AgentKey, AgentLicense, AgentRow, AssetKind, AssetView, DataSource, Incident, LicenseStatus, MarketAgent, SignalLimit, TrackRecord, TypedSignature } from "../types";
 import { Action, Drawer, Empty, Field, Loading, Menu, Modal, Segmented, Tabs, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
+import { Ref, Who } from "../ui/Name";
 import { Spark } from "../ui/Spark";
 import { BodiesSection, BodyDrawerSection, CreateMachineModal, FleetModal, useFleet } from "./floor/Bodies";
 
@@ -15,7 +16,7 @@ const SIGNALS = ["temperature", "load_pct", "spindle_speed", "vibration", "feed_
 const statusClass = (s: string) => (s === "running" ? "ok" : s === "alarm" ? "bad" : s === "degraded" ? "warn" : s === "offline" || s === "no_data" ? "muted" : "");
 
 export function Floor() {
-  const { live, can, site } = useApp();
+  const { live, can, site, book } = useApp();
   const route = useRoute();
   const [tab, setTab] = useState<Tab>((route.id as Tab) || "assets");
   const [edit, setEdit] = useState<AssetView | "new" | null>(null);
@@ -103,6 +104,7 @@ export function Floor() {
                         <tr key={a.id} className="click" onClick={() => setOpen(a.id)}>
                           <td>
                             <b>{a.name}</b>
+                            {book.name("machine", a.id) && <div className="small mono muted">{book.name("machine", a.id)}</div>}
                             <div className="faint small">{a.kind.replaceAll("_", " ")}</div>
                           </td>
                           <td>
@@ -139,7 +141,7 @@ export function Floor() {
 }
 
 function Agents() {
-  const { path, live } = useApp();
+  const { path, live, book } = useApp();
   const [rows, setRows] = useState<AgentRow[] | null>(null);
   useEffect(() => {
     void api.get<AgentRow[]>(path("/agents")).then(setRows);
@@ -166,6 +168,11 @@ function Agents() {
               <tr key={a.key}>
                 <td>
                   <b>{a.label}</b>
+                  {book.of("agent", a.key) && (
+                    <div className="small">
+                      <Ref kind="agent" id={a.key} />
+                    </div>
+                  )}
                   {a.inft && (
                     <div className="small" title={a.inft.data.map((d) => `${d.dataDescription} · ${d.dataHash.slice(0, 10)}…`).join("\n")}>
                       {a.inft.tokenId === null ? (
@@ -595,7 +602,7 @@ function MachineWalletSection({ assetId, name }: { assetId: string; name: string
 }
 
 function AssetDrawer({ id, onClose, onEdit }: { id: string; onClose: () => void; onEdit: (a: AssetView) => void }) {
-  const { path, live, can, refresh } = useApp();
+  const { path, live, can, refresh, book } = useApp();
   const [d, setD] = useState<AssetDetail | null>(null);
   const [minutes, setMinutes] = useState("60");
   const [reading, setReading] = useState(false);
@@ -650,6 +657,14 @@ function AssetDrawer({ id, onClose, onEdit }: { id: string; onClose: () => void;
         <span className="muted small">{a.statusDetail}</span>
       </div>
       <dl className="kv">
+        {book.of("machine", a.id) && (
+          <>
+            <dt>ENS name</dt>
+            <dd>
+              <Ref kind="machine" id={a.id} />
+            </dd>
+          </>
+        )}
         <dt>Source</dt>
         <dd>
           {src.type === "mtconnect" ? (
@@ -660,7 +675,7 @@ function AssetDrawer({ id, onClose, onEdit }: { id: string; onClose: () => void;
             "Uploaded dataset replay"
           ) : src.type === "gateway" ? (
             <>
-              Signing gateway · <span className="mono small">{src.device}</span> · signs each stage&apos;s counts with its own key
+              Signing gateway · <Who address={src.device} fallback={<span className="mono small">{src.device}</span>} /> · signs each stage&apos;s counts with its own key
             </>
           ) : (
             "Manual readings"

@@ -6,6 +6,7 @@ import { useSign } from "../../lib/sign";
 import { TRUST_TEXT, type AssetKind, type BodyAnswer, type BodyState, type FleetView, type MachineBody, type MachinesView, type TypedSignature } from "../../types";
 import { Action, Field, Modal, useToast } from "../../ui/kit";
 import { Select } from "../../ui/Select";
+import { Who } from "../../ui/Name";
 
 /** Kinds a virtual machine can be: every kind of machine, not a business-system link. */
 export const VM_KINDS: { value: Exclude<AssetKind, "system">; label: string }[] = [
@@ -79,7 +80,7 @@ function StartStop({ b, onDone }: { b: MachineBody; onDone: () => Promise<unknow
  * decides through 0G, and its newest episode log.
  */
 export function BodiesSection({ onOpen }: { onOpen: (assetId: string) => void }) {
-  const { can, sees, path } = useApp();
+  const { can, sees, path, book } = useApp();
   const { view, load } = useBodies();
   if (!view || view.bodies.length === 0) return null;
   return (
@@ -108,6 +109,7 @@ export function BodiesSection({ onOpen }: { onOpen: (assetId: string) => void })
               <tr key={b.assetId} className="click" onClick={() => onOpen(b.assetId)}>
                 <td>
                   <b>{b.name}</b>
+                  {book.name("machine", b.assetId) && <div className="small mono muted">{book.name("machine", b.assetId)}</div>}
                   <div className="faint small">{b.kind.replaceAll("_", " ")} · simulated</div>
                 </td>
                 <td>
@@ -172,7 +174,10 @@ export function BodyDrawerSection({ assetId }: { assetId: string }) {
         <dt>Heartbeat</dt>
         <dd>{b.heartbeatAt ? `${dateTime(b.heartbeatAt)} (${ago(b.heartbeatAt)})` : "none yet"}</dd>
         <dt>Device</dt>
-        <dd className="mono small">{b.device}</dd>
+        <dd className="small">
+          <Who address={b.device} fallback={<span className="mono">{b.device}</span>} />
+          <div className="mono faint">{b.device}</div>
+        </dd>
         {b.account && (
           <>
             <dt>Hedera account</dt>

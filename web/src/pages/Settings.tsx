@@ -30,8 +30,8 @@ function EnsNames() {
           {names.issued} on-chain · {names.pending} waiting · {names.failed} failed — {by("person")} people, {by("role")} role names, {by("machine")} machines, {by("run")} runs.
           {names.gas.paused ? ` Sending is paused: ${names.gas.reason ?? "gas limits"}.` : ""}
         </p>
-        <a className="btn sm" href={href("names")}>
-          Open the name tree
+        <a className="btn sm" href={href("team?tab=names")}>
+          Open every name (Team → Names)
         </a>
       </div>
     </section>
