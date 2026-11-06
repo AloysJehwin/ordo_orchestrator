@@ -610,7 +610,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     // anyone can leave; a manager can remove anyone
     if (target !== me(c).user.id) need(c, "manager");
     const held = (await sys.plant.team(sid(c))).members.find((m) => m.userId === target);
-    if (held && held.roles.some((r) => r !== "contributor") && target !== me(c).user.id)
+    if (held && [...held.roles, ...held.pending].some((r) => r !== "contributor") && target !== me(c).user.id)
       throw new HttpError(409, "Remove their validator, tester or manager role first, so the change is signed and reaches OrdoTrust");
     await sys.plant.removeMember(sid(c), target);
     await sys.rec.decide(sid(c), { agent: actor(c), kind: "team.removed", summary: target === me(c).user.id ? "Left the org" : `Removed ${target} from the org` });
@@ -1232,6 +1232,17 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     need(c, "manager");
     const b = await body(c, z.object({ address: Hex, role: ChainRoleName }).merge(SignedBody));
     return c.json(await sys.trust.grantCredential(sid(c), me(c).user, b.address, b.role, b));
+  });
+  // a credential OrdoTrust holds that no ENS name backs (someone left, or was demoted on ENS): a manager signs it away
+  site.post("/chain/credentials/revoke-request", async (c) => {
+    need(c, "manager");
+    const b = await body(c, z.object({ address: Hex, role: ChainRoleName }));
+    return c.json(await sys.trust.credentialRevokeRequest(sid(c), me(c).user, b.address, b.role));
+  });
+  site.post("/chain/credentials/revoke", async (c) => {
+    need(c, "manager");
+    const b = await body(c, z.object({ address: Hex, role: ChainRoleName }).merge(SignedBody));
+    return c.json(await sys.trust.revokeCredential(sid(c), me(c).user, b.address, b.role, b));
   });
   site.post("/chain/retry", async (c) => {
     need(c, "manager");

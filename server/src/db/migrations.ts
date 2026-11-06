@@ -603,4 +603,15 @@ UPDATE ens_names SET status = 'pending', attempts = 0, error = NULL, next_try_at
 UPDATE ens_names SET attempts = 0, error = NULL, next_try_at = now() WHERE status = 'pending' AND attempts > 0;
 `,
   },
+  {
+    version: 37,
+    name: "Roles come from ENS: a grant is pending until its role name is on-chain (held after), a removal applies at once; names remember when they expire",
+    sql: `
+ALTER TABLE memberships ADD COLUMN state TEXT NOT NULL DEFAULT 'held';
+ALTER TABLE memberships ADD COLUMN confirmed_at TIMESTAMPTZ;
+ALTER TABLE ens_names ADD COLUMN expires_at TIMESTAMPTZ;
+-- names were registered for a year (ENS_NAME_YEARS) when first issued
+UPDATE ens_names SET expires_at = created_at + interval '365 days' WHERE have_json IS NOT NULL;
+`,
+  },
 ];

@@ -126,9 +126,10 @@ export class Auth {
     }
   }
 
+  /** The roles a person holds: with ENS names on, a promotion counts once its role name is on-chain (until then it is pending). */
   async memberships(userId: string): Promise<Membership[]> {
     const r = await this.db.query<{ site_id: string; name: string; role: string }>(
-      "SELECT m.site_id, s.name, m.role FROM memberships m JOIN sites s ON s.id = m.site_id WHERE m.user_id = $1 ORDER BY s.created_at",
+      "SELECT m.site_id, s.name, m.role FROM memberships m JOIN sites s ON s.id = m.site_id WHERE m.user_id = $1 AND m.state = 'held' ORDER BY s.created_at",
       [userId],
     );
     const by = new Map<string, Membership>();

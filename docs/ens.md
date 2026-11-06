@@ -3,7 +3,7 @@
 Everything in an Ordo org has an ENS name, registered on-chain on ENSv2 (Sepolia) under one root, `ordo.eth`. That covers the org, its people and the roles they hold, its machines, agents, lines, vendors, runs, stages, budgets and work orders. The console, the CLI, the machine bodies, Hedera memos and HCS lines all use these names wherever an address, account or id would otherwise appear.
 
 - **Identity:** a person is `priya.acme.ordo.eth`, minted to their own wallet from the handle they chose. Their display name never goes on-chain.
-- **Roles:** holding `priya.validators.acme.ordo.eth` *is* holding the validator role. Contracts read roles from the names people hold, so promoting someone issues a name and demoting them revokes it.
+- **Roles:** holding `priya.validators.acme.ordo.eth` *is* holding the validator role. ENS decides roles: the console, the contracts and OrdoTrust on Hedera all follow the names people hold. Promoting someone issues a name, and the role counts once it is on-chain. Demoting someone revokes the name, and the role ends at once. ([Roles](#roles-ens-decides))
 - **Lots:** a run's name (`so-7781.runs.acme.ordo.eth`) is the lot. The three release signatures sign it, and `OrdoRunResolver` records the release on it.
 - **Links between things live on-chain too:** a stage names its machine, a budget its treasury, a work order its vendor, a role name its person.
 
@@ -101,6 +101,26 @@ The server side is `server/src/core/names.ts`.
 Names never block production. `names.ensure(kind, ref)` returns the name an entity will have before it is on-chain, which is why a Hedera memo can carry a budget's name before the budget exists.
 
 **Gas limits.** Sending pauses while Sepolia's base fee is above `ENS_MAX_FEE_GWEI` (2), once a day's spend reaches `ENS_DAILY_ETH` (0.02), or when the owner holds under 0.002 ETH. Names stay pending, and the Names page says why.
+
+## Roles: ENS decides
+
+The names a wallet holds decide its roles at an org. Ordo keeps a copy of them in `memberships`, which the console reads on every request.
+
+- **Promotion.** A manager signs one EIP-712 `role.grant` in the console. The person's role row is written as **pending**, and Names issues the role name in the next batch.
+  - The role counts once the role name and the person's own name are both on-chain, usually about a minute later. `EnsRoles.promote` then marks the row **held** and records `team.role_held`.
+  - The same signature goes to OrdoTrust then, not before. Its relay waits as `waiting_ens`.
+- **Demotion.** The row is deleted and the role ends at once. The name is revoked in the next batch, and the revoke goes to OrdoTrust straight away. Cancelling a promotion that is still pending sends nothing to Hedera.
+- **Granted without a signature:** a new org's creator (manager) and a new member's contributor role. They count at once, and their names follow.
+- **The chain wins.** Every 5 minutes, under a database lease shared by every server instance, `EnsRoles.verify` reads back each issued role name and person name:
+  - a role name that is no longer held on-chain ends the role (`team.role_lapsed`);
+  - an expired name is issued again (`ens.reissue`), and so is an org's last manager, a contributor's role and a person's own name, since none of them needs a signature.
+- **OrdoTrust follows ENS.** Stakes compares the credentials OrdoTrust holds with the bits `OrdoNames.roles` gives each wallet:
+  - ADMIN stands for MANAGER;
+  - VALIDATOR counts on its own only without ADMIN;
+  - TESTER and VENDOR stand for themselves.
+
+  It lists credentials that are **missing** (sign a grant) and **extra** (sign a removal: `/chain/credentials/revoke`). Wallets whose name is still on its way are left alone.
+- **ENS off** (no `ENS_NAMES_ADDRESS`, local PGlite, most tests): roles are kept in Ordo as before, and every grant counts at once.
 
 ## Releases on run names: OrdoRunResolver
 

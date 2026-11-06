@@ -13,6 +13,8 @@ import { Stakes, Vendors } from "./Stakes";
 
 type Member = Team["members"][number];
 const PROMOTABLE: Role[] = ["validator", "tester", "manager"];
+/** where a role's OrdoTrust credential is, when it is not there yet */
+const RELAY_NOTE: Partial<Record<string, string>> = { waiting_site: "waits for registration", waiting_ens: "goes to Hedera once on ENS", pending: "sending to Hedera", failed: "Hedera refused" };
 const ROLE_TONE: Record<Role, string> = { manager: "accent", validator: "ok", tester: "warn", contributor: "" };
 
 const scopeText = (s: AccessScope, lineName: (id: string) => string) => {
@@ -88,13 +90,14 @@ function Members() {
   const who = (m: Member) => book.byAddress(m.address)?.name ?? m.ens ?? m.name ?? shortAddr(m.address);
 
   const change = async (m: Member, role: Role, grant: boolean) => {
-    const r = await sign<{ chain: { status: string; error: string | null } | null; reissue?: string[] }>({
+    const r = await sign<{ chain: { status: string; error: string | null } | null; reissue?: string[]; pending?: boolean }>({
       title: `${grant ? "Make" : "Remove"} ${who(m)} ${grant ? "a" : "as"} ${label(role)}`,
       request: (chainId) => api.post<TypedSignature>(path(`/team/members/${m.userId}/roles/sign-request`), { role, grant, chainId }),
       submit: (proof) => api.post(path(`/team/members/${m.userId}/roles`), { role, grant, comment: "", ...proof }),
     });
     if (!r) return;
-    if (r.chain?.status === "failed") toast(`Saved in Ordo; OrdoTrust refused it: ${r.chain.error ?? "retry from Stakes"}`, "bad");
+    if (r.pending) toast(`Signed. ${who(m)} becomes a ${label(role)} once the role name is on ENS, in about a minute${status.trust ? "; OrdoTrust follows" : ""}.`, "ok");
+    else if (r.chain?.status === "failed") toast(`Saved in Ordo; OrdoTrust refused it: ${r.chain.error ?? "retry from Stakes"}`, "bad");
     else if (r.chain?.status === "waiting_site") toast("Saved. It goes on-chain once the org is registered (Settings).", "ok");
     else toast(`${who(m)} is ${grant ? "now" : "no longer"} a ${label(role)}`, "ok");
     // OrdoTrust took the whole manager credential, validator bit included: sign that one again for someone who stays a validator
@@ -105,6 +108,11 @@ function Members() {
         submit: (proof) => api.post(path("/chain/credentials/grant"), { address: m.address, role: chainRole, ...proof }),
         done: "Credential signed again",
       });
+    await reloadSite();
+  };
+  const retryName = async (m: Member, role: Role) => {
+    await api.post(path(`/names/role/${encodeURIComponent(`${role}:${m.userId}`)}/retry`));
+    toast("Sent to ENS again", "ok");
     await reloadSite();
   };
   const remove = async (m: Member) => {
@@ -147,6 +155,7 @@ function Members() {
           <tbody>
             {team?.members.map((m) => {
               const own = override(m);
+              const pending = m.pending ?? [];
               const isMgr = m.roles.includes("manager");
               const lvl = isMgr ? 4 : own ? own.level : Math.max(...m.roles.map((r) => defaultOf(r)?.level ?? meta.roles.find((x) => x.key === r)?.defaultLevel ?? 1));
               return (
@@ -175,7 +184,22 @@ function Members() {
                         return (
                           <span key={r} className={`tag ${ROLE_TONE[r]}`} title={relay?.error ?? undefined}>
                             {label(r)}
-                            {relay && relay.status !== "done" && <span className="faint small"> · {relay.status === "waiting_site" ? "waits for registration" : relay.status}</span>}
+                            {relay && relay.status === "done" && <span className="faint small"> · on Hedera</span>}
+                            {relay && relay.status !== "done" && relay.status !== "superseded" && <span className="faint small"> · {RELAY_NOTE[relay.status] ?? relay.status}</span>}
+                          </span>
+                        );
+                      })}
+                      {pending.map((r) => {
+                        const rn = m.roleNames?.find((x) => x.role === r);
+                        return (
+                          <span key={`p-${r}`} className="tag pending" title="Signed: the role counts once its name is on ENS">
+                            {label(r)}
+                            <span className="faint small"> · {rn?.status === "failed" ? "ENS failed" : "pending on ENS"}</span>
+                            {manager && rn?.status === "failed" && (
+                              <button type="button" className="btn link small" onClick={() => void retryName(m, r)}>
+                                Retry
+                              </button>
+                            )}
                           </span>
                         );
                       })}
@@ -202,10 +226,11 @@ function Members() {
                           </button>
                         )}
                         items={[
-                          ...PROMOTABLE.filter((r) => !m.roles.includes(r)).map((r) => ({ label: `Make ${label(r).toLowerCase()}`, onClick: () => void change(m, r, true) })),
+                          ...PROMOTABLE.filter((r) => !m.roles.includes(r) && !pending.includes(r)).map((r) => ({ label: `Make ${label(r).toLowerCase()}`, onClick: () => void change(m, r, true) })),
                           ...PROMOTABLE.filter((r) => m.roles.includes(r)).map((r) => ({ label: `Remove ${label(r).toLowerCase()} role`, onClick: () => void change(m, r, false), danger: true })),
+                          ...PROMOTABLE.filter((r) => pending.includes(r) && !m.roles.includes(r)).map((r) => ({ label: `Cancel making them ${label(r).toLowerCase()}`, onClick: () => void change(m, r, false), danger: true })),
                           ...(isMgr ? [] : [{ label: "Set what they see", onClick: () => setAccessFor(m) }]),
-                          ...(m.roles.every((r) => r === "contributor") && m.address !== me.user!.address ? [{ label: "Remove from org", onClick: () => void remove(m), danger: true }] : []),
+                          ...([...m.roles, ...pending].every((r) => r === "contributor") && m.address !== me.user!.address ? [{ label: "Remove from org", onClick: () => void remove(m), danger: true }] : []),
                         ]}
                       />
                     </td>

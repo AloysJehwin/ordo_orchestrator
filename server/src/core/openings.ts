@@ -64,7 +64,7 @@ export class Openings {
   }
 
   private async holders(siteId: string) {
-    const m = await this.db.query<{ role: Role; n: string }>("SELECT role, COUNT(*)::text n FROM memberships WHERE site_id = $1 GROUP BY role", [siteId]);
+    const m = await this.db.query<{ role: Role; n: string }>("SELECT role, COUNT(*)::text n FROM memberships WHERE site_id = $1 AND state = 'held' GROUP BY role", [siteId]);
     return { roles: new Map(m.rows.map((x) => [x.role, Number(x.n)])) };
   }
 

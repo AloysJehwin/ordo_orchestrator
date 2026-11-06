@@ -411,7 +411,7 @@ export class Validation {
     const r = await this.db.query<{ meaning: string }>("SELECT meaning FROM package_signatures WHERE package_id = $1 AND user_id = $2 AND cleared_at IS NULL", [id, user.id]);
     if (!r.rows.length) return false;
     if (meaning === "approved" && r.rows.every((x) => x.meaning === "performed")) {
-      const managers = await this.db.query<{ n: string }>("SELECT count(*)::text AS n FROM memberships WHERE site_id = $1 AND role = 'manager'", [siteId]);
+      const managers = await this.db.query<{ n: string }>("SELECT count(*)::text AS n FROM memberships WHERE site_id = $1 AND role = 'manager' AND state = 'held'", [siteId]);
       if (Number(managers.rows[0]?.n ?? 0) === 1) return true;
     }
     throw new HttpError(403, "You already signed this package: another person must sign the next step");

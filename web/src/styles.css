@@ -294,6 +294,9 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tag.ok, .pill.ok { border-color: var(--ok-line); color: var(--ok); background: var(--ok-bg); }
 .tag.warn, .pill.warn { border-color: var(--warn-line); color: var(--warn); background: var(--warn-bg); }
 .pill.muted { color: var(--faint); }
+/* signed but not counting yet (a role on its way to ENS) */
+.tag.pending { border-style: dashed; border-color: var(--line-strong); color: var(--muted); background: transparent; }
+.tag .btn.link { padding: 0 2px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; flex: none; }
 .notice { border: 1px solid var(--divider); border-radius: var(--r-md); padding: 12px 16px; background: rgba(255, 255, 255, 0.7); margin: 12px 0; }
 .notice.warn { background: var(--warn-bg); border-color: var(--warn-line); }

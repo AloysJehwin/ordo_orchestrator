@@ -15,9 +15,19 @@ import type { Schedules } from "./schedules.js";
 /** The on-chain credential each org role holds in OrdoTrust. Contributors hold none: their work is proven by their own signatures. */
 export const ROLE_CHAIN: Partial<Record<Role, ChainRole>> = { manager: "MANAGER", validator: "VALIDATOR", tester: "TESTER" };
 const hasBits = (bits: number, role: ChainRole) => (bits & CHAIN_ROLE[role]) === CHAIN_ROLE[role];
+/** The OrdoTrust credentials a set of role bits stands for: a manager's (ADMIN) covers validating. */
+const credsOf = (bits: number): ChainRole[] => {
+  const out: ChainRole[] = [];
+  if (bits & CHAIN_ROLE.ADMIN) out.push("MANAGER");
+  else if (bits & CHAIN_ROLE.VALIDATOR) out.push("VALIDATOR");
+  if (bits & CHAIN_ROLE.TESTER) out.push("TESTER");
+  if (bits & CHAIN_ROLE.VENDOR) out.push("VENDOR");
+  return out;
+};
 export interface RelayView {
   kind: string;
-  status: "pending" | "done" | "failed" | "waiting_site";
+  /** waiting_ens: a promotion's grant goes to OrdoTrust once its role name is on ENS, where roles are decided */
+  status: "pending" | "done" | "failed" | "waiting_site" | "waiting_ens" | "superseded";
   txHash: string | null;
   txUrl: string | null;
   error: string | null;
@@ -36,6 +46,10 @@ const fromJsonSafe = (s: ReturnType<typeof jsonSafe>): ReleaseSigArg => ({ ...s,
 export class Trust {
   /** Set when Hedera's Schedule Service returns stakes at the end of the unstake cooldown */
   schedules: Schedules | null = null;
+  /** Are roles decided by ENS names right now (set by wiring)? Then a promotion waits for its role name. */
+  private ensLive: () => boolean = () => false;
+  /** the role bits a wallet holds through its ENS names (OrdoNames.roles), when names are on */
+  private ensBits: ((siteId: string, address: string) => Promise<number>) | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -55,14 +69,21 @@ export class Trust {
     return { chainId: client ?? this.defaultChainId };
   }
 
+  /** Roles are decided by ENS names: a promotion is pending until its role name is on-chain, and only then goes to OrdoTrust. */
+  useEns(live: () => boolean, bits?: (siteId: string, address: string) => Promise<number>) {
+    this.ensLive = live;
+    this.ensBits = bits ?? null;
+  }
+
   // ---------------------------------------------------------------- roles: promotions and removals
   private async member(siteId: string, userId: string) {
-    const r = await this.db.query<{ address: string; display_name: string | null; role: string }>(
-      "SELECT u.address, u.display_name, m.role FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.user_id = $2",
+    const r = await this.db.query<{ address: string; display_name: string | null; role: string; state: string }>(
+      "SELECT u.address, u.display_name, m.role, m.state FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.user_id = $2",
       [siteId, userId],
     );
     if (!r.rows.length) throw new HttpError(404, "Not a member of this org");
-    return { address: r.rows[0]!.address, name: r.rows[0]!.display_name, roles: r.rows.map((x) => x.role as Role) };
+    const of = (state: string) => r.rows.filter((x) => x.state === state).map((x) => x.role as Role);
+    return { address: r.rows[0]!.address, name: r.rows[0]!.display_name, roles: of("held"), pending: of("pending") };
   }
   private roleEntity(address: string, role: Role) {
     return `${address.toLowerCase()}#${ROLE_CHAIN[role] ?? role.toUpperCase()}`;
@@ -75,7 +96,8 @@ export class Trust {
   async roleRequest(siteId: string, manager: User, userId: string, role: Role, grant: boolean, comment: string, clientChainId?: number): Promise<TypedSignature> {
     const m = await this.member(siteId, userId);
     if (grant && m.roles.includes(role)) throw new HttpError(409, `${m.name ?? m.address} is already a ${ROLE_LABEL[role]}`);
-    if (!grant && !m.roles.includes(role)) throw new HttpError(409, `${m.name ?? m.address} is not a ${ROLE_LABEL[role]}`);
+    if (grant && m.pending.includes(role)) throw new HttpError(409, `${m.name ?? m.address} is already being made a ${ROLE_LABEL[role]}: the role name is on its way to ENS`);
+    if (!grant && !m.roles.includes(role) && !m.pending.includes(role)) throw new HttpError(409, `${m.name ?? m.address} is not a ${ROLE_LABEL[role]}`);
     if (!grant && userId === manager.id && role === "manager") throw new HttpError(409, "Ask another manager to remove your manager role");
     return this.sigs.request(manager, {
       action: grant ? "role.grant" : "role.revoke",
@@ -90,18 +112,24 @@ export class Trust {
   async setRole(siteId: string, manager: User, userId: string, role: Role, grant: boolean, input: { comment: string; nonce: string; signature: Hex }) {
     const m = await this.member(siteId, userId);
     const action = grant ? "role.grant" : "role.revoke";
+    // with ENS names on, a promotion counts once its role name is on-chain; a removal counts at once
+    const viaEns = this.ensLive();
+    const wasPending = !grant && m.pending.includes(role) && !m.roles.includes(role);
     const sig = await this.db.tx(async (q) => {
       const s = await this.sigs.consume(q, manager, { action, entity: this.roleEntity(m.address, role) }, { nonce: input.nonce, signature: input.signature });
-      if (grant) await q.query("INSERT INTO memberships (site_id, user_id, role, created_by) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING", [siteId, userId, role, manager.id]);
+      if (grant)
+        await q.query("INSERT INTO memberships (site_id, user_id, role, created_by, state) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING", [siteId, userId, role, manager.id, viaEns ? "pending" : "held"]);
       else {
-        if (role === "manager") {
-          const others = await q.query<{ n: string }>("SELECT COUNT(*)::text n FROM memberships WHERE site_id = $1 AND role = 'manager' AND user_id <> $2", [siteId, userId]);
+        if (role === "manager" && !wasPending) {
+          const others = await q.query<{ n: string }>("SELECT COUNT(*)::text n FROM memberships WHERE site_id = $1 AND role = 'manager' AND state = 'held' AND user_id <> $2", [siteId, userId]);
           if (Number(others.rows[0]!.n) < 1) throw new HttpError(409, "An org needs at least one manager");
         }
         await q.query("DELETE FROM memberships WHERE site_id = $1 AND user_id = $2 AND role = $3", [siteId, userId, role]);
+        // a grant still waiting for ENS never reaches OrdoTrust
+        await q.query("UPDATE chain_relays SET status = 'superseded', updated_at = now() WHERE site_id = $1 AND status = 'waiting_ens' AND ref LIKE $2", [siteId, `role\\_${userId}\\_${role}\\_%`]);
         // nobody is left without a role: someone who loses their last one is a contributor again
-        const left = await q.query("SELECT 1 FROM memberships WHERE site_id = $1 AND user_id = $2", [siteId, userId]);
-        if (!left.rows.length) await q.query("INSERT INTO memberships (site_id, user_id, role, created_by) VALUES ($1,$2,'contributor',$3)", [siteId, userId, manager.id]);
+        const left = await q.query("SELECT 1 FROM memberships WHERE site_id = $1 AND user_id = $2 AND state = 'held'", [siteId, userId]);
+        if (!left.rows.length) await q.query("INSERT INTO memberships (site_id, user_id, role, created_by) VALUES ($1,$2,'contributor',$3) ON CONFLICT DO NOTHING", [siteId, userId, manager.id]);
       }
       return s;
     });
@@ -114,17 +142,28 @@ export class Trust {
     });
     await this.db.query("UPDATE signatures SET ledger_seq = $1 WHERE id = $2", [d.ledgerSeq, sig.id]);
     const chainRole = ROLE_CHAIN[role];
-    if (!chainRole || !this.chain) return { chain: null };
+    const pending = grant && viaEns;
+    // a promotion that never reached ENS never reached OrdoTrust either: there is nothing to take back there
+    if (!chainRole || !this.chain || wasPending) return pending ? { chain: null, pending } : { chain: null };
     const ref = `role_${userId}_${role}_${sig.id}`;
-    const relay = grant ? await this.relayGrant(siteId, ref, m.address, chainRole, sigArg(sig.typed, input.signature)) : await this.relayRevoke(siteId, ref, m.address, chainRole, sigArg(sig.typed, input.signature));
+    const arg = sigArg(sig.typed, input.signature);
+    // Hedera follows ENS: the grant waits until the role name is on-chain, then goes out with this same signature
+    const relay = pending ? await this.park(siteId, "grant", ref, { address: m.address, role: chainRole, sig: arg }, "waiting_ens") : grant ? await this.relayGrant(siteId, ref, m.address, chainRole, arg) : await this.relayRevoke(siteId, ref, m.address, chainRole, arg);
     // OrdoTrust's MANAGER value includes the VALIDATOR bit: a manager who stays a validator needs that credential again,
     // signed by a manager (POST /chain/credentials/grant). The console asks for it straight away.
     let reissue: ChainRole[] = [];
     if (!grant && role === "manager" && relay.status === "done") {
-      const kept = await this.db.query<{ role: Role }>("SELECT role FROM memberships WHERE site_id = $1 AND user_id = $2", [siteId, userId]);
+      const kept = await this.db.query<{ role: Role }>("SELECT role FROM memberships WHERE site_id = $1 AND user_id = $2 AND state = 'held'", [siteId, userId]);
       reissue = kept.rows.map((r) => ROLE_CHAIN[r.role]).filter((x): x is ChainRole => x !== undefined && x !== "MANAGER" && (CHAIN_ROLE[x] & CHAIN_ROLE.MANAGER) !== 0);
     }
-    return { chain: relay, reissue };
+    return pending ? { chain: relay, reissue, pending } : { chain: relay, reissue };
+  }
+
+  /** A promotion's role name is on ENS: its OrdoTrust grant, signed when it was made, goes out now. */
+  async releaseWaitingEns(siteId: string, userId: string, role: Role) {
+    if (!this.chain) return;
+    const waiting = await this.db.query<{ ref: string }>("SELECT DISTINCT ref FROM chain_relays WHERE site_id = $1 AND status = 'waiting_ens' AND ref LIKE $2", [siteId, `role\\_${userId}\\_${role}\\_%`]);
+    for (const w of waiting.rows) await this.retry(siteId, w.ref).catch((e) => console.error(`[ordo] trust relay ${w.ref}`, e));
   }
 
   /** The latest relay of each person's role changes, so Team can show what OrdoTrust holds and retry a failure. */
@@ -148,6 +187,12 @@ export class Trust {
   /** Let another module's relays be retried: `run` re-sends a relay of this kind from its stored payload. */
   onRetry(kind: string, run: (siteId: string, ref: string, payload: any) => Promise<Hex>) {
     this.retryers.set(kind, run);
+  }
+
+  /** Keep a signed authorisation to send later (waiting for the site's registration, or for ENS). */
+  private async park(siteId: string, kind: string, ref: string, payload: unknown, status: "waiting_site" | "waiting_ens"): Promise<RelayView> {
+    await this.db.query("INSERT INTO chain_relays (id, site_id, kind, ref, payload_json, status) VALUES ($1,$2,$3,$4,$5,$6)", [newId("rly"), siteId, kind, ref, JSON.stringify(payload), status]);
+    return this.relayView({ kind, status, tx_hash: null, error: null });
   }
 
   /** Send a signed authorisation to a contract and record the outcome (pending → done | failed | waiting_site). */
@@ -271,38 +316,67 @@ export class Trust {
     if (!r.ok) throw new HttpError(403, r.reason!);
   }
   async rolesOf(siteId: string, userId: string): Promise<Role[]> {
-    return (await this.db.query<{ role: Role }>("SELECT role FROM memberships WHERE site_id = $1 AND user_id = $2", [siteId, userId])).rows.map((r) => r.role);
+    return (await this.db.query<{ role: Role }>("SELECT role FROM memberships WHERE site_id = $1 AND user_id = $2 AND state = 'held'", [siteId, userId])).rows.map((r) => r.role);
   }
 
-  // ---------------------------------------------------------------- credentials missing on-chain
+  // ---------------------------------------------------------------- credentials on-chain: what OrdoTrust should hold
   /**
-   * The credentials OrdoTrust should hold for this org's managers, validators, testers and vendors, with what the
-   * contract has now. Needed after a redeploy, or when a grant's relay failed.
+   * The credentials OrdoTrust should hold for this org, with what the contract has now: `missing` ones to grant and
+   * `extra` ones to take back. With ENS names on, roles are decided by the names people hold, so OrdoTrust follows
+   * those; without, it follows Ordo's own records (managers, validators, testers, vendors). Needed after a redeploy,
+   * or when a relay failed.
    */
   async credentials(siteId: string) {
-    if (!this.chain) return { configured: false as const, registered: false, admins: [] as string[], missing: [] as { userId: string; address: string; name: string | null; role: ChainRole; label: string }[] };
-    const want = new Map<string, { userId: string; address: string; name: string | null; roles: Set<ChainRole>; labels: Map<ChainRole, string> }>();
-    const add = (r: { user_id: string; address: string; display_name: string | null }, role: ChainRole, label: string) => {
-      const w = want.get(r.address) ?? { userId: r.user_id, address: r.address, name: r.display_name, roles: new Set<ChainRole>(), labels: new Map<ChainRole, string>() };
-      w.roles.add(role);
-      if (!w.labels.has(role)) w.labels.set(role, label);
-      want.set(r.address, w);
-    };
+    type Cred = { userId: string; address: string; name: string | null; role: ChainRole; label: string };
+    if (!this.chain) return { configured: false as const, registered: false, admins: [] as string[], missing: [] as Cred[], extra: [] as Cred[], source: "db" as const };
     type Row = { user_id: string; address: string; display_name: string | null };
-    for (const m of (await this.db.query<Row & { role: Role }>("SELECT m.user_id, m.role, u.address, u.display_name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1", [siteId])).rows) {
-      const role = ROLE_CHAIN[m.role];
-      if (role) add(m, role, ROLE_LABEL[m.role]);
+    const members = (await this.db.query<Row & { role: Role }>("SELECT m.user_id, m.role, u.address, u.display_name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.state = 'held'", [siteId])).rows;
+    const vendors = (await this.db.query<Row>("SELECT v.user_id, v.address, u.display_name FROM vendors v LEFT JOIN users u ON u.id = v.user_id WHERE v.site_id = $1 AND v.status = 'approved'", [siteId])).rows;
+    const who = new Map<string, { userId: string; name: string | null }>();
+    for (const r of [...members, ...vendors]) if (!who.has(r.address.toLowerCase())) who.set(r.address.toLowerCase(), { userId: r.user_id ?? "", name: r.display_name });
+    const label = (role: ChainRole) => (role === "MANAGER" ? ROLE_LABEL.manager : role === "VALIDATOR" ? ROLE_LABEL.validator : role === "TESTER" ? ROLE_LABEL.tester : role === "VENDOR" ? "Maintenance vendor" : role);
+    const cred = (address: string, role: ChainRole): Cred => ({ userId: who.get(address)?.userId ?? "", address, name: who.get(address)?.name ?? null, role, label: label(role) });
+
+    // what each wallet should hold
+    const want = new Map<string, Set<ChainRole>>();
+    const ens = this.ensLive() && this.ensBits !== null;
+    let settling = new Set<string>();
+    if (ens) {
+      // a wallet whose name is still on its way to ENS is left alone until it lands
+      const named = await this.db.query<{ address: string; have_json: string | null; status: string }>(
+        "SELECT lower(address) AS address, have_json, status FROM ens_names WHERE site_id = $1 AND kind IN ('person','vendor') AND address IS NOT NULL AND id NOT LIKE '%:was:%'",
+        [siteId],
+      );
+      const onChain = new Set(named.rows.filter((n) => n.have_json && !(JSON.parse(n.have_json) as { revoke?: boolean }).revoke).map((n) => n.address));
+      settling = new Set(named.rows.filter((n) => !n.have_json && n.status !== "revoked" && !onChain.has(n.address)).map((n) => n.address));
+      // past grant targets too, so a credential left on OrdoTrust after someone left is found
+      const granted = await this.db.query<{ payload_json: string }>("SELECT payload_json FROM chain_relays WHERE site_id = $1 AND kind = 'grant' AND status = 'done'", [siteId]);
+      const wallets = new Set([...who.keys(), ...granted.rows.map((g) => String((JSON.parse(g.payload_json) as { address?: string }).address ?? "").toLowerCase()).filter((a) => /^0x[0-9a-f]{40}$/.test(a))]);
+      for (const a of wallets) {
+        if (settling.has(a)) continue;
+        const bits = await this.ensBits!(siteId, a).catch(() => null);
+        if (bits !== null) want.set(a, new Set(credsOf(bits)));
+      }
+    } else {
+      for (const m of members) {
+        const role = ROLE_CHAIN[m.role];
+        if (role) want.set(m.address.toLowerCase(), new Set([...(want.get(m.address.toLowerCase()) ?? []), role]));
+      }
+      for (const v of vendors) want.set(v.address.toLowerCase(), new Set([...(want.get(v.address.toLowerCase()) ?? []), "VENDOR" as ChainRole]));
     }
-    for (const v of (await this.db.query<Row>("SELECT v.user_id, v.address, u.display_name FROM vendors v LEFT JOIN users u ON u.id = v.user_id WHERE v.site_id = $1 AND v.status = 'approved'", [siteId])).rows)
-      add({ ...v, user_id: v.user_id ?? "" }, "VENDOR", "Maintenance vendor");
+
     const have = new Map(await Promise.all([...want.keys()].map(async (a) => [a, await this.chain!.roles(siteId, a).catch(() => null)] as const)));
-    const missing = [...want.values()].flatMap((w) => {
-      const bits = have.get(w.address);
-      if (bits === null || bits === undefined) return [];
-      return [...w.roles].filter((r) => !hasBits(bits, r)).map((role) => ({ userId: w.userId, address: w.address, name: w.name, role, label: w.labels.get(role)! }));
-    });
+    const missing: Cred[] = [];
+    const extra: Cred[] = [];
+    for (const [a, roles] of want) {
+      const bits = have.get(a);
+      if (bits === null || bits === undefined) continue;
+      for (const r of roles) if (!hasBits(bits, r)) missing.push(cred(a, r));
+      // with ENS deciding, a credential no name backs is taken back (one another wanted credential covers is not)
+      if (ens) for (const r of credsOf(bits)) if (![...roles].some((w) => (CHAIN_ROLE[w] & CHAIN_ROLE[r]) === CHAIN_ROLE[r])) extra.push(cred(a, r));
+    }
     const admins = [...have].filter(([, bits]) => bits !== null && (bits & CHAIN_ROLE.ADMIN) !== 0).map(([a]) => a);
-    return { configured: true as const, registered: await this.siteRegistered(siteId), admins, missing };
+    return { configured: true as const, registered: await this.siteRegistered(siteId), admins, missing, extra, source: ens ? ("ens" as const) : ("db" as const) };
   }
   private async assertChainAdmin(siteId: string, admin: User) {
     if (!this.chain) throw new HttpError(409, "No trust contract is configured");
@@ -321,6 +395,20 @@ export class Trust {
     if (!m) throw new HttpError(409, "That credential is not missing");
     return this.sigs.request(admin, { action: "role.grant", entity: `${m.address}#${role}`, meaning: `Record ${m.name ?? m.address} (${m.address}) as ${m.label} in OrdoTrust`, comment: "", site: siteId, ...this.contractDomain(true) });
   }
+  /** A "role.revoke" for a credential OrdoTrust holds that no ENS name backs, signed by a manager OrdoTrust knows. */
+  async credentialRevokeRequest(siteId: string, admin: User, address: string, role: ChainRole): Promise<TypedSignature> {
+    await this.assertChainAdmin(siteId, admin);
+    const m = (await this.credentials(siteId)).extra.find((x) => x.address === address.toLowerCase() && x.role === role);
+    if (!m) throw new HttpError(409, "OrdoTrust does not hold that credential beyond what ENS says");
+    return this.sigs.request(admin, { action: "role.revoke", entity: `${m.address}#${role}`, meaning: `Take back ${m.name ?? m.address}'s ${m.label} credential in OrdoTrust: no ENS name holds it`, comment: "", site: siteId, ...this.contractDomain(true) });
+  }
+  async revokeCredential(siteId: string, admin: User, address: string, role: ChainRole, proof: { nonce: string; signature: Hex }): Promise<RelayView> {
+    await this.assertChainAdmin(siteId, admin);
+    const a = address.toLowerCase();
+    const sig = await this.db.tx((q) => this.sigs.consume(q, admin, { action: "role.revoke", entity: `${a}#${role}` }, proof));
+    await this.rec.decide(siteId, { agent: `user:${admin.address}`, kind: "chain.credential_revoked", summary: `Signed taking back ${a}'s ${role} credential in OrdoTrust`, data: { address: a, role, signatureId: sig.id } });
+    return this.relayRevoke(siteId, `credrev_${a}_${role}`, a, role, sigArg(sig.typed, proof.signature));
+  }
   async grantCredential(siteId: string, admin: User, address: string, role: ChainRole, proof: { nonce: string; signature: Hex }): Promise<RelayView> {
     await this.assertChainAdmin(siteId, admin);
     const a = address.toLowerCase();
@@ -332,7 +420,7 @@ export class Trust {
   /** The org's validators and testers, with their stakes on-chain. */
   async stakers(siteId: string) {
     const rows = await this.db.query<{ user_id: string; role: Role; created_at: string; address: string; display_name: string | null }>(
-      "SELECT m.user_id, m.role, m.created_at::text, u.address, u.display_name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.role IN ('validator','tester','manager') ORDER BY m.created_at",
+      "SELECT m.user_id, m.role, m.created_at::text, u.address, u.display_name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.role IN ('validator','tester','manager') AND m.state = 'held' ORDER BY m.created_at",
       [siteId],
     );
     const tester = this.chain ? await this.chain.hasFunction("isActiveTester(string,address)").catch(() => false) : false;

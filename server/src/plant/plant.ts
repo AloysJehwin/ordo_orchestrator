@@ -129,14 +129,15 @@ export class PlantService {
   }
 
   async team(siteId: string) {
-    const members = await this.db.query<{ user_id: string; address: string; display_name: string | null; role: string; last_seen_at: string | null }>(
-      "SELECT m.user_id, u.address, u.display_name, m.role, u.last_seen_at::text FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 ORDER BY u.created_at",
+    const members = await this.db.query<{ user_id: string; address: string; display_name: string | null; role: string; state: string; last_seen_at: string | null }>(
+      "SELECT m.user_id, u.address, u.display_name, m.role, m.state, u.last_seen_at::text FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 ORDER BY u.created_at, m.created_at",
       [siteId],
     );
-    const people = new Map<string, { userId: string; address: string; name: string | null; roles: string[]; lastSeenAt: string | null }>();
+    // roles held, and promotions waiting for their role name to land on ENS (they count once it has)
+    const people = new Map<string, { userId: string; address: string; name: string | null; roles: string[]; pending: string[]; lastSeenAt: string | null }>();
     for (const m of members.rows) {
-      const p = people.get(m.user_id) ?? { userId: m.user_id, address: m.address, name: m.display_name, roles: [], lastSeenAt: m.last_seen_at };
-      p.roles.push(m.role);
+      const p = people.get(m.user_id) ?? { userId: m.user_id, address: m.address, name: m.display_name, roles: [], pending: [], lastSeenAt: m.last_seen_at };
+      (m.state === "held" ? p.roles : p.pending).push(m.role);
       people.set(m.user_id, p);
     }
     const invites = await this.db.query<{ id: string; address: string; role: string; created_at: string }>(
@@ -169,7 +170,7 @@ export class PlantService {
   }
   async removeRole(siteId: string, userId: string, role: Role) {
     if (role === "manager") {
-      const managers = await this.db.query<{ n: string }>("SELECT COUNT(*)::text n FROM memberships WHERE site_id = $1 AND role = 'manager' AND user_id <> $2", [siteId, userId]);
+      const managers = await this.db.query<{ n: string }>("SELECT COUNT(*)::text n FROM memberships WHERE site_id = $1 AND role = 'manager' AND state = 'held' AND user_id <> $2", [siteId, userId]);
       if (Number(managers.rows[0]!.n) < 1) throw new HttpError(409, "An org needs at least one manager");
     }
     await this.db.query("DELETE FROM memberships WHERE site_id = $1 AND user_id = $2 AND role = $3", [siteId, userId, role]);

@@ -104,7 +104,8 @@ export interface TrustChainInfo {
 }
 export interface RelayView {
   kind: string;
-  status: "pending" | "done" | "failed" | "waiting_site";
+  /** waiting_ens: a promotion's grant goes to OrdoTrust once its role name is on ENS */
+  status: "pending" | "done" | "failed" | "waiting_site" | "waiting_ens" | "superseded";
   txHash: string | null;
   txUrl: string | null;
   error: string | null;
@@ -184,6 +185,8 @@ export interface Team {
     name: string | null;
     ens: string | null;
     roles: Role[];
+    /** promotions signed but not counting yet: their role name is on its way to ENS, where roles are decided */
+    pending?: Role[];
     lastSeenAt: string | null;
     /** the role names they hold (priya.validators.acme.ordo.eth): holding the name is holding the role */
     roleNames?: { role: Role; name: string; status: NameStatus }[];

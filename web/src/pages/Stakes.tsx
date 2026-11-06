@@ -79,8 +79,13 @@ interface Credentials {
   configured: boolean;
   registered: boolean;
   admins: string[];
-  missing: { userId: string; address: string; name: string | null; role: string; label: string }[];
+  missing: Cred[];
+  /** with ENS deciding roles: credentials OrdoTrust holds that no ENS name backs */
+  extra?: Cred[];
+  /** what OrdoTrust follows: ENS names, or Ordo's own records */
+  source?: "ens" | "db";
 }
+type Cred = { userId: string; address: string; name: string | null; role: string; label: string };
 
 /** Credentials Ordo gave that OrdoTrust does not hold yet: after a redeploy, or when a relay failed. A manager the contract knows signs each again. */
 export function MissingCredentials({ registered }: { registered: boolean }) {
@@ -92,21 +97,58 @@ export function MissingCredentials({ registered }: { registered: boolean }) {
   useEffect(() => {
     void load();
   }, [load, registered]);
-  if (!c?.configured || !c.registered || !c.missing.length) return null;
+  const extra = c?.extra ?? [];
+  if (!c?.configured || !c.registered || (!c.missing.length && !extra.length)) return null;
   const canSign = c.admins.includes(me.user!.address);
+  const ens = c.source === "ens";
+  const who = (m: Cred) => names.get(m.address.toLowerCase()) ?? m.name ?? shortAddr(m.address);
+  const signers = canSign ? "Sign each one with your wallet." : `Only a manager OrdoTrust knows can sign them: ${c.admins.map((a) => names.get(a.toLowerCase()) ?? shortAddr(a)).join(", ") || "nobody yet"}.`;
   return (
     <section className="section card">
       <div className="card-h">
-        <h2>Credentials missing on-chain</h2>
-        <span className="tag warn">{c.missing.length}</span>
+        <h2>{ens ? "OrdoTrust and ENS differ" : "Credentials missing on-chain"}</h2>
+        <span className="tag warn">{c.missing.length + extra.length}</span>
       </div>
       <div className="card-b">
         <p className="muted small">
-          These roles are given in Ordo but OrdoTrust does not hold them yet, so the contract refuses what they sign or stake.{" "}
-          {canSign ? "Sign each one with your wallet." : `Only a manager OrdoTrust knows can sign them: ${c.admins.map((a) => names.get(a.toLowerCase()) ?? shortAddr(a)).join(", ") || "nobody yet"}.`}
+          {ens
+            ? "Roles are decided by the ENS names people hold, and OrdoTrust on Hedera follows them. Missing credentials make the contract refuse what those people sign or stake; extra ones let someone act there whom ENS no longer names. "
+            : "These roles are given in Ordo but OrdoTrust does not hold them yet, so the contract refuses what they sign or stake. "}
+          {signers}
         </p>
         <table className="t">
           <tbody>
+            {extra.map((m) => (
+              <tr key={`x:${m.address}:${m.role}`}>
+                <td>
+                  <b>
+                    <Who address={m.address} fallback={m.name ?? undefined} />
+                  </b>
+                  <div className="faint small mono">{m.address}</div>
+                </td>
+                <td>
+                  {m.label} <span className="tag bad">no ENS name</span>
+                </td>
+                <td className="r">
+                  <Action
+                    className="btn sm danger"
+                    disabled={!canSign}
+                    onClick={async () => {
+                      const r = await sign<{ status: string; error: string | null }>({
+                        title: `Take back ${who(m)}'s ${m.label} credential in OrdoTrust`,
+                        request: () => api.post<TypedSignature>(path("/chain/credentials/revoke-request"), { address: m.address, role: m.role }),
+                        submit: (proof) => api.post(path("/chain/credentials/revoke"), { address: m.address, role: m.role, ...proof }),
+                      });
+                      if (!r) return;
+                      toast(r.status === "done" ? "Credential taken back on-chain" : `Not taken back: ${r.error ?? r.status}`, r.status === "done" ? "ok" : "bad");
+                      await load();
+                    }}
+                  >
+                    Sign removal
+                  </Action>
+                </td>
+              </tr>
+            ))}
             {c.missing.map((m) => (
               <tr key={`${m.address}:${m.role}`}>
                 <td>

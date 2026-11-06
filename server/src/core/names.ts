@@ -3,6 +3,7 @@ import { chainErrorMessage } from "../chain/errors.js";
 import { hederaEvm, OP, recordCalls, ROLE_REGISTRAR, type BatchState, type NameOp } from "../chain/ensv2.js";
 import type { Db } from "../db/db.js";
 import { AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ROLE_LABEL, type AgentKey, type AssetKind, type Role } from "../domain/types.js";
+import type { EnsRoles } from "./ens-roles.js";
 import type { Handles } from "./handles.js";
 import {
   agentLabel,
@@ -32,6 +33,8 @@ export interface NameRail {
   sendExecute(ops: NameOp[], gas: bigint): Promise<Hex>;
   /** gas one operation needs on its own, or null when it cannot be measured yet */
   estimateOne(op: NameOp): Promise<bigint | null>;
+  /** who holds `label` in `registry` right now (zero when nobody does, or the name expired) */
+  ownerOf(registry: Address, label: string): Promise<Address>;
   batchState(hash: Hex): Promise<BatchState>;
   baseFeeGwei(): Promise<number>;
   balanceEth(): Promise<number>;
@@ -214,6 +217,8 @@ export class Names {
   private machineViews: ((siteId: string) => Promise<{ id: string; status: string }[]>) | null = null;
   private machineCache = new Map<string, { at: number; status: Map<string, string> }>();
   private sites = new Set<string>();
+  /** roles decided by ENS: promotions count once on-chain, role names are read back (set by wiring) */
+  private roles: EnsRoles | null = null;
 
   constructor(
     private db: Db,
@@ -249,12 +254,22 @@ export class Names {
     this.running = true;
     try {
       const sites = await this.db.query<{ id: string }>("SELECT id FROM sites ORDER BY created_at");
-      for (const s of sites.rows) await this.plan(s.id).catch((e) => console.error(`[ordo] ens plan ${s.id}`, e));
+      for (const s of sites.rows) {
+        // what the chain says about role names first, so a name taken back there is never planned again
+        await this.roles?.verify(s.id).catch((e) => console.error(`[ordo] ens roles ${s.id}`, e));
+        await this.plan(s.id).catch((e) => console.error(`[ordo] ens plan ${s.id}`, e));
+      }
       await this.confirm();
+      await this.roles?.promote().catch((e) => console.error("[ordo] ens roles", e));
       return await this.send();
     } finally {
       this.running = false;
     }
+  }
+
+  /** Roles decided by ENS names: pending promotions count once their role name is on-chain. */
+  useRoles(roles: EnsRoles) {
+    this.roles = roles;
   }
 
   /** Where machines' live status comes from (the plant's views), for the status records on their names. */
@@ -874,6 +889,10 @@ export class Names {
       const issueOp = en.ops[en.ops.length - 1]!;
       const made = st.applied.get(issueOp);
       if (made && made !== ZERO) await this.db.query("UPDATE ens_names SET registry = $1 WHERE id = $2", [made.toLowerCase(), r.id]);
+      // a name registered now (new, revoked before, or to a new holder) runs for ENS_NAME_YEARS from today
+      const prev = r.have_json ? (JSON.parse(r.have_json) as Want) : null;
+      if ((en.what === "issue" || en.what === "reissue") && (!prev || prev.revoke || prev.owner !== sentWant.owner))
+        await this.db.query("UPDATE ens_names SET expires_at = $1 WHERE id = $2", [this.iso(this.limits.years * 365 * 86_400_000), r.id]);
       await this.done(r, sentWant, b.tx_hash as Hex, b.id);
       if (en.what === "revoke" || en.what === "ungrant") revoked.push(r.name);
       else if (en.what !== "records" && en.what !== "grant") issued.push(r.name);

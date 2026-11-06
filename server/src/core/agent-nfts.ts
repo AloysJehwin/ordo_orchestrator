@@ -75,7 +75,7 @@ export class AgentNfts {
 
   private async wanted(siteId: string): Promise<Map<AgentKey, Want>> {
     const lines = (await this.db.query<{ name: string; autonomy: string }>("SELECT name, autonomy FROM lines WHERE site_id = $1 ORDER BY created_at", [siteId])).rows;
-    const users = (await this.db.query<{ address: string }>("SELECT DISTINCT u.address FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.role = 'manager' ORDER BY u.address", [siteId])).rows.map((r) => r.address.toLowerCase());
+    const users = (await this.db.query<{ address: string }>("SELECT DISTINCT u.address FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.site_id = $1 AND m.role = 'manager' AND m.state = 'held' ORDER BY u.address", [siteId])).rows.map((r) => r.address.toLowerCase());
     const licensed = (await this.licensed?.(siteId)) ?? new Map<AgentKey, IntelligentData[]>();
     const out = new Map<AgentKey, Want>();
     for (const a of AGENTS)

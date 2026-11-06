@@ -8,6 +8,7 @@ import { geminiProvider, OfflineLlm, openAiCompatProvider, type LlmProvider } fr
 import { LocalSignedAnchor, type AnchorAdapter } from "./adapters/rails.js";
 import { Agents } from "./agents/agents.js";
 import { Auth, Signatures } from "./auth/auth.js";
+import { EnsRoles } from "./core/ens-roles.js";
 import { Handles } from "./core/handles.js";
 import { NameResolver } from "./core/name-resolver.js";
 import { Assessments } from "./core/assessments.js";
@@ -427,6 +428,9 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   }, now);
   // a machine's name carries its live status (running, idle, alarm…), from the same views the floor shows
   names.useMachineStatus((siteId) => plant.views(siteId));
+  // roles are decided by ENS names: a promotion counts once its role name is on-chain, then goes to OrdoTrust
+  if (names.live && nameRail) names.useRoles(new EnsRoles(db, rec, nameRail, (name, ms) => plant.tryLease(name, ms), now, (siteId, userId, role) => trust.releaseWaitingEns(siteId, userId, role)));
+  trust.useEns(() => names.live, nameRail && names.live ? (siteId, address) => nameRail.roles(siteId, address as Hex) : undefined);
   const lotNames = new LotNames(db, rec, nameRail?.releasesLive ? nameRail : null, names, now);
   const nameResolver = new NameResolver(names, nameRail, (cfg.HEDERA_MIRROR_URL ?? `https://${cfg.HEDERA_NETWORK}.mirrornode.hedera.com`).replace(/\/$/, ""), cfg.HEDERA_NETWORK);
   validation.lots = lotNames;
