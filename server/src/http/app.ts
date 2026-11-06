@@ -16,7 +16,7 @@ import { FinishBody } from "../core/contributions.js";
 import { MAX_OUTPUT_BYTES, MAX_PREVIEW_BYTES, OutputMeta } from "../core/outputs.js";
 import { OfferBody, OfferPatch } from "../core/resources.js";
 import { BodyCreate, BodyHold, BodyReport, MAX_EPISODE_BYTES } from "../core/body-service.js";
-import { publicBase } from "../config.js";
+import { chosenBase } from "../config.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, MachineRole, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
@@ -190,8 +190,13 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   });
 
   // ---------------- Proof of work: the contributor's terminal agent, authenticated by its session token ----------------
-  /** Where the console is, for links the terminal agent prints: the public URL, else the origin this request came to. */
-  const origin = (c: Context) => publicBase(sys.cfg) ?? `${c.req.header("x-forwarded-proto") ?? new URL(c.req.url).protocol.replace(":", "")}://${host(c)}`;
+  /**
+   * Where the console is, for the session token and the links the terminal agent prints: PUBLIC_URL when set, else the
+   * address this request came to. A session starts from the console, so its token carries the domain the person is
+   * signed in on (Vercel's derived production URL may be another of the project's domains, where they are not); the
+   * terminal agent then calls that same address, so its sign link lands there too.
+   */
+  const origin = (c: Context) => chosenBase(sys.cfg) ?? `${c.req.header("x-forwarded-proto") ?? new URL(c.req.url).protocol.replace(":", "")}://${host(c)}`;
   const powSecret = (c: Context) => (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   app.get("/v1/pow/session", async (c) => c.json(await sys.contributions.sessionInfo(powSecret(c), sys.bodies)));
   app.post("/v1/pow/session/finish", async (c) => c.json(await sys.contributions.finish(powSecret(c), await body(c, FinishBody), origin(c))));

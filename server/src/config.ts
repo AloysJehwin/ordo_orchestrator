@@ -212,6 +212,9 @@ export const publicBase = (c: Config): string | null => {
   return (c.PUBLIC_URL ?? c.RENDER_EXTERNAL_URL ?? (vercel ? `https://${vercel}` : null))?.replace(/\/$/, "") ?? null;
 };
 
+/** A public URL someone set on purpose (PUBLIC_URL, or Render's), not one a platform derived. */
+export const chosenBase = (c: Config): string | null => (c.PUBLIC_URL ?? c.RENDER_EXTERNAL_URL)?.replace(/\/$/, "") ?? null;
+
 export const timerEnabled = (c: Config) => (c.ENGINE_TIMER === "auto" ? !c.VERCEL : c.ENGINE_TIMER === "on");
 /** An empty variable (`KEY=` in an env file) counts as unset, except where empty has its own meaning. */
 const EMPTY_MEANS_NONE = new Set(["ZG_ROUTER_AUDIO_MODEL"]);
