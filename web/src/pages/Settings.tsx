@@ -2,75 +2,37 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../lib/app";
 import { ago, LEVEL_LABEL, shortAddr } from "../lib/format";
+import { href } from "../lib/router";
 import type { AutonomyLevel, AutonomyProposalView, ChainStatus, EnsNamesResponse } from "../types";
+import { Name } from "../ui/Name";
 import { Action, Field, Segmented, useToast } from "../ui/kit";
 import { AutonomyModal } from "./Pipelines";
 import { ChainBanner } from "./Stakes";
 
-const ENS_STATUS = { pending: ["issuing…", "warn"], issued: ["issued", "ok"], revoked: ["revoked", ""], failed: ["failed", "bad"] } as const;
-
-/** The site's ENSv2 names: the site, each person (held in their own wallet), each asset and agent. */
+/** The org's ENS names in short: how many are on-chain, waiting or failed, and a link to the full tree. */
 function EnsNames() {
-  const { path, site, can } = useApp();
+  const { path, site } = useApp();
   const [names, setNames] = useState<EnsNamesResponse | null>(null);
-  const load = () => api.get<EnsNamesResponse>(path("/names")).then(setNames);
   useEffect(() => {
-    void load();
+    void api.get<EnsNamesResponse>(path("/names")).then(setNames).catch(() => setNames(null));
   }, [path, site]);
   if (!names?.live) return null;
-  const order = ["site", "person", "agent", "asset"];
-  const items = [...names.items].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+  const by = (k: string) => names.items.filter((n) => n.kind === k && n.status !== "revoked").length;
   return (
     <section className="card section">
       <div className="card-h">
         <h2>ENS names</h2>
-        <span className="faint small">ENSv2 · Sepolia · under {names.parent}</span>
+        <span className="faint small">ENSv2 · Sepolia · under {names.root}</span>
       </div>
       <div className="card-b">
+        <p>{names.org ? <Name name={names.org} /> : null}</p>
         <p className="small muted">
-          The site has its own ENSv2 registry. Each person's name is minted to their own wallet and cannot be transferred; it carries their roles at this site and is revoked when they hold none.
+          {names.issued} on-chain · {names.pending} waiting · {names.failed} failed — {by("person")} people, {by("role")} role names, {by("machine")} machines, {by("run")} runs.
+          {names.gas.paused ? ` Sending is paused: ${names.gas.reason ?? "gas limits"}.` : ""}
         </p>
-        <div className="scroll-x">
-          <table className="t">
-            <tbody>
-              {items.map((n) => {
-                const [label, tone] = ENS_STATUS[n.status];
-                return (
-                  <tr key={`${n.kind}:${n.ref}`}>
-                    <td>
-                      <a href={n.url} target="_blank" rel="noreferrer" className="mono">
-                        {n.name}
-                      </a>
-                      <div className="faint small">{n.records.description ?? n.kind}</div>
-                    </td>
-                    <td>
-                      <span className={`tag ${tone}`}>{label}</span>
-                      {n.error && <div className="field-e small">{n.error}</div>}
-                    </td>
-                    <td className="r">
-                      {n.txUrl && (
-                        <a href={n.txUrl} target="_blank" rel="noreferrer" className="small">
-                          tx
-                        </a>
-                      )}
-                      {n.status === "failed" && can("manager") && (
-                        <Action
-                          className="btn sm"
-                          onClick={async () => {
-                            await api.post(path(`/names/${n.kind}/${encodeURIComponent(n.ref)}/retry`));
-                            await load();
-                          }}
-                        >
-                          Retry
-                        </Action>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <a className="btn sm" href={href("names")}>
+          Open the name tree
+        </a>
       </div>
     </section>
   );

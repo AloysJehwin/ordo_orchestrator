@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api";
-import type { AccessLevel, DecisionView, InboxItemView, Me, Meta, MyAccess, Role, RunView, Site, Status, Team, TypedSignature } from "../types";
+import type { AccessLevel, DecisionView, Directory, InboxItemView, Me, Meta, MyAccess, Role, RunView, Site, Status, Team, TypedSignature } from "../types";
+import { nameBook, type NameBook } from "./names";
 import type { AssetView } from "../types";
 
 export interface Live {
@@ -26,7 +27,11 @@ interface Ctx {
   status: Status;
   live: Live | null;
   team: Team | null;
+  /** address → what to call them: their ENS name, else their display name, else a short address */
   names: Map<string, string>;
+  /** every entity of the org by its ENS name */
+  book: NameBook;
+  reloadNames: () => Promise<void>;
   roles: Role[];
   can: (r: Role) => boolean;
   /** what this member may see: a level 1–4 and a line/stage scope (a manager: 4, everything) */
@@ -37,6 +42,8 @@ interface Ctx {
   path: (p: string) => string;
 }
 const AppCtx = createContext<Ctx | null>(null);
+/** The app context when inside a site, else null (public pages: the passport, open pipelines). */
+export const useAppMaybe = () => useContext(AppCtx);
 export const useApp = () => {
   const c = useContext(AppCtx);
   if (!c) throw new Error("outside app");
@@ -47,6 +54,7 @@ export function AppProvider(props: { me: Me; setMe: (m: Me) => void; siteId: str
   const [site, setSite] = useState<Site | null>(null);
   const [live, setLive] = useState<Live | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [dir, setDir] = useState<Directory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const base = `/v1/sites/${props.siteId}`;
   const busy = useRef(false);
@@ -70,24 +78,40 @@ export function AppProvider(props: { me: Me; setMe: (m: Me) => void; siteId: str
     }
   }, [base]);
 
+  const reloadNames = useCallback(async () => {
+    setDir(await api.get<Directory>(`${base}/directory`).catch(() => null));
+  }, [base]);
+
   useEffect(() => {
     void reloadSite().catch((e) => setError(String(e)));
     void refresh();
+    void reloadNames();
     const t = setInterval(() => document.visibilityState === "visible" && void refresh(), 5000);
-    return () => clearInterval(t);
-  }, [reloadSite, refresh]);
+    // names settle on-chain in batches: their status is worth a slower poll
+    const n = setInterval(() => document.visibilityState === "visible" && void reloadNames(), 30_000);
+    return () => {
+      clearInterval(t);
+      clearInterval(n);
+    };
+  }, [reloadSite, refresh, reloadNames]);
 
   // stable across the 5 s live poll, so pages that load on [path] don't refetch and reset their state
   const path = useCallback((p: string) => `${base}${p}`, [base]);
-  const names = useMemo(() => new Map<string, string>((team?.members ?? []).map((m) => [m.address, m.name ?? m.ens ?? `${m.address.slice(0, 6)}…${m.address.slice(-4)}`])), [team]);
+  const assets = live?.assets;
+  const book = useMemo(() => nameBook(dir, assets ?? []), [dir, assets]);
+  const names = useMemo(() => {
+    const m = new Map<string, string>(book.entries.filter((e) => e.address).map((e) => [e.address!.toLowerCase(), e.name]));
+    for (const x of team?.members ?? []) m.set(x.address, book.byAddress(x.address)?.name ?? x.ens ?? x.name ?? `${x.address.slice(0, 6)}…${x.address.slice(-4)}`);
+    return m;
+  }, [team, book]);
   const roles = site?.myRoles;
   const can = useCallback((r: Role) => canAct(roles ?? [], r), [roles]);
   // the live poll carries the current access, so a change by a manager shows within seconds
   const access = live?.access ?? site?.myAccess;
   const sees = useCallback((l: AccessLevel) => (access?.level ?? 1) >= l, [access]);
   const value = useMemo(
-    () => (site && roles && access ? { me: props.me, setMe: props.setMe, site, siteId: props.siteId, meta: props.meta, status: props.status, live, team, names, roles, can, access, sees, refresh, reloadSite, path } : null),
-    [props.me, props.setMe, site, props.siteId, props.meta, props.status, live, team, names, roles, can, access, sees, refresh, reloadSite, path],
+    () => (site && roles && access ? { me: props.me, setMe: props.setMe, site, siteId: props.siteId, meta: props.meta, status: props.status, live, team, names, book, reloadNames, roles, can, access, sees, refresh, reloadSite, path } : null),
+    [props.me, props.setMe, site, props.siteId, props.meta, props.status, live, team, names, book, reloadNames, roles, can, access, sees, refresh, reloadSite, path],
   );
 
   if (!value) return <div className="boot">{error ?? "Loading site…"}</div>;

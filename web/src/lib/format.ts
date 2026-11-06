@@ -40,7 +40,7 @@ export const LEVEL_TEXT: Record<string, string> = {
 export function actorLabel(actor: string, names: Map<string, string> = new Map()): string {
   const [kind, rest = ""] = actor.split(/:(.*)/s);
   if (kind === "agent") return AGENT_LABEL[rest as AgentKey] ?? rest;
-  if (kind === "user") return names.get(rest) ?? `${rest.slice(0, 6)}…${rest.slice(-4)}`;
+  if (kind === "user") return names.get(rest.toLowerCase()) ?? names.get(rest) ?? `${rest.slice(0, 6)}…${rest.slice(-4)}`;
   if (kind === "guard") return "Policy guard";
   if (kind === "system") return "System";
   return actor;

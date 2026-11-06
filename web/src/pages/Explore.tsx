@@ -7,14 +7,16 @@ import { Action, Empty, Field } from "../ui/kit";
 export const ROLE_NAME: Record<string, string> = { manager: "Manager", validator: "Validator", tester: "Tester", contributor: "Contributor" };
 
 /** Join an open org as a contributor. Resolves to the org's id; throws with the server's reason (closed org, unknown code). */
-export const joinOrg = (siteId: string) => api.post<{ joined: boolean }>(`/v1/orgs/${encodeURIComponent(siteId)}/join`).then(() => siteId);
+/** Join an org, taking the handle for one's ENS names first when one is given (priya → priya.acme.ordo.eth). */
+export const joinOrg = (siteId: string, handle?: string) =>
+  api.post<{ joined: boolean }>(`/v1/orgs/${encodeURIComponent(siteId)}/join`, handle?.trim() ? { handle: handle.trim() } : {}).then(() => siteId);
 
 /**
  * Orgs a signed-in wallet can join right now, and the ones it is already in. Joining is open: anyone joins as a
  * contributor, and a manager later makes people validators or testers. A manager can close the org from Settings;
  * then only the people they invite join.
  */
-export function OrgExplorer({ signedIn, onOpen, onSignIn }: { signedIn: boolean; onOpen: (siteId: string) => void; onSignIn?: () => void }) {
+export function OrgExplorer({ signedIn, onOpen, onSignIn, handle }: { signedIn: boolean; onOpen: (siteId: string) => void; onSignIn?: () => void; handle?: string }) {
   const [orgs, setOrgs] = useState<OrgSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("site") ?? "");
@@ -27,7 +29,7 @@ export function OrgExplorer({ signedIn, onOpen, onSignIn }: { signedIn: boolean;
   }, [signedIn]);
   const join = async (id: string) => {
     if (!signedIn) return onSignIn?.();
-    onOpen(await joinOrg(id));
+    onOpen(await joinOrg(id, handle));
   };
   return (
     <div className="stack">
@@ -69,7 +71,7 @@ export function OrgExplorer({ signedIn, onOpen, onSignIn }: { signedIn: boolean;
               onClick={async () => {
                 setCodeError(null);
                 try {
-                  onOpen(await joinOrg(code));
+                  onOpen(await joinOrg(code, handle));
                 } catch (e) {
                   setCodeError(e instanceof Error ? e.message : String(e));
                 }

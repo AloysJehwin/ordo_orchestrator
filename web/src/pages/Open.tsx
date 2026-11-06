@@ -4,6 +4,7 @@ import { ago, dateTime, pct, shortAddr, STATE_LABEL } from "../lib/format";
 import { href, type Route } from "../lib/router";
 import type { Me, PublicPipeline, StageState } from "../types";
 import { Action, Empty } from "../ui/kit";
+import { Name } from "../ui/Name";
 import { joinOrg, OrgExplorer, ROLE_NAME } from "./Explore";
 import { SignIn } from "./SignIn";
 
@@ -15,7 +16,7 @@ const Progress = ({ p }: { p: PublicPipeline }) => (
   </div>
 );
 
-const nameOf = (u: NonNullable<Me["user"]>) => u.displayName ?? u.ens ?? shortAddr(u.address);
+const nameOf = (u: NonNullable<Me["user"]>) => u.ens ?? u.displayName ?? shortAddr(u.address);
 const initialsOf = (u: NonNullable<Me["user"]>) => {
   const n = u.displayName ?? u.ens?.split(".")[0] ?? "";
   const parts = n.split(/[\s._-]+/).filter(Boolean);
@@ -76,8 +77,8 @@ function YouPanel({ account, siteId }: { account: Account; siteId?: string }) {
       <div className="op-you-h">
         <span className="op-avatar">{initialsOf(u)}</span>
         <div className="op-you-id">
-          <b>{nameOf(u)}</b>
-          {u.ens && u.displayName && <span className="small muted">{u.ens}</span>}
+          <b>{u.ens ? <Name name={u.ens} /> : nameOf(u)}</b>
+          {u.ens && u.displayName && <span className="small muted">{u.displayName}</span>}
           <button type="button" className="op-addr" onClick={copy} title="Copy address">
             {shortAddr(u.address)}
           </button>
@@ -100,6 +101,13 @@ function YouPanel({ account, siteId }: { account: Account; siteId?: string }) {
                   </span>
                 ))}
               </div>
+              {(u.names ?? [])
+                .filter((n) => n.siteId === m.siteId)
+                .map((n) => (
+                  <div key={n.name} className="small">
+                    <Name name={n.name} status={n.status} />
+                  </div>
+                ))}
               <button type="button" className="link small" onClick={() => openSite(m.siteId)}>
                 Open in console →
               </button>

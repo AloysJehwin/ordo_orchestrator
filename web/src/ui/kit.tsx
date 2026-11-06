@@ -1,25 +1,6 @@
 import { cloneElement, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import {
-  ClipboardCheck,
-  Coins,
-  Factory,
-  History,
-  Inbox,
-  Layers,
-  LayoutGrid,
-  Lock,
-  PenTool,
-  Scale,
-  Settings,
-  ShieldCheck,
-  Users,
-  Wallet,
-  Workflow,
-  Wrench,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { ClipboardCheck, Coins, Factory, History, Inbox, Layers, LayoutGrid, Lock, PenTool, Scale, Settings, ShieldCheck, Users, Wallet, Workflow, Wrench, X, type LucideIcon, AtSign } from "lucide-react";
 import { useDismiss, useLockScroll, usePlacement, useSheet } from "./hooks";
 
 export function Segmented<V extends string>(props: { value: V; onChange: (v: V) => void; options: { value: V; label: string; count?: number }[]; size?: "sm" | "md"; label?: string }) {
@@ -284,6 +265,7 @@ export const ICONS: Record<string, LucideIcon> = {
   workorders: Wrench,
   finance: Wallet,
   settings: Settings,
+  names: AtSign,
 };
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

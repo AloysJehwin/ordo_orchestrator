@@ -96,6 +96,7 @@ function Root() {
     return (
       <Setup
         me={me}
+        ensRoot={meta.ensRoot ?? null}
         onSignOut={signOut}
         onSwitchAccount={switchAccount}
         onCreated={async (id) => {

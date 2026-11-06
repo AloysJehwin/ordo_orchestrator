@@ -23,6 +23,8 @@ import { WorkOrders } from "./pages/WorkOrders";
 import { PowPage, PowSign } from "./pages/Pow";
 import { Cases } from "./pages/Cases";
 import { Rewards } from "./pages/Rewards";
+import { NameOpener, Names } from "./pages/Names";
+import { HandlePicker } from "./ui/HandlePicker";
 import { useRegisterOrg } from "./pages/Stakes";
 import type { AccessLevel, ChainStatus, Role } from "./types";
 
@@ -49,6 +51,7 @@ const NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { page: "team", label: "Team", icon: "team" },
   { page: "proof", label: "Proof & ledger", short: "Proof", icon: "proof", level: 4 },
+  { page: "names", label: "Names", icon: "names", level: 3 },
   { page: "settings", label: "Settings", icon: "settings", count: "autonomy", manager: true },
 ];
 // the phone tab bar holds the first four of these that the person can open; the rest live under More
@@ -78,10 +81,12 @@ function Brand({ compact }: { compact?: boolean }) {
 }
 
 export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut: () => void; onSwitchAccount: () => void; onSwitchSite: (id: string) => void }) {
-  const { site, live, me, setMe, can, sees, roles } = useApp();
+  const { site, live, me, setMe, can, sees, roles, book } = useApp();
   const route = useRoute();
   const toast = useToast();
   const [rename, setRename] = useState<string | null>(null);
+  const [handle, setHandle] = useState<string | null>(null);
+  const [handleOk, setHandleOk] = useState(true);
   const [more, setMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const moreBtn = useRef<HTMLButtonElement>(null);
@@ -90,7 +95,9 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
   const line = site.lines[0];
   const agentsWithAssets = new Set((live?.assets ?? []).map((a) => a.owningAgent)).size;
   const user = me.user!;
-  const display = user.displayName ?? user.ens ?? shortAddr(user.address);
+  // what this person is called here: their ENS name at this org, else their display name
+  const myName = book.byAddress(user.address)?.name ?? user.ens;
+  const display = myName ?? user.displayName ?? shortAddr(user.address);
   const open = (n: NavItem) => (n.manager ? can("manager") : n.roles ? n.roles.some(can) && sees(n.level ?? 1) : sees(n.level ?? 1));
   const nav = NAV.filter(open);
   const adminNav = ADMIN_NAV.filter(open);
@@ -140,6 +147,12 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
     case "rewards":
       page = <Rewards />;
       break;
+    case "names":
+      page = <Names />;
+      break;
+    case "name":
+      page = route.id ? <NameOpener name={route.id} /> : <Names />;
+      break;
     case "pow":
       page = route.id && route.sub === "sign" ? <PowSign id={route.id} /> : <PowPage />;
       break;
@@ -163,6 +176,7 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
   );
   const accountItems = [
     { label: "Set display name", onClick: () => setRename(user.displayName ?? "") },
+    { label: user.handle ? `Change handle (${user.handle})` : "Choose a handle", onClick: () => setHandle(user.handle ?? "") },
     ...me.memberships.filter((m) => m.siteId !== site.id).map((m) => ({ label: `Switch to ${m.siteName}`, onClick: () => onSwitchSite(m.siteId) })),
     { label: "Switch account", onClick: onSwitchAccount },
     { label: "Sign out", onClick: onSignOut, danger: true },
@@ -301,9 +315,40 @@ export function Shell({ onSignOut, onSwitchAccount, onSwitchSite }: { onSignOut:
           </div>
         }
       >
-        <Field label="Shown to your team instead of your address" hint="Your wallet address stays the identity behind every signature.">
+        <Field label="Shown to your team beside your ENS name" hint="Your wallet address stays the identity behind every signature. Your display name never goes on-chain.">
           <input className="input" value={rename ?? ""} onChange={(e) => setRename(e.target.value)} maxLength={60} />
         </Field>
+      </Modal>
+      <Modal
+        open={handle !== null}
+        onClose={() => setHandle(null)}
+        title="Your handle"
+        footer={
+          <div className="btns end">
+            <button type="button" className="btn" onClick={() => setHandle(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={!handle?.trim() || !handleOk || handle === user.handle}
+              onClick={async () => {
+                try {
+                  setMe(await api.patch("/v1/me", { handle }));
+                  setHandle(null);
+                  toast("Handle saved: your names are being reissued", "ok");
+                } catch (e) {
+                  toast(String(e instanceof Error ? e.message : e), "bad");
+                }
+              }}
+            >
+              Save
+            </button>
+          </div>
+        }
+      >
+        <p className="small muted">Your handle is the first label of your ENS names in every org you belong to. Changing it revokes your old names and issues new ones.</p>
+        <HandlePicker value={handle ?? ""} onChange={setHandle} onValid={setHandleOk} org={book.org} suggestion={user.handleSuggestion} />
       </Modal>
     </div>
   );

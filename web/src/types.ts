@@ -40,7 +40,18 @@ export interface MyAccess {
 export type StageModeT = typeof StageMode extends { options: readonly (infer X)[] } ? X : never;
 
 export interface Me {
-  user: { id: string; address: string; displayName: string | null; ens: string | null } | null;
+  user: {
+    id: string;
+    address: string;
+    displayName: string | null;
+    ens: string | null;
+    /** the label of this person's ENS names (priya → priya.acme.ordo.eth), unique across Ordo */
+    handle?: string | null;
+    /** a free handle from the display name, offered when they have none */
+    handleSuggestion?: string | null;
+    /** their names across orgs: their handle in each, and the role names they hold */
+    names?: { siteId: string; kind: NameKind; name: string; status: NameStatus; url: string }[];
+  } | null;
   memberships: { siteId: string; siteName: string; roles: Role[] }[];
   canCreateSite: boolean;
 }
@@ -64,6 +75,8 @@ export interface Meta {
   /** a run needs a machine on every stage (the server's STAGE_MACHINES) */
   machinesRequired?: boolean;
   packageTypes: string[];
+  /** the ENS root every name sits under (ordo.eth), when names are on */
+  ensRoot?: string | null;
 }
 export interface Status {
   rails: { rail: string; mode: string; live: boolean }[];
@@ -163,7 +176,16 @@ export interface OrgSummary {
   createdAt: string;
 }
 export interface Team {
-  members: { userId: string; address: string; name: string | null; ens: string | null; roles: Role[]; lastSeenAt: string | null }[];
+  members: {
+    userId: string;
+    address: string;
+    name: string | null;
+    ens: string | null;
+    roles: Role[];
+    lastSeenAt: string | null;
+    /** the role names they hold (priya.validators.acme.ordo.eth): holding the name is holding the role */
+    roleNames?: { role: Role; name: string; status: NameStatus }[];
+  }[];
   invites: { id: string; address: string; role: Role; createdAt: string }[];
   /** managers only */
   access: AccessConfig | null;
@@ -483,21 +505,92 @@ export interface PublicPassport {
   };
 }
 
-// ---------------- ENS names (ENSv2 on Sepolia) ----------------
+// ---------------- ENS names (ENSv2 on Sepolia, under ordo.eth) ----------------
+export type NameKind =
+  | "org"
+  | "collection"
+  | "treasury"
+  | "person"
+  | "role"
+  | "registrar"
+  | "machine"
+  | "agent"
+  | "line"
+  | "vendor"
+  | "customer"
+  | "financier"
+  | "pipeline"
+  | "run"
+  | "stage"
+  | "budget"
+  | "topup"
+  | "workorder";
+export type NameStatus = "pending" | "sent" | "issued" | "revoked" | "failed";
 export interface EnsNameView {
-  kind: "site" | "person" | "asset" | "agent" | "device";
+  kind: NameKind;
   ref: string;
   name: string;
-  status: "pending" | "issued" | "revoked" | "failed";
+  label: string;
+  parent: string | null;
+  depth: number;
+  status: NameStatus;
   error: string | null;
   url: string;
   txUrl: string | null;
+  owner: string | null;
+  address: string | null;
+  hedera: string | null;
   records: Record<string, string>;
+  collection: string | null;
+}
+export interface EnsGas {
+  paused: boolean;
+  reason: string | null;
+  spentTodayEth: number;
+  dailyEth: number;
+  maxFeeGwei: number;
+  baseFeeGwei: number | null;
+  balanceEth: number | null;
 }
 export interface EnsNamesResponse {
   live: boolean;
   parent: string | null;
+  root: string | null;
+  org: string | null;
+  issued: number;
+  pending: number;
+  failed: number;
+  gas: EnsGas;
   items: EnsNameView[];
+}
+export interface DirectoryEntry {
+  kind: NameKind;
+  ref: string;
+  name: string;
+  status: NameStatus;
+  address: string | null;
+  hedera: string | null;
+}
+export interface Directory {
+  live: boolean;
+  root: string | null;
+  org: string | null;
+  entries: DirectoryEntry[];
+}
+export interface ResolvedName {
+  query: string;
+  name: string | null;
+  kind: NameKind | null;
+  ref: string | null;
+  address: string | null;
+  hedera: string | null;
+  source: "ordo" | "ens" | "address" | "account";
+}
+export interface HandleCheck {
+  handle: string;
+  available: boolean;
+  reason: string | null;
+  suggestion: string | null;
 }
 
 // ---------- Public pipelines (no sign-in) ----------
