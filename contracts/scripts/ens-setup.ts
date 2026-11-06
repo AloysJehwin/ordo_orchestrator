@@ -50,7 +50,7 @@ const resolverInit = parseAbi(["struct Grant { address account; uint256 roleBitm
 const label = need("ENS_LABEL").toLowerCase();
 if (!/^[a-z0-9-]{3,40}$/.test(label)) throw new Error("ENS_LABEL: 3–40 lowercase letters, digits or hyphens");
 const account = privateKeyToAccount(need("ENS_OWNER_KEY").replace(/^(0x)?/, "0x") as Hex);
-const rpcs = (process.env.ENS_SEPOLIA_RPC_URL || "https://1rpc.io/sepolia,https://sepolia.drpc.org").split(",").map((u) => u.trim()).filter(Boolean);
+const rpcs = (process.env.ENS_SEPOLIA_RPC_URL || "https://gateway.tenderly.co/public/sepolia,https://sepolia.rpc.thirdweb.com,https://0xrpc.io/sep,https://1rpc.io/sepolia").split(",").map((u) => u.trim()).filter(Boolean);
 const transport = fallback(rpcs.map((u) => http(u, { timeout: 60_000 })));
 const pub = createPublicClient({ chain: sepolia, transport });
 const wallet = createWalletClient({ chain: sepolia, transport, account });

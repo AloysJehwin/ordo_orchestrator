@@ -241,7 +241,17 @@ Names carry small `com.ordo.*` text records that point at other names (a stage's
    ENS_OWNER_KEY=0x... ENS_PARENT_NAME=ordo.eth ENS_REGISTRY_ADDRESS=0x... ENS_RESOLVER_ADDRESS=0x... pnpm setup:ens-contracts
    ```
 
-Both default to `https://1rpc.io/sepolia` then `https://sepolia.drpc.org` (`ENS_SEPOLIA_RPC_URL` takes a comma list), print only public values, and end with the env vars to set. The ENS contract addresses are the Sepolia set ENS Labs deployed on 2026-10-01 (`server/src/chain/ensv2.ts`).
+Both default to Tenderly's public gateway, then thirdweb, 0xrpc and 1rpc (`ENS_SEPOLIA_RPC_URL` takes a comma list; 1rpc rate-limits bursts and drpc's free plan no longer serves Sepolia), print only public values, and end with the env vars to set. The ENS contract addresses are the Sepolia set ENS Labs deployed on 2026-10-01 (`server/src/chain/ensv2.ts`).
+
+### Live on Sepolia (6 Nov 2026)
+
+| | Address |
+| --- | --- |
+| Root | [`ordo.eth`](https://sepolia.app.ens.domains/ordo.eth), registered for 2 years, owner `0x38e6…5b74` |
+| Root registry (UserRegistry) | [`0xA15E…7CbE`](https://sepolia.etherscan.io/address/0xA15E53dCCAb3D4b8f63aC30c21206FC5E2d67CbE) |
+| Ordo's resolver (PermissionedResolver) | [`0x2bF3…f238`](https://sepolia.etherscan.io/address/0x2bF3FEdAa5911CCF6F49468620150Ec6876Ff238) |
+| `OrdoNames` | [`0x15f8…bb6b`](https://sepolia.etherscan.io/address/0x15f8e8cccf442e98369415fa9413b3b19d4bbb6b), holding its roles on the root registry and the resolver |
+| `OrdoRunResolver` | [`0x0fd6…223f`](https://sepolia.etherscan.io/address/0x0fd6d4a5edf16d6df8d4ab3e541e417a7776223f), with the verifiers below |
 
 ### Contracts
 

@@ -35,7 +35,7 @@ const account = privateKeyToAccount(need("ENS_OWNER_KEY").replace(/^(0x)?/, "0x"
 const rootName = need("ENS_PARENT_NAME");
 const rootRegistry = need("ENS_REGISTRY_ADDRESS") as Address;
 const resolver = need("ENS_RESOLVER_ADDRESS") as Address;
-const rpcs = (process.env.ENS_SEPOLIA_RPC_URL || "https://1rpc.io/sepolia,https://sepolia.drpc.org").split(",").map((u) => u.trim()).filter(Boolean);
+const rpcs = (process.env.ENS_SEPOLIA_RPC_URL || "https://gateway.tenderly.co/public/sepolia,https://sepolia.rpc.thirdweb.com,https://0xrpc.io/sep,https://1rpc.io/sepolia").split(",").map((u) => u.trim()).filter(Boolean);
 const transport = fallback(rpcs.map((u) => http(u, { timeout: 60_000 })));
 const pub = createPublicClient({ chain: sepolia, transport });
 const wallet = createWalletClient({ chain: sepolia, transport, account });

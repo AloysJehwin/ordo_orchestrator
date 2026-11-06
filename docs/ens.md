@@ -113,10 +113,20 @@ API: `GET /v1/sites/:id/directory` (every entity's name, level 1), `GET /v1/site
 
 1. **Register the root:** `ENS_LABEL=ordo pnpm --filter @ordo/contracts setup:ens`. This registers `ordo.eth` for 2 years (`ENS_YEARS`), paid in Sepolia mock USDC that the script mints, so the root outlives its 1-year names. It prints `ENS_PARENT_NAME`, `ENS_REGISTRY_ADDRESS`, `ENS_RESOLVER_ADDRESS` and `ENS_OWNER_KEY`.
 2. **Deploy the contracts:** `pnpm --filter @ordo/contracts setup:ens-contracts`. This deploys OrdoNames and OrdoRunResolver (the verifiers are reused), grants OrdoNames `REGISTRAR | UNREGISTER | RENEW | SET_SUBREGISTRY | SET_RESOLVER` on the root registry and `0x111` on the resolver, and prints `ENS_NAMES_ADDRESS` and `ENS_RUN_RESOLVER_ADDRESS`.
-3. **Set the env** on the server (Render) and on Vercel. `ENS_SEPOLIA_RPC_URL` is a comma list (`https://1rpc.io/sepolia,https://sepolia.drpc.org`).
+3. **Set the env** on the server (Render) and on Vercel. `ENS_SEPOLIA_RPC_URL` is a comma list (`https://gateway.tenderly.co/public/sepolia,https://sepolia.rpc.thirdweb.com,https://0xrpc.io/sep,https://1rpc.io/sepolia`).
 4. **Check it:** `pnpm env:doctor`. The "ens names" check covers the owner's balance, who holds the root, OrdoNames' roles on the registry and resolver, the run resolver and the base fee.
 
 `ENS_ROLES_ADDRESS` (OrdoEnsRoles) and `ENS_LOT_RESOLVER_ADDRESS` (OrdoLotResolver) are retired. The doctor and the server warn when they are set. The old `ordo-mfg.eth` names stay on-chain, untouched.
+
+## Live on Sepolia (6 Nov 2026)
+
+| | Address |
+| --- | --- |
+| Root | [`ordo.eth`](https://sepolia.app.ens.domains/ordo.eth), registered for 2 years, owner `0x38e6…5b74` |
+| Root registry (UserRegistry) | [`0xA15E…7CbE`](https://sepolia.etherscan.io/address/0xA15E53dCCAb3D4b8f63aC30c21206FC5E2d67CbE) |
+| Ordo's resolver (PermissionedResolver) | [`0x2bF3…f238`](https://sepolia.etherscan.io/address/0x2bF3FEdAa5911CCF6F49468620150Ec6876Ff238) |
+| `OrdoNames` | [`0x15f8…bb6b`](https://sepolia.etherscan.io/address/0x15f8e8cccf442e98369415fa9413b3b19d4bbb6b), holding its roles on the root registry and the resolver |
+| `OrdoRunResolver` | [`0x0fd6…223f`](https://sepolia.etherscan.io/address/0x0fd6d4a5edf16d6df8d4ab3e541e417a7776223f), with the verifiers below |
 
 ## Tests
 

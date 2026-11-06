@@ -133,7 +133,7 @@ const Env = z.object({
   ENS_RESOLVER_ADDRESS: z.string().optional(),
   ENS_OWNER_KEY: z.string().optional(),
   /** one or more Sepolia RPCs, comma-separated, tried in order */
-  ENS_SEPOLIA_RPC_URL: z.string().default("https://1rpc.io/sepolia,https://sepolia.drpc.org"),
+  ENS_SEPOLIA_RPC_URL: z.string().default("https://gateway.tenderly.co/public/sepolia,https://sepolia.rpc.thirdweb.com,https://0xrpc.io/sep,https://1rpc.io/sepolia"),
   /** Tests point these at a local chain */
   ENS_CHAIN_ID: z.coerce.number().int().optional(),
   ENS_FACTORY_ADDRESS: z.string().optional(),
