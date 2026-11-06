@@ -29,7 +29,7 @@ export class EvidenceError extends Error {
  * @param {string} input        Path as typed: relative to cwd, absolute, or starting with ~/.
  *                              Surrounding quotes and backslash-escaped spaces (as pasted by a
  *                              terminal drag-and-drop) are accepted.
- * @param {{ cwd?: string, maxBytes?: number }} [options]
+ * @param {{ cwd?: string, maxBytes?: number, alsoIn?: string[] }} [options]  `alsoIn`: more directories a relative path may be in
  * @returns {Promise<HashedEvidence>}
  */
 export async function hashEvidence(input, options = {}) {
@@ -42,7 +42,10 @@ export async function hashEvidence(input, options = {}) {
   let resolved = null;
   /** @type {import("node:fs").Stats | null} */
   let stats = null;
-  for (const candidate of pathCandidates(input, cwd)) {
+  // a relative path is looked for under the working directory, then under each extra directory (the notes file's)
+  const relative = !path.isAbsolute(input.trim()) && !/^~([/\\]|$)/.test(input.trim());
+  const roots = [cwd, ...(relative ? (options.alsoIn ?? []).filter((d) => d !== cwd) : [])];
+  for (const candidate of roots.flatMap((root) => pathCandidates(input, root))) {
     try {
       stats = await stat(candidate);
       resolved = candidate;

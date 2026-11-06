@@ -28,7 +28,7 @@ ORDO_POW_TOKEN='opw1.…' npx ordo-pow@latest
 
 | Option | |
 |---|---|
-| `--notes <file>` | A `.txt` or `.md` file of your observations. The interviewer records what it states (measurements, your verdict on each outcome) and asks only about the rest. Its text goes to the model like a typed answer; its hash becomes evidence. |
+| `--notes <file>` | A `.txt` or `.md` file of your observations. The interviewer records what it states (measurements, your verdict on each outcome) and asks only about the rest. Its text goes to the model like a typed answer; its hash becomes evidence. Evidence files it names by file name alone (`blade-01.jpg`) are found beside it as well as in your working directory. |
 | `--api <url>` | Talk to this Ordo API instead of the address in the token |
 | `--no-open` | Print the signing link but do not open a browser |
 | `-h`, `--help` | Help |

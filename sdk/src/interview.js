@@ -60,6 +60,8 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
   let inputEnded = false;
   let quitRequested = false;
 
+  /** Where the notes files were: evidence they name by a bare file name is looked for there too. @type {string[]} */
+  const searchDirs = [];
   /**
    * The contributor's observations file: hashed as evidence, and its text sent to the interviewer as their answers.
    * @param {string} input
@@ -85,6 +87,9 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
       terminal.error(`  Notes: ${file.name} is not a text file. Use a .txt or .md file of your observations.`);
       return null;
     }
+    // evidence the notes name by a bare file name is looked for beside them
+    const dir = path.dirname(file.path);
+    if (!searchDirs.includes(dir)) searchDirs.push(dir);
     if (!record.evidence.some((e) => e.sha256 === file.sha256)) record.evidence.push({ name: file.name, sha256: file.sha256, size: file.size, mediaType: "text/plain" });
     terminal.print(style.green(`  ✓ read your notes ${file.name} (${formatBytes(file.size)}), sha256 ${file.sha256.slice(0, 16)}…: its text goes to the interviewer as your answers, and its hash is your evidence`));
     return notesMessage({ name: file.name, sha256: file.sha256, text });
@@ -257,6 +262,7 @@ export async function runInterview({ session, router, terminal, client, cwd = pr
           stage,
           record,
           cwd,
+          searchDirs,
           confirmFinish,
           announce,
           maxEvidenceBytes,

@@ -115,7 +115,7 @@ export const KICKOFF = "The contributor has opened the terminal and is ready. St
  * @param {{ name: string, sha256: string, text: string }} notes
  */
 export function notesMessage(notes) {
-  return `My observations for this stage are in the file ${notes.name} (sha256 ${notes.sha256.slice(0, 16)}…, attached as evidence). Use them as my answers:
+  return `My observations for this stage are in the file ${notes.name} (sha256 ${notes.sha256.slice(0, 16)}…). It is already attached as evidence: do not call attach_evidence for it. Use it as my answers:
 - record every measurement it gives with record_measurement;
 - review each outcome the machine captured and record my verdict from the file with confirm_outcome (confirm, or dispute with the value I observed);
 - add what else it says as notes.

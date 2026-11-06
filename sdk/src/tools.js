@@ -145,6 +145,7 @@ export function toolDefinitions(stage) {
  * @property {Stage} stage
  * @property {ContributionRecord} record
  * @property {string} cwd
+ * @property {string[]} [searchDirs]  More directories a relative evidence path may be in: the notes file's.
  * @property {(summary: string) => Promise<boolean>} confirmFinish
  * @property {(line: string) => void} [announce]  Shows the contributor what was recorded.
  * @property {number} [maxEvidenceBytes]
@@ -281,10 +282,14 @@ async function attachEvidence(args, ctx, announce) {
   /** @type {import("./evidence.js").HashedEvidence} */
   let file;
   try {
-    file = await hashEvidence(args.path, { cwd: ctx.cwd, maxBytes: ctx.maxEvidenceBytes ?? MAX_EVIDENCE_BYTES });
+    file = await hashEvidence(args.path, { cwd: ctx.cwd, maxBytes: ctx.maxEvidenceBytes ?? MAX_EVIDENCE_BYTES, alsoIn: ctx.searchDirs });
   } catch (err) {
-    if (err instanceof EvidenceError) return fail(err.message);
-    throw err;
+    if (!(err instanceof EvidenceError)) throw err;
+    // a file already attached by name (the notes file, given as --notes): nothing to do
+    const name = args.path.trim().replace(/^(['"])(.*)\1$/s, "$2").split(/[/\\]/).pop();
+    const known = ctx.record.evidence.find((e) => e.name === name);
+    if (known) return ok({ alreadyAttached: true, name: known.name, size: known.size, sha256: known.sha256 });
+    return fail(err.message);
   }
   const type = mediaTypeOf(await readHead(file.path).catch(() => new Uint8Array()), file.name);
   let entry = ctx.record.evidence.find((e) => e.sha256 === file.sha256);
