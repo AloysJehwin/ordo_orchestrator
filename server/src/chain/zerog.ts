@@ -14,6 +14,21 @@ async function wallet(cfg: Config) {
   return new Wallet(cfg.ZG_PRIVATE_KEY.replace(/^(0x)?/, "0x"), new JsonRpcProvider(cfg.ZG_RPC_URL));
 }
 
+/**
+ * The storage SDK logs every upload's options, the encryption key among them, so it would land in the server's logs.
+ * That one line is dropped; the SDK's progress lines still print.
+ */
+let uploadLogQuiet = false;
+function quietUploadOptions() {
+  if (uploadLogQuiet) return;
+  uploadLogQuiet = true;
+  const log = console.log.bind(console);
+  console.log = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].startsWith("Upload options")) return;
+    log(...args);
+  };
+}
+
 export interface BlobStore {
   readonly kind: string;
   /** Upload; returns the Merkle root that names the file on 0G and the submission transaction. */
@@ -54,6 +69,7 @@ export class ZeroGStorage implements BlobStore {
   }
   private async upload(bytes: Uint8Array) {
     const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
+    quietUploadOptions();
     const indexer = new Indexer(this.cfg.ZG_INDEXER_URL);
     // not waiting for finality: Ordo records the root and the submission once the segments are on the storage nodes, and
     // a node that never reports the entry finalized (seen on the testnet) would otherwise hold the upload forever

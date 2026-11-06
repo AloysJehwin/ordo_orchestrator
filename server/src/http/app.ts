@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono, type Context } from "hono";
@@ -1397,10 +1397,24 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   // ---------------- Web console (single-container mode) ----------------
   const dist = opts.webDist ? resolve(opts.webDist) : null;
   if (dist && existsSync(resolve(dist, "index.html"))) {
-    const indexHtml = readFileSync(resolve(dist, "index.html"), "utf8");
-    app.use("/assets/*", serveStatic({ root: dist }));
+    // index.html names the build's hashed bundles, so it is re-read when a rebuild replaces it: a copy cached at boot
+    // would point at bundles the rebuild deleted, and every page would load blank
+    const indexFile = resolve(dist, "index.html");
+    let index = { mtime: 0, html: "" };
+    const indexHtml = () => {
+      const mtime = statSync(indexFile).mtimeMs;
+      if (mtime !== index.mtime) index = { mtime, html: readFileSync(indexFile, "utf8") };
+      return index.html;
+    };
+    app.use("/assets/*", serveStatic({ root: dist, onFound: (_p, c) => c.header("Cache-Control", "public, max-age=31536000, immutable") }));
+    // a bundle that is not there is a 404, never the page: the browser would refuse it as a script and show nothing
+    app.get("/assets/*", (c) => c.text("Not found", 404));
     app.get("/favicon.svg", serveStatic({ root: dist }));
-    app.get("*", (c) => (c.req.path.startsWith("/v1/") ? c.json({ error: "Not found" }, 404) : c.html(indexHtml)));
+    app.get("*", (c) => {
+      if (c.req.path.startsWith("/v1/")) return c.json({ error: "Not found" }, 404);
+      c.header("Cache-Control", "no-cache");
+      return c.html(indexHtml());
+    });
   } else {
     app.get("/", (c) => c.text("Ordo API is running."));
   }
