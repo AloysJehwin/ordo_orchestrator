@@ -47,6 +47,28 @@ ordo.eth                                              root (Ordo's ENS owner key
 - Status records (`com.ordo.status`) wait 30 s to settle, and stages write theirs only once finished.
 - Runs, stages, budgets, top-ups and work orders are history: they are never revoked.
 
+**A machine's name** describes the machine and says what it is doing, so anyone can read its state from ENS:
+
+| Record | Example | Changes |
+| --- | --- | --- |
+| `description` | `Robot cell 1, Robot cell in Assembly at Mumbai ASIC Plant` | rarely |
+| `com.ordo.type` | `machine` | never |
+| `com.ordo.kind` | `robot`, `cnc`, `oven`… | rarely |
+| `com.ordo.org` | `mumbai-asic-plant.ordo.eth` | never |
+| `com.ordo.zone` | `Assembly` (when the machine has a zone) | rarely |
+| `com.ordo.agent` | `line.agents.mumbai-asic-plant.ordo.eth`, the agent that owns it | rarely |
+| `com.ordo.source` | `gateway`, `mtconnect`, `opcua`, `replay`… where its data comes from | rarely |
+| `com.hedera.account`, Hedera coin record | `0.0.11328862`, the machine's wallet | rarely |
+| `addr` | the gateway's device key (machines that report through a gateway) | rarely |
+| `com.ordo.status` | `running`, `idle`, `stopped`, `degraded`, `alarm`, `offline`, `no_data`, as on the floor | status |
+| `com.ordo.since` | `2026-11-06T13:20Z`, when the status last changed | status |
+| `com.ordo.health` | `ok`, `warn` or `alarm`, from its open incidents | status |
+| `com.ordo.job` | `03-vacuum-casting.r-1003.runs.mumbai-asic-plant.ordo.eth`, the stage it runs (absent when idle) | status |
+
+- The status records settle for 5 minutes, so a machine flapping between running and idle costs one update, not one a minute.
+- A new alarm goes out within 30 s.
+- If the live status cannot be read, the name keeps what it had.
+
 ## How names get on-chain: OrdoNames
 
 `contracts/src/OrdoNames.sol` is the one contract that writes names, and the one contracts read roles from.

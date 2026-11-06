@@ -180,7 +180,11 @@ const MAX_OPS = 16;
 const MAX_IN_FLIGHT = 2;
 const LOW_BALANCE_ETH = 0.002;
 /** records that change often and are written only once they settle */
-const NOISY = new Set(["com.ordo.status"]);
+const NOISY = new Set(["com.ordo.status", "com.ordo.since", "com.ordo.health", "com.ordo.job"]);
+/** a machine's status records settle longer, so a machine flapping between running and idle is not a transaction a minute */
+const MACHINE_QUIET_MS = 5 * 60_000;
+/** how long a machine's live status is reused between plans */
+const MACHINE_STATUS_TTL_MS = 60_000;
 /** names kept when what they name is gone: they are the record of what happened */
 const HISTORY = new Set<NameKind>(["run", "stage", "budget", "topup", "workorder"]);
 /** at most this many managers get registrar rights on their org's registry (an ENSv2 root role holds 15 accounts) */
@@ -206,6 +210,9 @@ export class Names {
   private gasCheckedAt = 0;
   /** a reconcile in progress: engine cycles can overlap, and two passes would send the same names twice */
   private running = false;
+  /** each machine's live status, from the plant (set by wiring); cached a minute per org */
+  private machineViews: ((siteId: string) => Promise<{ id: string; status: string }[]>) | null = null;
+  private machineCache = new Map<string, { at: number; status: Map<string, string> }>();
   private sites = new Set<string>();
 
   constructor(
@@ -247,6 +254,25 @@ export class Names {
       return await this.send();
     } finally {
       this.running = false;
+    }
+  }
+
+  /** Where machines' live status comes from (the plant's views), for the status records on their names. */
+  useMachineStatus(views: (siteId: string) => Promise<{ id: string; status: string }[]>) {
+    this.machineViews = views;
+  }
+
+  /** Each machine's live status at an org, or null when it cannot be read now (its records keep what they had). */
+  private async machineStatus(siteId: string): Promise<Map<string, string> | null> {
+    if (!this.machineViews) return null;
+    const hit = this.machineCache.get(siteId);
+    if (hit && this.now() - hit.at < MACHINE_STATUS_TTL_MS) return hit.status;
+    try {
+      const status = new Map((await this.machineViews(siteId)).map((v) => [v.id, v.status]));
+      this.machineCache.set(siteId, { at: this.now(), status });
+      return status;
+    } catch {
+      return hit?.status ?? null;
     }
   }
 
@@ -372,26 +398,7 @@ export class Names {
       }
     }
 
-    // ---- machines (held by their gateway's key, which then signs as DEVICE), agents, lines
-    const assets = await this.db.query<{ id: string; name: string; kind: AssetKind; source_json: string; account_id: string | null; evm_address: string | null }>(
-      "SELECT a.id, a.name, a.kind, a.source_json, w.account_id, w.evm_address FROM assets a LEFT JOIN machine_wallets w ON w.asset_id = a.id WHERE a.site_id = $1 AND a.archived_at IS NULL ORDER BY a.created_at",
-      [siteId],
-    );
-    for (const a of assets.rows) {
-      const src = JSON.parse(a.source_json) as { type: string; device?: string };
-      const device = src.type === "gateway" && src.device && /^0x[0-9a-fA-F]{40}$/.test(src.device) ? (src.device.toLowerCase() as Address) : null;
-      await upsert({
-        kind: "machine",
-        ref: a.id,
-        parent: coll("machines"),
-        label: toLabel(a.name),
-        member: device ? MEMBER.machine : 0,
-        prio: 1,
-        want: want(device ?? ordo, T("machine", `${a.name}, ${ASSET_KIND_LABEL[a.kind] ?? a.kind}`, a.account_id ? { "com.hedera.account": a.account_id } : {}), { addr: device, coin: coin(a.account_id, a.evm_address) }),
-        address: device,
-        hedera: a.account_id,
-      });
-    }
+    // ---- agents, then machines (held by their gateway's key, which then signs as DEVICE), lines
     for (const k of [...AGENTS, ...SYSTEM_AGENTS]) {
       const line = AGENT_INFO[k as AgentKey];
       const addr = k === "maintenance" ? this.agentAddress() : null;
@@ -403,6 +410,68 @@ export class Names {
         prio: 1,
         want: want(ordo, T("agent", line ? `${line.label}: ${line.scope}` : `Ordo's ${k} service`), { addr: addr ? (addr.toLowerCase() as Address) : null }),
         address: addr?.toLowerCase() ?? null,
+      });
+    }
+    const assets = await this.db.query<{
+      id: string;
+      name: string;
+      kind: AssetKind;
+      source_json: string;
+      owning_agent: string;
+      zone: string | null;
+      account_id: string | null;
+      evm_address: string | null;
+    }>(
+      "SELECT a.id, a.name, a.kind, a.source_json, a.owning_agent, z.name AS zone, w.account_id, w.evm_address FROM assets a LEFT JOIN zones z ON z.id = a.zone_id LEFT JOIN machine_wallets w ON w.asset_id = a.id WHERE a.site_id = $1 AND a.archived_at IS NULL ORDER BY a.created_at",
+      [siteId],
+    );
+    // what each machine is doing now: its live status, its open incidents and the stage it runs
+    const live = await this.machineStatus(siteId);
+    const incidents = await this.db.query<{ asset_id: string; severity: string }>("SELECT asset_id, severity FROM incidents WHERE site_id = $1 AND status <> 'closed'", [siteId]);
+    const health = new Map<string, string>();
+    for (const i of incidents.rows) if (health.get(i.asset_id) !== "alarm") health.set(i.asset_id, i.severity === "alarm" ? "alarm" : "warn");
+    const jobs = await this.db.query<{ asset_id: string; run_id: string; code: string }>(
+      "SELECT sr.asset_id, sr.run_id, sr.code FROM stage_runs sr JOIN runs r ON r.id = sr.run_id WHERE r.site_id = $1 AND sr.state IN ('running','awaiting_approval','held') AND sr.asset_id IS NOT NULL ORDER BY sr.started_at",
+      [siteId],
+    );
+    const job = new Map(jobs.rows.map((j) => [j.asset_id, j]));
+    for (const a of assets.rows) {
+      const src = JSON.parse(a.source_json) as { type: string; device?: string };
+      const device = src.type === "gateway" && src.device && /^0x[0-9a-fA-F]{40}$/.test(src.device) ? (src.device.toLowerCase() as Address) : null;
+      const prev = byKey.get(key("machine", a.id));
+      const had = prev?.want_json ? (JSON.parse(prev.want_json) as Want).texts : {};
+      // status and since: the live value when there is one, else what the name already says
+      const status = live ? (live.get(a.id) ?? null) : (had["com.ordo.status"] ?? null);
+      const since = status ? (had["com.ordo.status"] === status && had["com.ordo.since"] ? had["com.ordo.since"] : `${new Date(this.now()).toISOString().slice(0, 16)}Z`) : null;
+      const j = job.get(a.id);
+      // the stage it runs, by the stage's name (in words, with its run's name, until the stage has one of its own)
+      const jobName = j ? (names.get(key("stage", `${j.run_id}:${j.code}`)) ?? `stage ${j.code} of ${names.get(key("run", j.run_id)) ?? j.run_id}`) : null;
+      const agentName = names.get(key("agent", a.owning_agent));
+      const kindLabel = ASSET_KIND_LABEL[a.kind] ?? a.kind;
+      await upsert({
+        kind: "machine",
+        ref: a.id,
+        parent: coll("machines"),
+        label: toLabel(a.name),
+        member: device ? MEMBER.machine : 0,
+        prio: 1,
+        want: want(
+          device ?? ordo,
+          T("machine", `${a.name}, ${kindLabel}${a.zone ? ` in ${a.zone}` : ""} at ${site.name}`, {
+            "com.ordo.kind": a.kind,
+            ...(orgName ? { "com.ordo.org": orgName } : {}),
+            ...(a.zone ? { "com.ordo.zone": a.zone } : {}),
+            ...(agentName ? { "com.ordo.agent": agentName } : {}),
+            "com.ordo.source": src.type,
+            ...(a.account_id ? { "com.hedera.account": a.account_id } : {}),
+            ...(status ? { "com.ordo.status": status, "com.ordo.since": since! } : {}),
+            "com.ordo.health": health.get(a.id) ?? "ok",
+            ...(jobName ? { "com.ordo.job": jobName } : {}),
+          }),
+          { addr: device, coin: coin(a.account_id, a.evm_address) },
+        ),
+        address: device,
+        hedera: a.account_id,
       });
     }
     const lines = await this.db.query<{ id: string; name: string; autonomy: string }>("SELECT id, name, autonomy FROM lines WHERE site_id = $1 ORDER BY created_at", [siteId]);
@@ -605,7 +674,10 @@ export class Names {
   private async setWant(r: Row, w: Want, quietable: boolean) {
     const have = r.have_json ? (JSON.parse(r.have_json) as Want) : null;
     const noisyOnly = quietable && have && !have.revoke && r.status === "issued" && !w.revoke && sameExcept(have, w, NOISY);
-    const quiet = noisyOnly ? (r.quiet_until && Date.parse(r.quiet_until) > this.now() ? r.quiet_until : this.iso(QUIET_MS)) : null;
+    // a machine's status settles for minutes, but a new alarm goes out in seconds
+    const alarm = r.kind === "machine" && w.texts["com.ordo.health"] === "alarm" && have?.texts["com.ordo.health"] !== "alarm";
+    const window = r.kind === "machine" && !alarm ? MACHINE_QUIET_MS : QUIET_MS;
+    const quiet = noisyOnly ? (r.quiet_until && Date.parse(r.quiet_until) > this.now() && !alarm ? r.quiet_until : this.iso(window)) : null;
     // a name in a batch keeps its status; confirming compares what was sent with what is wanted then
     const status = r.status === "sent" ? "sent" : "pending";
     await this.db.query("UPDATE ens_names SET want_json = $1, status = $2, attempts = CASE WHEN status = 'failed' THEN 0 ELSE attempts END, error = NULL, next_try_at = $3, quiet_until = $4, updated_at = now() WHERE id = $5", [

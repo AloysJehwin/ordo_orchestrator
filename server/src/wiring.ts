@@ -425,6 +425,8 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     years: cfg.ENS_NAME_YEARS,
     hederaNetwork: cfg.HEDERA_NETWORK,
   }, now);
+  // a machine's name carries its live status (running, idle, alarm…), from the same views the floor shows
+  names.useMachineStatus((siteId) => plant.views(siteId));
   const lotNames = new LotNames(db, rec, nameRail?.releasesLive ? nameRail : null, names, now);
   const nameResolver = new NameResolver(names, nameRail, (cfg.HEDERA_MIRROR_URL ?? `https://${cfg.HEDERA_NETWORK}.mirrornode.hedera.com`).replace(/\/$/, ""), cfg.HEDERA_NETWORK);
   validation.lots = lotNames;
