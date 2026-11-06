@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api } from "../api";
 import { canAct, useApp } from "../lib/app";
 import { dateTime, shortAddr, time } from "../lib/format";
 import { go, href, useRoute } from "../lib/router";
 import { useSign } from "../lib/sign";
-import type { PackageDetail, PackageSummary, RunView, TypedSignature } from "../types";
+import type { CriterionResult, PackageDetail, PackageSummary, RunView, TypedSignature } from "../types";
 import { DateTimePicker } from "../ui/Calendar";
 import { Action, Empty, Field, Loading, Modal, Segmented, useToast } from "../ui/kit";
 import { Select } from "../ui/Select";
@@ -99,6 +99,7 @@ function PackageView({ id }: { id: string }) {
   const [comment, setComment] = useState("");
   const [addCheck, setAddCheck] = useState(false);
   const [attach, setAttach] = useState<{ slotId: string | null; name: string } | null>(null);
+  const [changing, setChanging] = useState<string | null>(null);
   const load = async () => setP(await api.get<PackageDetail>(path(`/validation/${id}`)));
   useEffect(() => {
     void load();
@@ -107,6 +108,15 @@ function PackageView({ id }: { id: string }) {
   if (!p) return <Loading />;
   const owner = p.owner.id === me.user!.id;
   const editable = owner && (p.status === "draft" || p.status === "changes_requested");
+  // a check's value can be changed by the owner before they sign Performed by, and by a validator until release
+  const closed = p.status === "released" || p.status === "rejected";
+  const canChange = !closed && (editable || canAct(roles, "validator"));
+  const recordCheck = async (checkId: string, result: string, status: "pass" | "fail") => {
+    const next = await api.patch<PackageDetail>(path(`/validation/${id}/checks/${checkId}`), { status, result });
+    setP(next);
+    setChanging(null);
+    toast(p.status === "in_review" ? "Changed: the package is back with its owner to sign again over the corrected value" : "Check recorded", "ok");
+  };
   const link = p.chain.find((c) => c.state === "awaiting");
   const alreadySigned = p.chain.some((c) => c.state === "signed" && c.signer?.address === me.user!.address);
   const mayAct = Boolean(link) && p.status === "in_review" && canAct(roles, link!.role) && !alreadySigned;
@@ -299,37 +309,52 @@ function PackageView({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {p.checks.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.criterion}</td>
-                  <td className="muted">{c.method}</td>
-                  <td>{c.target}</td>
-                  <td className="band-cell">
-                    {(() => {
-                      const r = p.parameters?.find((x) => x.label === c.criterion);
-                      return r ? <SpecBand compact lo={r.band?.lo ?? null} hi={r.band?.hi ?? null} value={r.measured?.value ?? null} valueMax={r.measuredMax?.value ?? null} ok={r.ok} unit={r.unit} label={c.criterion} /> : <span className="faint">—</span>;
-                    })()}
-                  </td>
-                  <td>{c.result ?? "—"}</td>
-                  <td>
-                    <span className={`tag ${c.auto ? "accent" : ""}`}>{c.auto ? "Agent" : "Manual"}</span>
-                  </td>
-                  <td className="r">
-                    {editable && (!c.auto || c.status === "pending") ? (
-                      <span className="btns end">
-                        <Action className={`btn sm${c.status === "pass" ? " accent" : ""}`} onClick={async () => setP(await api.patch<PackageDetail>(path(`/validation/${id}/checks/${c.id}`), { status: "pass", result: c.result && !/Not measured/.test(c.result) ? c.result : "Pass" }))}>
-                          Pass
-                        </Action>
-                        <Action className={`btn sm${c.status === "fail" ? " danger" : ""}`} onClick={async () => setP(await api.patch<PackageDetail>(path(`/validation/${id}/checks/${c.id}`), { status: "fail", result: c.result && !/Not measured/.test(c.result) ? c.result : "Fail" }))}>
-                          Fail
-                        </Action>
-                      </span>
-                    ) : (
-                      <span className={c.status === "pass" ? "ok-text" : c.status === "fail" ? "bad-text" : "faint"}>{c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail ▲" : "Pending"}</span>
+              {p.checks.map((c) => {
+                const param = p.parameters?.find((x) => x.label === c.criterion) ?? null;
+                // an agent's measurement a person has since changed: the agent's value stays beside theirs
+                const changedByPerson = Boolean(c.auto && c.recordedBy?.startsWith("0x") && c.actual && c.result !== c.actual);
+                return (
+                  <Fragment key={c.id}>
+                    <tr className={changing === c.id ? "on" : ""}>
+                      <td>{c.criterion}</td>
+                      <td className="muted">{c.method}</td>
+                      <td>{c.target}</td>
+                      <td className="band-cell">
+                        {param ? <SpecBand compact lo={param.band?.lo ?? null} hi={param.band?.hi ?? null} value={param.measured?.value ?? null} valueMax={param.measuredMax?.value ?? null} ok={param.ok} unit={param.unit} label={c.criterion} /> : <span className="faint">—</span>}
+                      </td>
+                      <td>
+                        {c.result ?? "—"}
+                        {changedByPerson && <div className="faint small">agent measured {c.actual}</div>}
+                      </td>
+                      <td>
+                        <span className={`tag ${changedByPerson ? "warn" : c.auto ? "accent" : ""}`}>{changedByPerson ? "Agent · changed" : c.auto ? "Agent" : "Manual"}</span>
+                        {c.recordedBy?.startsWith("0x") && (
+                          <div className="faint small">
+                            by <Who address={c.recordedBy} />
+                          </div>
+                        )}
+                      </td>
+                      <td className="r">
+                        <span className="chk-status">
+                          <span className={c.status === "pass" ? "ok-text" : c.status === "fail" ? "bad-text" : "faint"}>{c.status === "pass" ? "Pass" : c.status === "fail" ? "Fail ▲" : "Pending"}</span>
+                          {canChange && changing !== c.id && (
+                            <button type="button" className="link small" onClick={() => setChanging(c.id)}>
+                              {c.status === "pending" ? "Record" : "Change"}
+                            </button>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                    {changing === c.id && (
+                      <tr className="chk-edit-row">
+                        <td colSpan={7}>
+                          <CheckEditor check={c} param={param} reviewing={p.status === "in_review"} onCancel={() => setChanging(null)} onSave={(result, status) => recordCheck(c.id, result, status)} />
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -651,5 +676,71 @@ function NewPackage({ open, onClose }: { open: boolean; onClose: () => void }) {
         <textarea value={acceptance} onChange={(e) => setAcceptance(e.target.value)} />
       </Field>
     </Modal>
+  );
+}
+
+/** Change a check's value (an agent's measurement too): what was measured, whether it passes, judged against the band when there is one. */
+function CheckEditor({
+  check,
+  param,
+  reviewing,
+  onCancel,
+  onSave,
+}: {
+  check: PackageDetail["checks"][number];
+  param: CriterionResult | null;
+  reviewing: boolean;
+  onCancel: () => void;
+  onSave: (result: string, status: "pass" | "fail") => Promise<void>;
+}) {
+  const start = check.result && !/^Not measured/.test(check.result) && !/^(Pass|Fail)$/.test(check.result) ? check.result : (check.actual ?? "");
+  const [value, setValue] = useState(start);
+  const [status, setStatus] = useState<"pass" | "fail">(check.status === "fail" ? "fail" : "pass");
+  const [picked, setPicked] = useState(check.status !== "pending");
+  const n = Number(value.match(/-?\d+(?:\.\d+)?/)?.[0] ?? NaN);
+  const lo = param?.band?.lo ?? null;
+  const hi = param?.band?.hi ?? null;
+  const judged = Number.isFinite(n) && (lo !== null || hi !== null) ? (lo === null || n >= lo) && (hi === null || n <= hi) : null;
+  // until the person picks Pass or Fail themselves, the band decides
+  useEffect(() => {
+    if (!picked && judged !== null) setStatus(judged ? "pass" : "fail");
+  }, [judged, picked]);
+  // a bare number gets the parameter's unit, as the agent writes it
+  const result = /^-?\d+(\.\d+)?$/.test(value.trim()) && param?.unit ? `${value.trim()} ${param.unit}` : value.trim();
+  return (
+    <div className="chk-edit">
+      <div className="chk-edit-fields">
+        <label className="field">
+          <span className="field-l">
+            {check.criterion} <span className="muted">· target {check.target}</span>
+          </span>
+          <input className="input sm" value={value} onChange={(e) => setValue(e.target.value)} placeholder={param?.unit ? `e.g. 31.5 ${param.unit}` : "the measured value or finding"} autoFocus />
+          {check.actual && <span className="field-h">The agent measured {check.actual}. It stays on record beside your value.</span>}
+        </label>
+        <div className="field">
+          <span className="field-l">Result</span>
+          <Segmented<"pass" | "fail">
+            size="sm"
+            label="Result"
+            value={status}
+            onChange={(v) => (setStatus(v), setPicked(true))}
+            options={[
+              { value: "pass", label: "Pass" },
+              { value: "fail", label: "Fail" },
+            ]}
+          />
+          {judged !== null && <span className="field-h">{judged ? "Inside" : "Outside"} the band</span>}
+        </div>
+      </div>
+      {reviewing && <p className="notice warn small">The package is in review. Saving changes what its owner signed, so it goes back to them to sign Performed by again over the corrected value; then you sign it on.</p>}
+      <div className="btns">
+        <Action className="btn sm accent" disabled={!result} onClick={() => onSave(result, status)}>
+          Save
+        </Action>
+        <button type="button" className="btn sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }

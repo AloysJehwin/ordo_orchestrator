@@ -1153,7 +1153,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     c.json(await sys.validation.addCheck(sid(c), me(c).user, c.req.param("id"), await body(c, z.object({ criterion: z.string().trim().min(2).max(200), method: z.string().max(200).default("Manual"), target: z.string().max(100).default("") })))),
   );
   site.patch("/validation/:id/checks/:checkId", async (c) =>
-    c.json(await sys.validation.recordCheck(sid(c), me(c).user, c.req.param("id"), c.req.param("checkId"), await body(c, z.object({ status: z.enum(["pass", "fail"]), result: z.string().max(200).default("") })))),
+    c.json(await sys.validation.recordCheck(sid(c), me(c).user, c.get("roles"), c.req.param("id"), c.req.param("checkId"), await body(c, z.object({ status: z.enum(["pass", "fail"]), result: z.string().trim().max(200).default("") })))),
   );
   site.delete("/validation/:id/checks/:checkId", async (c) => c.json(await sys.validation.removeCheck(sid(c), me(c).user, c.req.param("id"), c.req.param("checkId"))));
   site.post("/validation/:id/precheck", async (c) => c.json(await sys.validation.precheck(sid(c), me(c).user, c.req.param("id"))));

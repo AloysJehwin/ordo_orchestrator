@@ -193,11 +193,42 @@ export class Validation {
     await this.audit(siteId, `user:${user.address}`, id, "check.removed", { checkId });
     return this.get(siteId, id);
   }
-  async recordCheck(siteId: string, user: User, id: string, checkId: string, r: { status: "pass" | "fail"; result: string }) {
-    await this.editable(siteId, user, id);
-    const c = await this.db.query("UPDATE validation_checks SET status = $1, result = $2, recorded_by = $3, recorded_at = now() WHERE id = $4 AND package_id = $5 RETURNING id", [r.status, r.result, user.address, checkId, id]);
-    if (!c.rows.length) throw new HttpError(404, "Check not found");
-    await this.audit(siteId, `user:${user.address}`, id, "check.recorded", { checkId, ...r });
+  /**
+   * Record a check's result, or change one, an agent's measurement included (the agent's value stays in `actual`).
+   * The package owner may do so until they sign Performed by; a validator or manager until the package is released.
+   * A validator's change after Performed by alters what the owner signed, so the package goes back to its owner to sign
+   * again over the corrected values; the validator then signs it on as usual.
+   */
+  async recordCheck(siteId: string, user: User, roles: Role[], id: string, checkId: string, r: { status: "pass" | "fail"; result: string }) {
+    const p = await this.row(siteId, id);
+    if (p.status === "released" || p.status === "rejected") throw new HttpError(409, "The package is closed");
+    const open = p.status === "draft" || p.status === "changes_requested";
+    const owner = p.owner_id === user.id;
+    const validator = roles.includes("validator") || roles.includes("manager");
+    if (!(open && owner) && !validator) throw new HttpError(403, open ? "Only the package owner or a validator can change its checks" : "The package is in review: only a validator can change its checks now");
+    const before = (await this.db.query<{ criterion: string; result: string | null; actual: string | null; status: string }>("SELECT criterion, result, actual, status FROM validation_checks WHERE id = $1 AND package_id = $2", [checkId, id])).rows[0];
+    if (!before) throw new HttpError(404, "Check not found");
+    const was = before.result ?? before.actual ?? "not recorded";
+    const reopened = !open;
+    await this.db.tx(async (q) => {
+      await q.query("UPDATE validation_checks SET status = $1, result = $2, recorded_by = $3, recorded_at = now() WHERE id = $4 AND package_id = $5", [r.status, r.result, user.address, checkId, id]);
+      if (reopened) {
+        // what the owner signed no longer holds: clear the chain and hand the package back to be signed again
+        await q.query("UPDATE package_signatures SET cleared_at = now() WHERE package_id = $1 AND cleared_at IS NULL", [id]);
+        await q.query("UPDATE validation_packages SET step = 'draft', status = 'changes_requested', returned_comment = $1 WHERE id = $2", [`A validator changed ${before.criterion} from ${was} (${before.status}) to ${r.result} (${r.status}): sign Performed by again over the corrected values`, id]);
+      }
+    });
+    const changed = before.status !== "pending" && (before.result !== r.result || before.status !== r.status);
+    await this.audit(siteId, `user:${user.address}`, id, changed ? "check.changed" : "check.recorded", { checkId, criterion: before.criterion, from: changed ? { result: was, status: before.status } : null, ...r, agentMeasured: before.actual, ...(reopened ? { returnedToOwner: true } : {}) });
+    if (changed)
+      await this.rec.decide(siteId, {
+        agent: `user:${user.address}`,
+        kind: "validation.check_changed",
+        runId: p.run_id,
+        stageCode: p.stage_code,
+        summary: `VP-${p.number}: ${before.criterion} changed from ${was} (${before.status}) to ${r.result} (${r.status})${reopened ? ", back to the owner to sign again" : ""}`,
+        data: { packageId: id, checkId, agentMeasured: before.actual },
+      });
     return this.get(siteId, id);
   }
 
@@ -216,12 +247,16 @@ export class Validation {
       for (const c of checks.filter((x) => x.auto)) {
         const r = st.criteriaResults.find((x) => x.label === c.criterion);
         if (!r || r.ok === null) {
-          await this.db.query("UPDATE validation_checks SET status = 'pending', actual = NULL, result = 'Not measured: record it manually' WHERE id = $1", [c.id]);
+          await this.db.query("UPDATE validation_checks SET actual = NULL, status = CASE WHEN recorded_by LIKE '0x%' THEN status ELSE 'pending' END, result = CASE WHEN recorded_by LIKE '0x%' THEN result ELSE 'Not measured: record it manually' END WHERE id = $1", [c.id]);
           continue;
         }
         measured += 1;
         if (r.ok) passed += 1;
-        await this.db.query("UPDATE validation_checks SET status = $1, actual = $2, result = $2, recorded_by = $3, recorded_at = now() WHERE id = $4", [r.ok ? "pass" : "fail", r.actual, agent, c.id]);
+        // the agent's value is always refreshed; a result a person recorded over it stays theirs
+        await this.db.query(
+          "UPDATE validation_checks SET actual = $2, status = CASE WHEN recorded_by LIKE '0x%' THEN status ELSE $1 END, result = CASE WHEN recorded_by LIKE '0x%' THEN result ELSE $2 END, recorded_at = CASE WHEN recorded_by LIKE '0x%' THEN recorded_at ELSE now() END, recorded_by = CASE WHEN recorded_by LIKE '0x%' THEN recorded_by ELSE $3 END WHERE id = $4",
+          [r.ok ? "pass" : "fail", r.actual, agent, c.id],
+        );
       }
       figures.push({ label: "Units good / scrap", value: `${st.unitsGood} / ${st.unitsScrap}` }, { label: "Yield", value: st.yieldPct === null ? "—" : `${st.yieldPct.toFixed(1)}%` }, { label: "Duration", value: st.durationMin === null ? "—" : `${st.durationMin} min` });
       const decisions = await this.rec.decisions(siteId, { runId: p.run_id, limit: 500 });

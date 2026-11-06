@@ -49,7 +49,8 @@ stateDiagram-v2
 - Only the role at the current step may sign; a manager may sign any step. Each signature states its meaning and requires the signer to confirm they reviewed the checks and evidence.
 - One person signs at most one link of the chain. The one exception: in an org with exactly one manager, that manager may approve a package they performed, so a one-manager org can still release. A different person still reviews it, and the ledger and the audit trail record that the approver also performed it (`soleManager`).
 - Request changes and Reject require a comment. A returned package goes back to its owner; all later signatures are cleared on resubmit.
-- Re-running the pre-check after changes refreshes automated results and the assessment.
+- Re-running the pre-check after changes refreshes automated results and the assessment. A result a person recorded over an agent's measurement stays theirs; the agent's new value is kept beside it.
+- Any check's value can be changed, an agent's measurement included: by the owner until they sign Performed by, and by a validator or manager until release. The agent's measured value stays on record beside the person's, and the change (from, to, who) goes to the audit trail and the decision stream. A change during review alters what the owner signed, so the package goes back to its owner to sign Performed by again over the corrected values; the validator then signs it on.
 - Files are hashed on upload. A changed file is a new version; earlier versions stay in the record.
 - Every action (create, attach, remove, check, sign, return, release) writes an audit entry.
 
@@ -68,8 +69,8 @@ Agent-generated evidence (the run record, the parameter chart) is attached autom
 
 | Role | Sees the package as | Can do |
 | --- | --- | --- |
-| Package owner (a manager) | Editable while Draft or Changes requested | Edit objective and acceptance, run pre-check, record manual checks, attach/remove evidence, sign and submit |
-| Validator | Locked, "Awaiting signature" when it is their step | Sign "Reviewed by", request changes, reject |
+| Package owner | Editable while Draft or Changes requested | Edit objective and acceptance, run pre-check, record or change any check (agent-measured ones too), attach/remove evidence, sign and submit |
+| Validator | "Awaiting signature" when it is their step | Change any check's value until release (a change in review returns the package to its owner to sign again), sign "Reviewed by", request changes, reject |
 | Manager | Locked, "Awaiting signature" when it is their step | Sign "Approved by" (or any step), request changes, reject |
 | Anyone else | Read-only, with a note saying who it is waiting on | — |
 

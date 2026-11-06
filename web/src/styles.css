@@ -580,6 +580,13 @@ svg.flow { display: block; overflow: visible; }
 .gc-wait { color: var(--accent-700); margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
 .s-held .gc-wait { color: var(--bad); }
 table.t tr.on > td { background: var(--accent-50); }
+.chk-status { display: inline-flex; align-items: baseline; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.chk-edit-row > td { background: var(--accent-50); padding-top: 4px; }
+.chk-edit { display: grid; gap: 10px; max-width: 760px; }
+.chk-edit-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 20px; align-items: start; }
+.chk-edit .field { margin-bottom: 0; }
+.chk-edit .notice { margin: 0; }
+@media (max-width: 767px) { .chk-edit-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
 .ledger th:first-child, .ledger td:first-child { position: sticky; left: 0; z-index: 1; background: #fcfcfd; }
 
 .block-code { font-weight: 600; }
