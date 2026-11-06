@@ -2,13 +2,14 @@
  * Registers Ordo's parent name on ENSv2 (Sepolia) with the ENS owner account, once. Run from the "ENS setup" workflow
  * (.github/workflows/ens-setup.yml), or locally:
  *
- *   ENS_OWNER_KEY=0x… ENS_LABEL=ordo-mfg [ENS_SEPOLIA_RPC_URL=…] pnpm --filter @ordo/contracts setup:ens
+ *   ENS_OWNER_KEY=0x… ENS_LABEL=ordo [ENS_YEARS=2] [ENS_SEPOLIA_RPC_URL=url,url] pnpm --filter @ordo/contracts setup:ens
  *
  * It deploys Ordo's PermissionedResolver and a UserRegistry through ENS's VerifiableFactory, then registers
- * <label>.eth (commit, wait, pay in the testnet's MockUSDC, register) pointing at both. Sites, people, assets and
- * agents are issued later by the app, under that registry. Prints only public values.
+ * <label>.eth (commit, wait, pay in the testnet's MockUSDC, register) pointing at both, for ENS_YEARS (default 2, so
+ * the root outlives the one-year names under it). Orgs, people, roles, machines, runs and stages are issued later by
+ * the app through OrdoNames (setup:ens-contracts), under that registry. Prints only public values.
  */
-import { createPublicClient, createWalletClient, decodeEventLog, encodeFunctionData, http, keccak256, parseAbi, toBytes, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, decodeEventLog, encodeFunctionData, fallback, http, keccak256, parseAbi, toBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { need } from "./env.js";
@@ -19,10 +20,12 @@ const ENS = {
   userRegistryImpl: "0x9bd8a88719068d09ecee662f36c0e3856708366a",
   resolverImpl: "0x115eb53f0c60696633855f90b138178fb40b2b2c",
   registrar: "0xf633e7fc17e2bbe0d0965d18ec1821dcb754a3d3",
+  ethRegistry: "0xd4ebcbbdf463c9c45784603db0ddd499bc44a8b4",
   usdc: "0x240b0316df57887dbbe58b586508b19e633a14aa",
 } as const;
 const ALL_ROLES = BigInt(`0x${"1".repeat(64)}`);
-const YEAR = 365n * 86_400n;
+const YEARS = BigInt(Math.max(1, Math.min(10, Number(process.env.ENS_YEARS ?? 2) || 2)));
+const DURATION = YEARS * 365n * 86_400n;
 const ZERO32 = `0x${"0".repeat(64)}` as Hex;
 
 const abi = parseAbi([
@@ -39,6 +42,7 @@ const abi = parseAbi([
   "function mint(address to, uint256 amount)",
   "function approve(address spender, uint256 amount) returns (bool)",
   "function setText(bytes name, string key, string value)",
+  "function setParent(address parent, string label)",
   "function multicall(bytes[] calls) returns (bytes[])",
 ]);
 const resolverInit = parseAbi(["struct Grant { address account; uint256 roleBitmap; }", "function initialize(Grant[] grants, bytes[] calls)"]);
@@ -46,7 +50,8 @@ const resolverInit = parseAbi(["struct Grant { address account; uint256 roleBitm
 const label = need("ENS_LABEL").toLowerCase();
 if (!/^[a-z0-9-]{3,40}$/.test(label)) throw new Error("ENS_LABEL: 3–40 lowercase letters, digits or hyphens");
 const account = privateKeyToAccount(need("ENS_OWNER_KEY").replace(/^(0x)?/, "0x") as Hex);
-const transport = http(process.env.ENS_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com", { timeout: 60_000 });
+const rpcs = (process.env.ENS_SEPOLIA_RPC_URL || "https://1rpc.io/sepolia,https://sepolia.drpc.org").split(",").map((u) => u.trim()).filter(Boolean);
+const transport = fallback(rpcs.map((u) => http(u, { timeout: 60_000 })));
 const pub = createPublicClient({ chain: sepolia, transport });
 const wallet = createWalletClient({ chain: sepolia, transport, account });
 
@@ -84,29 +89,33 @@ console.log("Deploying Ordo's resolver and registry…");
 const resolver = await proxy(ENS.resolverImpl, salt, encodeFunctionData({ abi: resolverInit, functionName: "initialize", args: [[{ account: account.address, roleBitmap: ALL_ROLES }], []] }));
 const registry = await proxy(ENS.userRegistryImpl, salt + 1n, encodeFunctionData({ abi, functionName: "initialize", args: [[{ account: account.address, roleBitmap: ALL_ROLES }]] }));
 
-const [base, premium] = await pub.readContract({ address: ENS.registrar, abi, functionName: "getRegisterPrice", args: [label, YEAR, ENS.usdc] });
+const [base, premium] = await pub.readContract({ address: ENS.registrar, abi, functionName: "getRegisterPrice", args: [label, DURATION, ENS.usdc] });
 const price = base + premium;
-console.log(`Registering ${label}.eth for a year: ${Number(price) / 1e6} MockUSDC`);
+console.log(`Registering ${label}.eth for ${YEARS} year(s): ${Number(price) / 1e6} MockUSDC`);
 await send(ENS.usdc, "mint", [account.address, price]);
 await send(ENS.usdc, "approve", [ENS.registrar, price]);
 const secret = keccak256(toBytes(`${salt}:${Date.now()}`));
-const commitment = await pub.readContract({ address: ENS.registrar, abi, functionName: "makeCommitment", args: [label, account.address, secret, registry, resolver, YEAR, ZERO32] });
+const commitment = await pub.readContract({ address: ENS.registrar, abi, functionName: "makeCommitment", args: [label, account.address, secret, registry, resolver, DURATION, ZERO32] });
 await send(ENS.registrar, "commit", [commitment]);
 const age = Number(await pub.readContract({ address: ENS.registrar, abi, functionName: "MIN_COMMITMENT_AGE" }));
 console.log(`Waiting ${age + 15}s for the commitment to mature…`);
 await new Promise((r) => setTimeout(r, (age + 15) * 1000));
-await send(ENS.registrar, "register", [label, account.address, secret, registry, resolver, YEAR, ENS.usdc, ZERO32]);
+await send(ENS.registrar, "register", [label, account.address, secret, registry, resolver, DURATION, ENS.usdc, ZERO32]);
+// the registry's record of where it hangs, which ENS reads for canonical names
+await send(registry, "setParent", [ENS.ethRegistry, label]);
 
 const name = `${label}.eth`;
 const url = process.env.PUBLIC_URL;
-const texts: Record<string, string> = { "com.ordo.type": "org", description: "Manufacturing sites run on Ordo: people, machines and agents with on-chain credentials", ...(url ? { url } : {}) };
+const texts: Record<string, string> = { "com.ordo.type": "root", description: "Ordo: every org, person, role, machine, run and stage has a name here", ...(url ? { url } : {}) };
 await send(resolver, "multicall", [Object.entries(texts).map(([k, v]) => encodeFunctionData({ abi, functionName: "setText", args: [dns(name), k, v] }))]);
 
 console.log(`
 ${name} registered: https://sepolia.app.ens.domains/${name}
 
-# ---- set in Vercel (Production and Preview) ----
+# ---- set in server/.env, Render and Vercel ----
 ENS_PARENT_NAME=${name}
 ENS_REGISTRY_ADDRESS=${registry}
 ENS_RESOLVER_ADDRESS=${resolver}
+
+Next: pnpm --filter @ordo/contracts setup:ens-contracts (deploys OrdoNames and OrdoRunResolver).
 `);

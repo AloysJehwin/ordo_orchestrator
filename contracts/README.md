@@ -1,6 +1,6 @@
 # Ordo contracts and chain setup
 
-Three contracts on Hedera, two on Sepolia for ENS (below). Every authorisation in them is an Ordo EIP-712 signature (`OrdoSignature`, the typed data people sign in the console), so anyone can relay a transaction and the contract checks who signed, not who sent it.
+Three contracts on Hedera, and on Sepolia the ENS contracts that name everything under `ordo.eth` (below). Every authorisation in them is an Ordo EIP-712 signature (`OrdoSignature`, the typed data people sign in the console), so anyone can relay a transaction and the contract checks who signed, not who sent it.
 
 | Contract | Purpose |
 | --- | --- |
@@ -9,7 +9,7 @@ Three contracts on Hedera, two on Sepolia for ENS (below). Every authorisation i
 | `OrdoPolicies` | Each line's autonomy level and policy hash, published with one plant manager's signature (`REQUIRED = 1`; more may sign, each a different plant manager). |
 | `OrdoTreasury` | Each org's treasury is a Hedera account keyed to the org's own `OrdoTreasuryKey` contract. HBAR leaves it only through a scheduled transfer (a run budget or a machine's top-up) that one of the org's OrdoTrust admins approved: `approve` checks the `budget.approve` signature for exactly that schedule and has the key sign it through Hedera's Schedule Service (`authorizeSchedule`, HIP-755) ([below](#ordotreasury-run-budgets-the-manager-approves)). |
 | `OrdoSpecVerifier` | Generated Groth16 verifier for `circuits/spec_check.circom`: checks a lot passport's proof that a criterion was met, without the measurement. Stateless; anyone can deploy and call `verifyProof`. |
-| `OrdoStageVerifier` | Generated Groth16 verifier for `circuits/stage_check.circom`: checks that the counts a stage's gateway (or, for a manual stage, a manager) signed meet the stage's criteria. `OrdoLotResolver` calls it for every stage of a release. |
+| `OrdoStageVerifier` | Generated Groth16 verifier for `circuits/stage_check.circom`: checks that the counts a stage's gateway (or, for a manual stage, a manager) signed meet the stage's criteria. `OrdoRunResolver` calls it for every stage of a release. |
 | `OrdoProofs` (library) | The two statements proof of work rests on: `OrdoReading` (a stage's counts as a signed commitment) and `OrdoRelease` (exactly what three people release: site, package, run, lot, content hash, proof root). See [docs/proof-of-work.md](../docs/proof-of-work.md). |
 
 `OrdoWorkOrders` and `OrdoPolicies` read credentials from the deployed `OrdoTrust` and share its signature scheme through `OrdoSigned`.
@@ -71,7 +71,7 @@ Amounts are in the chain's smallest unit: tinybars on Hedera.
 
 **How Ordo tells.** The server checks the configured contract for `isActiveTester(string,address)`. Against v2 it keeps selections in its ledger, refuses cases and turns rewards off; the env doctor warns "chain: OrdoTrust v3". The whole flow is in [docs/proof-of-work.md](../docs/proof-of-work.md).
 
-**Unchanged:** the Sepolia ENS contracts (`OrdoEnsRoles`, `OrdoLotResolver`, the verifiers) and `OrdoAgentNFT`. ENS keeps the old role names (below).
+**Unchanged:** `OrdoAgentNFT`. ENS roles come from the names people hold under `ordo.eth` (`OrdoNames`, below).
 
 ## Hedera testnet
 
@@ -190,7 +190,7 @@ cd contracts && CIRCOM=/path/to/circom node scripts/zk-spec-setup.mjs setup "You
 
 ## Zero-knowledge stage proofs (proof of work)
 
-Each stage's counts are signed where they were made and proven against the stage's criteria; a release signs the root of those proofs and `OrdoLotResolver` verifies them on-chain. The design and trust model are in [docs/proof-of-work.md](../docs/proof-of-work.md). The circuit is on a public trusted setup (phase 1 from the PSE Perpetual Powers of Tau; phase 2 contributions are recorded in `server/zk/stage_check.ceremony.json`):
+Each stage's counts are signed where they were made and proven against the stage's criteria; a release signs the root of those proofs and `OrdoRunResolver` verifies them on-chain. The design and trust model are in [docs/proof-of-work.md](../docs/proof-of-work.md). The circuit is on a public trusted setup (phase 1 from the PSE Perpetual Powers of Tau; phase 2 contributions are recorded in `server/zk/stage_check.ceremony.json`):
 
 ```bash
 cd contracts && CIRCOM=/path/to/circom node scripts/zk-stage-setup.mjs setup      # compile + phase 2 + first contribution
@@ -209,32 +209,52 @@ cd server && HEDERA_BUILD_TOPIC_ID=<build topic> pnpm anchor:build
 
 ## ENS (Sepolia, ENSv2)
 
-ENSv2 gives every name its own registry. `scripts/ens-setup.ts` registers Ordo's parent name once: it deploys Ordo's `PermissionedResolver` and a `UserRegistry` through ENS's `VerifiableFactory`, then registers `<label>.eth` (commit, wait, pay in the testnet's MockUSDC) pointing at both. Run it from the **ENS setup** workflow (put the label in `.github/deploy/ens.request`; needs the `sepolia` environment with `ENS_OWNER_KEY` holding some Sepolia ETH), or locally:
+Everything in Ordo has an ENSv2 name under one root, and each name that holds others has its own registry:
 
-```bash
-ENS_OWNER_KEY=0x... ENS_LABEL=ordo-mfg pnpm setup:ens
+```
+ordo.eth                                              root (Ordo's PermissionedResolver)
+└─ acme.ordo.eth                                      org (own registry)
+   ├─ priya.acme.ordo.eth                             a person's handle, owned by their wallet, cannot be transferred
+   ├─ managers | validators | testers | contributors  role collections (own registries)
+   │    └─ priya.validators.acme.ordo.eth             holding it is holding the role
+   ├─ machines → robot-cell-1.machines.acme.ordo.eth  owned by the device signer
+   ├─ agents · lines · vendors · customers · financiers · pipelines · workorders · treasury
+   └─ runs → so-7781.runs.acme.ordo.eth               a run (own registry; resolver OrdoRunResolver)
+        ├─ 01-wax-pattern-injection.so-7781.runs.acme.ordo.eth   its stages
+        ├─ budget.so-7781.runs.acme.ordo.eth                     its budget
+        └─ topup-01-ceramic-cores.so-7781.runs.acme.ordo.eth     an over-budget top-up
 ```
 
-**Live:** [`ordo-mfg.eth`](https://sepolia.app.ens.domains/ordo-mfg.eth), registry `0x1F621f14718a9251b74F1683D6F1D5F8E9889358`, resolver `0xC2992b48350F642cd820a22DAf5ffaDB6e26566C`, owner `0x38e6C7622b2E9BdcB16821E88083274489625b74`.
+Names carry small `com.ordo.*` text records that point at other names (a stage's `com.ordo.machine`, a role name's `com.ordo.person`), and the Hedera ones an ENSIP-11 address for Hedera testnet (coin type `2147483944`, `0x80000000 | 296`). Display names never go on-chain.
 
-The app then issues the rest as the site changes: `<site>.<parent>` with its own `UserRegistry`, and in it a name for each person (minted to their wallet with no roles on the token, so it cannot be transferred; revoked when they hold no role), each asset and each agent, with `com.ordo.*` text records in Ordo's resolver. The contract addresses are the Sepolia set ENS deployed on 2026-10-01 (`server/src/chain/ensv2.ts`).
+### Setup
 
-### ENS as the access layer
+1. `scripts/ens-setup.ts` registers the root once. It deploys Ordo's `PermissionedResolver` and a `UserRegistry` through ENS's `VerifiableFactory`, registers `<label>.eth` for `ENS_YEARS` (default 2, so the root outlives the one-year names under it) through the ETHRegistrar (commit, wait, pay in the testnet's MockUSDC), and records the registry's parent.
 
-Four more contracts on Sepolia make the names do something:
+   ```bash
+   ENS_OWNER_KEY=0x... ENS_LABEL=ordo pnpm setup:ens
+   ```
+
+2. `scripts/ens-contracts.ts` deploys `OrdoNames` and `OrdoRunResolver`, and grants `OrdoNames` registrar, unregister, renew, set-registry and set-resolver on the root's registry, and set address, text and contenthash on the resolver. The verifiers are reused from `ENS_STAGE_VERIFIER_ADDRESS`/`ENS_SPEC_VERIFIER_ADDRESS` or the retired lot resolver (`ENS_LOT_RESOLVER_ADDRESS`), else deployed.
+
+   ```bash
+   ENS_OWNER_KEY=0x... ENS_PARENT_NAME=ordo.eth ENS_REGISTRY_ADDRESS=0x... ENS_RESOLVER_ADDRESS=0x... pnpm setup:ens-contracts
+   ```
+
+Both default to `https://1rpc.io/sepolia` then `https://sepolia.drpc.org` (`ENS_SEPOLIA_RPC_URL` takes a comma list), print only public values, and end with the env vars to set. The ENS contract addresses are the Sepolia set ENS Labs deployed on 2026-10-01 (`server/src/chain/ensv2.ts`).
+
+### Contracts
 
 | Contract | Purpose |
 | --- | --- |
-| `OrdoEnsRoles` | Ordo roles read from ENS. A wallet holds a role at a site only while it owns its `member-<40 hex address>` name in the site's registry and the name's `com.ordo.roles` record lists the role (`com.ordo.validator` gives VALIDATOR). Revoke or let the name expire and the role is gone. It answers OrdoTrust's `sites`/`roles` calls (`IOrdoTrust`), so `OrdoWorkOrders` and `OrdoPolicies` can be deployed against it too. |
+| `OrdoNames` | Issues every name under the root. `execute(Op[])` takes a batch of ops (issue, records, revoke, grant, ungrant), each run on its own, so one bad name emits `Failed(index, reason)` and the rest land (`Applied`). Issuing is an upsert: it deploys the name's own registry at its predicted address (`predictRegistry(salt)`) if the name has one, registers the label or fixes its registry and resolver, records the registry's parent, and writes the records in one resolver multicall, so a child can ride in the same batch as its parent. It keeps each org's registries (org, managers, validators, testers, contributors, machines, vendors, runs) and which label is whose. Roles are the names people hold, read from those registries: a handle in the org and a name in `managers` is 31 (operator, supervisor, validator, plant manager, admin), `validators` 4, `testers` 128, `contributors` 1; a machine name gives DEVICE (64) to its signer, a vendor name VENDOR (32). It answers OrdoTrust's `sites`/`roles`/`hasRole` (`IOrdoTrust`), and `nameOf(site, account)` gives an account's full name. |
+| `OrdoRunResolver` | The resolver of every run name. `runNode(site, name)` accepts only `<label>.runs.<org>.<root>` with the label registered in the org's runs registry. `recordRelease` stores a lot's release only with the three `OrdoRelease` statements (the lot is the run's full name) from people whose names give the roles (any role, VALIDATOR, VALIDATOR or PLANT_MANAGER), and only if every stage proof verifies (`OrdoStageVerifier`) and every parameter proof verifies (`OrdoSpecVerifier`), each signed by a holder of DEVICE or OPERATOR, and together they fold to the proof root the three signed. It answers the `com.ordo.release*` records from storage, signers as names, and every other record from Ordo's resolver, with multicall for the ENS app. No gateway. |
 | `OrdoStageVerifier` | The Groth16 verifier of the stage-check circuit (counts against yield, scrap, defects and cycle-time criteria), generated by `zk-stage-setup.mjs` from the public ceremony. |
 | `OrdoSpecVerifier` | The Groth16 verifier of the spec-check circuit (one measured value against one bound), generated by `zk-spec-setup.mjs` from the public ceremony. |
-| `OrdoLotResolver` | The resolver of each site name, so every `lot-<order>.<site>.<parent>` resolves with no registration (ENSIP-10 wildcard). `recordRelease` stores a lot's release only with the three `OrdoRelease` statements from people whose member names carry the roles (any role, VALIDATOR, VALIDATOR + PLANT_MANAGER), and only if every stage proof it is given verifies (`OrdoStageVerifier`) and every parameter proof verifies (`OrdoSpecVerifier`), each was signed by a holder of the DEVICE or OPERATOR role, and together they fold to the proof root the three signed; `com.ordo.release*` records come from that, `com.ordo.release.proofs` included. Other records (`url`, `com.ordo.status`, `com.ordo.product`…) come from Ordo's CCIP-Read gateway (`/v1/public/ens/{sender}/{data}.json`), signed with the ENS owner key. Names that are not lots go to Ordo's resolver. |
 
-These contracts are unchanged by OrdoTrust v3: `com.ordo.roles` keeps the names `OrdoEnsRoles` knows (a manager is `admin,operator,plant_manager,supervisor,validator`, so a manager's signed manual readings attest; a validator `validator`; a contributor `operator`; a tester none), so nothing on Sepolia is redeployed.
+`OrdoEns.sol` holds the shared ENSv2 interfaces and the `OrdoEnsName` library (DNS encoding, namehash, split, join). `compile.mjs` fails if `OrdoNames` or `OrdoRunResolver` is over 24,576 bytes deployed.
 
-Deploy them with the **ENS setup** workflow (`contracts https://<Ordo's public URL>` in `.github/deploy/ens.request`), or locally with `pnpm setup:ens-contracts` (see `scripts/ens-contracts.ts`). It sets `ENS_ROLES_ADDRESS` and `ENS_LOT_RESOLVER_ADDRESS`; the app then links each site in `OrdoEnsRoles`, points the site name at the lot resolver, and records each released package on its lot's name.
-
-**Live (24 Oct 2026):** `OrdoEnsRoles` [`0x100f…ab91`](https://sepolia.etherscan.io/address/0x100f40fbdec56c458d0aa350b9971040d83eab91) · `OrdoStageVerifier` [`0xadf0…3d22`](https://sepolia.etherscan.io/address/0xadf064b185151dad607a86f48166c36df1333d22) · `OrdoSpecVerifier` [`0xd4c4…ed17`](https://sepolia.etherscan.io/address/0xd4c4b8438c6519d6830668365068560e0239ed17) · `OrdoLotResolver` [`0x83bc…5795`](https://sepolia.etherscan.io/address/0x83bcae34de88b862f9641a408d926e1964b25795), lot names answered by `https://aiwarriors.vercel.app`.
+**Retired:** `OrdoEnsRoles` (roles from a `com.ordo.roles` text on `member-<address>` names) and `OrdoLotResolver` (wildcard `lot-<order>` names answered by a CCIP-Read gateway), live since 24 Oct 2026 under `ordo-mfg.eth`. Their names stay on-chain, untouched; the verifiers (`OrdoStageVerifier` [`0xadf0…3d22`](https://sepolia.etherscan.io/address/0xadf064b185151dad607a86f48166c36df1333d22), `OrdoSpecVerifier` [`0xd4c4…ed17`](https://sepolia.etherscan.io/address/0xd4c4b8438c6519d6830668365068560e0239ed17)) carry over.
 
 ## 0G (Galileo testnet, chain 16602)
 

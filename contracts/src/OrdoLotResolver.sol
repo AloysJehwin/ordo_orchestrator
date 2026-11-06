@@ -2,7 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {OrdoSigned} from "./OrdoSigned.sol";
-import {IExtendedResolver, ITextResolver, OrdoEnsName, OrdoEnsRoles} from "./OrdoEnsRoles.sol";
+import {IExtendedResolver, ITextResolver, OrdoEnsName} from "./OrdoEns.sol";
+import {OrdoEnsRoles} from "./OrdoEnsRoles.sol";
 import {OrdoProofs} from "./OrdoProofs.sol";
 
 /// The generated Groth16 verifier of circuits/stage_check.circom (OrdoStageVerifier).

@@ -2,60 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IOrdoTrust} from "./OrdoSigned.sol";
-
-/// The parts of an ENSv2 registry (UserRegistry) Ordo reads. Every lookup is by label and returns zero once the
-/// name has expired or been unregistered.
-interface IEnsV2Registry {
-    function findOwner(string calldata label) external view returns (address);
-    function getSubregistry(string calldata label) external view returns (address);
-    function getResolver(string calldata label) external view returns (address);
-}
-
-/// ENSIP-10 resolution, which ENSv2 resolvers implement.
-interface IExtendedResolver {
-    function resolve(bytes calldata name, bytes calldata data) external view returns (bytes memory);
-}
-
-interface ITextResolver {
-    function text(bytes32 node, string calldata key) external view returns (string memory);
-}
-
-/// DNS wire format and namehash for names built from labels, as ENS resolvers take them.
-library OrdoEnsName {
-    function dns(string[] memory labels) internal pure returns (bytes memory out) {
-        for (uint256 i = 0; i < labels.length; i++) out = abi.encodePacked(out, uint8(bytes(labels[i]).length), labels[i]);
-        out = abi.encodePacked(out, uint8(0));
-    }
-
-    function namehash(string[] memory labels) internal pure returns (bytes32 node) {
-        for (uint256 i = labels.length; i > 0; i--) node = keccak256(abi.encodePacked(node, keccak256(bytes(labels[i - 1]))));
-    }
-
-    /// "a.b.eth" → ["a", "b", "eth"]
-    function split(string memory name) internal pure returns (string[] memory labels) {
-        bytes memory b = bytes(name);
-        uint256 n = 1;
-        for (uint256 i = 0; i < b.length; i++) if (b[i] == ".") n++;
-        labels = new string[](n);
-        uint256 start;
-        uint256 k;
-        for (uint256 i = 0; i <= b.length; i++) {
-            if (i == b.length || b[i] == ".") {
-                bytes memory l = new bytes(i - start);
-                for (uint256 j = 0; j < l.length; j++) l[j] = b[start + j];
-                labels[k++] = string(l);
-                start = i + 1;
-            }
-        }
-    }
-
-    /// [first, ...rest]
-    function prepend(string memory first, string[] memory rest) internal pure returns (string[] memory out) {
-        out = new string[](rest.length + 1);
-        out[0] = first;
-        for (uint256 i = 0; i < rest.length; i++) out[i + 1] = rest[i];
-    }
-}
+import {IEnsV2Registry, IExtendedResolver, ITextResolver, OrdoEnsName} from "./OrdoEns.sol";
 
 /// @title OrdoEnsRoles
 /// @notice Ordo roles read from ENS, so a person's `member-…` name *is* their credential: revoke or let the name
