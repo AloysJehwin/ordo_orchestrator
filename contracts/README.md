@@ -251,7 +251,8 @@ Both default to Tenderly's public gateway, then thirdweb, 0xrpc and 1rpc (`ENS_S
 | Root registry (UserRegistry) | [`0xA15E…7CbE`](https://sepolia.etherscan.io/address/0xA15E53dCCAb3D4b8f63aC30c21206FC5E2d67CbE) |
 | Ordo's resolver (PermissionedResolver) | [`0x2bF3…f238`](https://sepolia.etherscan.io/address/0x2bF3FEdAa5911CCF6F49468620150Ec6876Ff238) |
 | `OrdoNames` | [`0x15f8…bb6b`](https://sepolia.etherscan.io/address/0x15f8e8cccf442e98369415fa9413b3b19d4bbb6b), holding its roles on the root registry and the resolver |
-| `OrdoRunResolver` | [`0x0fd6…223f`](https://sepolia.etherscan.io/address/0x0fd6d4a5edf16d6df8d4ab3e541e417a7776223f), with the verifiers below |
+| `OrdoRunResolver` v2 | [`0xede9…ff51`](https://sepolia.etherscan.io/address/0xede955d6d5880a57219a10918be211b75914ff51), with the verifiers below: runs named from 6 Nov 2026 |
+| `OrdoRunResolver` v1 | [`0x0fd6…223f`](https://sepolia.etherscan.io/address/0x0fd6d4a5edf16d6df8d4ab3e541e417a7776223f): runs named before v2 keep it, with their releases |
 
 ### Contracts
 
