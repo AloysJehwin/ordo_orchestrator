@@ -786,7 +786,9 @@ export interface PowSession {
   contributionId: string | null;
   createdAt: string;
 }
-export interface PublicContribution extends ContributionView {
+export interface PublicContribution extends Omit<ContributionView, "outcomes"> {
+  /** each with the machine's file the record binds (null when nothing was captured) */
+  outcomes: (ContributionOutcome & { file: { mime: string; size: number; hasPreview: boolean; device: string; capturedAt: string } | null })[];
   site: string;
   orderRef: string;
   receipts: { at: string; provider: string | null; model: string | null; resKey: string | null; requestId: string | null; teeVerified: boolean | null; requestSha256: string; responseSha256: string; kind?: "chat" | "transcription" }[];

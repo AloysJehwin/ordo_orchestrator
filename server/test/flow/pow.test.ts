@@ -141,6 +141,9 @@ describe("proof of work, selection and cases", () => {
     expect(p.summary).toBeUndefined();
     expect(JSON.stringify(p)).not.toContain("burr");
     expect(p.receipts[0]).toMatchObject({ teeVerified: true, resKey: "chatcmpl-1" });
+    // the machine's media the record binds is public too; a stage with no machine binds none
+    expect(p.outcomes).toEqual([]);
+    expect((await app.request(`/v1/public/contributions/${first}/media/die_thermal`, { headers: { host: "localhost" } })).status).toBe(404);
   });
 
   it("a stage takes many contributions; level 3 sees their values, a contributor only their own", async () => {

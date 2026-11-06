@@ -215,12 +215,25 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const b = await body(c, z.object({ question: z.string().trim().min(3).max(1000) }));
     return c.json(await sys.contributions.askMachine(powSecret(c), b.question, sys.bodies));
   });
-  // a signed proof of work, for anyone with the link: commitments and receipts, never the values
+  // a signed proof of work, for anyone with the link: commitments, receipts and the machine's media it binds, never the values
   app.get("/v1/public/contributions/:id", async (c) => {
     const id = c.req.param("id");
     if (!/^[\w-]{1,64}$/.test(id)) throw new HttpError(404, "Not found");
     return c.json(await sys.contributions.publicView(id));
   });
+  // those files: images, audio and video inline, anything else as a download, never run as a page on this origin
+  const INLINE = /^(image\/(png|jpeg|webp)|audio\/[\w.+-]+|video\/[\w.+-]+)$/;
+  for (const which of ["file", "preview"] as const) {
+    app.get(`/v1/public/contributions/:id/media/:key${which === "preview" ? "/preview" : ""}`, async (c) => {
+      const id = c.req.param("id");
+      if (!/^[\w-]{1,64}$/.test(id)) throw new HttpError(404, "Not found");
+      const f = await sys.contributions.publicMedia(id, c.req.param("key"), which);
+      const how = INLINE.test(f.mime) ? "inline" : "attachment";
+      return new Response(f.bytes, {
+        headers: { "content-type": f.mime, "content-disposition": `${how}; filename="${f.name}"`, "cache-control": "public, max-age=86400, immutable", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" },
+      });
+    });
+  }
 
   // ---------------- Explore and join orgs (any signed-in wallet) ----------------
   app.get("/v1/orgs", async (c) => c.json(await sys.plant.explore(c.get("principal")?.user.id ?? null)));

@@ -8,6 +8,7 @@ import { Empty, Loading } from "../ui/kit";
 import { Ref } from "../ui/Name";
 import { CancelSession, ContributionRow, StatusTag, TeeBadge } from "./pipeline/Contribute";
 import { ContributionOutcomes } from "./pipeline/PowOutcomes";
+import { CsvChart, kb } from "./pipeline/Outcomes";
 
 /** My proof of work in this org: open sessions (the command can be started again from the stage) and every contribution. */
 export function PowPage() {
@@ -198,7 +199,7 @@ export function PowSign({ id }: { id: string }) {
             </span>
           </div>
           <p className="faint small">
-            Only you, the org's managers and (on a dispute) its testers can read the conversation and the values; validators with access see the values. The public proof shows the commitments, the evidence hashes, the hashes of the machine's media you reviewed, and the TEE receipts.
+            Only you, the org's managers and (on a dispute) its testers can read the conversation and the values; validators with access see the values. The public proof shows the commitments, the evidence hashes, the machine's media you reviewed (the files themselves, by hash), and the TEE receipts.
           </p>
         </div>
       </section>
@@ -308,16 +309,27 @@ export function PowProof({ id }: { id: string }) {
       )}
       {p.outcomes && p.outcomes.length > 0 && (
         <section className="pp-card">
-          <h2>Machine media bound to this record</h2>
-          <p className="small muted">What the stage's machine captured and signed, as the contributor reviewed it: the record binds each file's SHA-256. Their verdicts stay sealed with the org.</p>
-          <ul className="small">
+          <h2>What the contributor reviewed</h2>
+          <p className="small muted">
+            The media the stage&apos;s machine captured and signed, exactly the versions this record binds by SHA-256: the contributor reviewed each one with the interviewer. Their verdicts stay sealed with the org.
+          </p>
+          <div className="pp-media">
             {p.outcomes.map((o) => (
-              <li key={o.outcome}>
-                {o.label} · {o.sha256 ? <span className="mono">{o.sha256}</span> : <span className="faint">not captured</span>}
-                {o.version !== null && <span className="faint"> · version {o.version}</span>}
-              </li>
+              <figure key={o.outcome} className="pp-fig">
+                {o.file ? <PublicMedia id={p.id} o={o} /> : <div className="pp-none faint small">Not captured</div>}
+                <figcaption>
+                  <b>{o.label}</b>
+                  {o.file && (
+                    <span className="faint small">
+                      {" "}
+                      · v{o.version} · {kb(o.file.size)} · captured {dateTime(o.file.capturedAt)}
+                    </span>
+                  )}
+                  {o.sha256 && <div className="mono faint small pp-hash">{o.sha256}</div>}
+                </figcaption>
+              </figure>
             ))}
-          </ul>
+          </div>
         </section>
       )}
       <section className="pp-card">
@@ -357,5 +369,36 @@ export function PowProof({ id }: { id: string }) {
         {p.signature && <p className="mono small" style={{ wordBreak: "break-all" }}>{p.signature.signature}</p>}
       </section>
     </div>
+  );
+}
+
+/** One of the machine's files on the public proof: an image, video or recording plays here; a trace is drawn; anything else downloads. */
+function PublicMedia({ id, o }: { id: string; o: PublicContribution["outcomes"][number] }) {
+  const f = o.file!;
+  const base = `/v1/public/contributions/${encodeURIComponent(id)}/media/${encodeURIComponent(o.outcome)}`;
+  const src = api.url(base);
+  const preview = f.hasPreview ? api.url(`${base}/preview`) : null;
+  if (f.mime.startsWith("video/")) return <video controls preload="metadata" poster={preview ?? undefined} src={src} />;
+  if (f.mime.startsWith("audio/"))
+    return (
+      <>
+        {preview && <img src={preview} alt={`${o.label}: spectrogram`} loading="lazy" />}
+        <audio controls preload="none" src={src} />
+      </>
+    );
+  if (f.mime.startsWith("image/"))
+    return (
+      <a href={src} target="_blank" rel="noreferrer">
+        <img src={src} alt={o.label} loading="lazy" />
+      </a>
+    );
+  if (f.mime === "text/csv") return <CsvChart src={src} unit="" />;
+  return (
+    <>
+      {preview && <img src={preview} alt={o.label} loading="lazy" />}
+      <a className="link small" href={src}>
+        Download the {f.mime === "application/pdf" ? "PDF" : (f.mime.split("/")[1] ?? "file").toUpperCase()}
+      </a>
+    </>
   );
 }

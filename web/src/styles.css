@@ -855,6 +855,13 @@ table.t tr.on > td { background: var(--accent-50); }
 .pp-qr .qr { border: 1px solid var(--divider); border-radius: 8px; background: #fff; }
 .pp-card { border: 1px solid var(--glass-line); border-radius: var(--r-md); background: var(--glass); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), var(--shadow); padding: 16px 18px; margin: 14px 0; -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%); }
 .pp-card h2 { margin: 0 0 10px; font-size: 16px; }
+.pp-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
+.pp-fig { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pp-fig img, .pp-fig video { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #0b0b0c; display: block; }
+.pp-fig audio { width: 100%; height: 34px; }
+.pp-fig .oc-media { margin: 0; }
+.pp-none { height: 120px; display: grid; place-items: center; border: 1px dashed var(--glass-line); border-radius: 6px; }
+.pp-hash { word-break: break-all; }
 .pp-checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .pp-check { display: grid; grid-template-columns: 20px 1fr; gap: 6px; overflow-wrap: anywhere; }
 .pp-check.ok > span:first-child { color: var(--ok); font-weight: 600; }

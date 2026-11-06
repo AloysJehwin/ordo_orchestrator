@@ -787,7 +787,27 @@ export class Contributions {
     const [v] = await this.toViews([row], 1);
     const receipts = (JSON.parse((await this.db.query<{ receipts_json: string }>("SELECT receipts_json FROM contributions WHERE id = $1", [id])).rows[0]!.receipts_json) as ReturnType<typeof publicReceipt>[]).slice(0, 100);
     const sig = row.signature_id ? (await this.db.query<{ signature: string; typed_data: string }>("SELECT signature, typed_data FROM signatures WHERE id = $1", [row.signature_id])).rows[0] : null;
-    return { ...v!, site: row.site_name, orderRef: row.order_ref, receipts, signature: sig ? { signature: sig.signature, typed: JSON.parse(sig.typed_data) } : null };
+    // the machine's media the contributor reviewed, as the record binds it: shown on the public proof
+    const files = (
+      await this.db.query<{ outcome_key: string; version: number; mime: string; size: number; preview: boolean; device: string; captured_at: string }>(
+        "SELECT outcome_key, version, mime, size, preview_sha256 IS NOT NULL AS preview, device, captured_at::text FROM stage_outputs WHERE run_id = $1 AND stage_code = $2",
+        [row.run_id, row.stage_code],
+      )
+    ).rows;
+    const outcomes = v!.outcomes.map((o) => {
+      const f = o.version === null ? undefined : files.find((x) => x.outcome_key === o.outcome && Number(x.version) === o.version);
+      return { ...o, file: f ? { mime: f.mime, size: Number(f.size), hasPreview: f.preview, device: f.device, capturedAt: new Date(f.captured_at).toISOString() } : null };
+    });
+    return { ...v!, outcomes, site: row.site_name, orderRef: row.order_ref, receipts, signature: sig ? { signature: sig.signature, typed: JSON.parse(sig.typed_data) } : null };
+  }
+
+  /** One of the machine's files a signed proof of work binds (or its preview), for the public proof: exactly that version. */
+  async publicMedia(id: string, outcome: string, which: "file" | "preview") {
+    const r = (await this.db.query<{ site_id: string; run_id: string; stage_code: string; outcomes_json: string | null }>("SELECT site_id, run_id, stage_code, outcomes_json FROM contributions WHERE id = $1 AND status <> 'unsigned' AND status <> 'withdrawn'", [id])).rows[0];
+    if (!r || !this.outputs) throw new HttpError(404, "No signed proof of work with that id");
+    const o = (JSON.parse(r.outcomes_json ?? "[]") as ContributionOutcome[]).find((x) => x.outcome === outcome);
+    if (!o?.version) throw new HttpError(404, "This proof of work binds no file for that outcome");
+    return this.outputs.file(r.site_id, r.run_id, r.stage_code, o.outcome, which, o.version);
   }
 
   /** The full record, for the manager (and a tester during a case). */

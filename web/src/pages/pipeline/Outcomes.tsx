@@ -8,7 +8,7 @@ import type { OutcomeView, RunView, StageRunView } from "../../types";
 import { Modal } from "../../ui/kit";
 import { SpecBand } from "../../ui/SpecBand";
 
-const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+export const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const status = (o: OutcomeView) => (!o.captured ? "○ Not captured" : o.ok === true ? "● In spec" : o.ok === false ? "▲ Out of spec" : "○ Not judged");
 
 /**
@@ -147,7 +147,7 @@ export function Media({ o, src, preview, onOpen }: { o: OutcomeView; src: string
 }
 
 /** A spectrum or trace uploaded as CSV (x, y per row), drawn as a line. */
-function CsvChart({ src, unit }: { src: string; unit: string }) {
+export function CsvChart({ src, unit }: { src: string; unit: string }) {
   const [pts, setPts] = useState<[number, number][] | null>(null);
   useEffect(() => {
     let on = true;
