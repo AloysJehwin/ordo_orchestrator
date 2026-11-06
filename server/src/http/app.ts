@@ -18,7 +18,7 @@ import { OfferBody, OfferPatch } from "../core/resources.js";
 import { BodyCreate, BodyHold, BodyReport, MAX_EPISODE_BYTES } from "../core/body-service.js";
 import { publicBase } from "../config.js";
 import { canApproveAny } from "../domain/policy.js";
-import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
+import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, MachineRole, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
 import { probeDevices } from "../plant/mtconnect.js";
 import type { System } from "../wiring.js";
@@ -656,6 +656,31 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     await sys.rec.decide(sid(c), { agent: actor(c), kind: "asset.created", assetId: id, summary: `Registered ${b.name} (${ASSET_KIND_LABEL[b.kind]}) · ${b.source.type}` });
     await sys.advance(true);
     return c.json({ id });
+  });
+  // ---- Machine roles: Attester, Buyer and Runner, each an ENS role name a manager grants with a signature ----
+  site.get("/assets/:id/roles", async (c) => {
+    lvl(c, 2, "the floor");
+    return c.json(await sys.machineRoles.list(sid(c), c.req.param("id")));
+  });
+  const MachineRoleChange = z.object({
+    role: MachineRole,
+    grant: z.boolean(),
+    kinds: z.array(AssetKind).max(ASSET_KINDS.length).optional(),
+    order: z.string().regex(/^\d{1,18}$/, "tinybar").optional(),
+    daily: z.string().regex(/^\d{1,18}$/, "tinybar").optional(),
+    comment: z.string().max(500).default(""),
+  });
+  site.post("/assets/:id/roles/sign-request", async (c) => {
+    assetAdmin(c);
+    const b = await body(c, MachineRoleChange.extend({ chainId: z.number().int().optional() }));
+    return c.json(await sys.machineRoles.request(sid(c), me(c).user, c.req.param("id"), b.role, b.grant, { kinds: b.kinds, order: b.order, daily: b.daily }, b.comment, b.chainId));
+  });
+  site.post("/assets/:id/roles", async (c) => {
+    assetAdmin(c);
+    const b = await body(c, MachineRoleChange.merge(SignedBody));
+    const r = await sys.machineRoles.set(sid(c), me(c).user, c.req.param("id"), b.role, b.grant, { kinds: b.kinds, order: b.order, daily: b.daily }, b);
+    sys.names.touch(sid(c));
+    return c.json(r);
   });
   // ---- Pay on proof: customers pay for a lot in Ordo USD, released only when the lot's quality is proven on-chain ----
   const Units = z.string().trim().regex(/^\d+(\.\d+)?$/, "an amount like 250 or 99.5");

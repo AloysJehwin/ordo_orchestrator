@@ -11,6 +11,7 @@ import type { AssessmentBuyer } from "./assessments.js";
 import type { Jobs } from "./jobs.js";
 import { KeyBox } from "./keybox.js";
 import type { Names } from "./names.js";
+import type { MachineRoles } from "./machine-roles.js";
 import type { Recorder } from "./recorder.js";
 
 const OPEN_JOB = "machine.open";
@@ -72,6 +73,8 @@ export class Machines {
   private keys: KeyBox;
   /** ENS names: a machine's account memo is its name (cnc-07.machines.acme.ordo.eth), so HashScan shows it */
   names: Pick<Names, "ensure"> | null = null;
+  /** machine roles: a wallet's first opening makes the machine a Buyer, pausing it takes Buyer away (set by wiring) */
+  machineRoles: Pick<MachineRoles, "seedBuyer" | "dropBuyer" | "ofAsset"> | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -129,6 +132,8 @@ export class Machines {
       );
       await this.jobs.retry(OPEN_JOB, assetId);
       await this.jobs.enqueue(siteId, OPEN_JOB, assetId, {});
+      // its first wallet makes it a Buyer, within these limits (a manager signs changes to its caps on the floor)
+      await this.machineRoles?.seedBuyer(siteId, assetId, { order: call.toString(), daily: day.toString() }, user.address);
       await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: "machine.wallet_requested", assetId, summary: `${asset.name} gets its own Hedera account: ${hbar(day)} a day, at most ${hbar(call)} a purchase`, data: { dailyBudget: day.toString(), perCall: call.toString() } });
     }
     return this.get(siteId, assetId);
@@ -140,6 +145,8 @@ export class Machines {
     if (!w || w.site_id !== siteId) throw new HttpError(404, "This machine has no wallet");
     if (w.status !== (stop ? "active" : "paused")) throw new HttpError(409, `The wallet is ${w.status}`);
     await this.db.query("UPDATE machine_wallets SET status = $1, updated_at = now() WHERE asset_id = $2", [stop ? "paused" : "active", assetId]);
+    // a paused machine is no longer a Buyer; resuming lets the wallet spend again, but Buyer comes back only with a signed grant
+    if (stop) await this.machineRoles?.dropBuyer(assetId);
     const asset = await this.plant.asset(siteId, assetId);
     await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: stop ? "machine.paused" : "machine.resumed", assetId, summary: `${asset.name} ${stop ? "may no longer spend" : "may spend again"}` });
     return this.get(siteId, assetId);

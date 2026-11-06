@@ -9,6 +9,7 @@ import { LocalSignedAnchor, type AnchorAdapter } from "./adapters/rails.js";
 import { Agents } from "./agents/agents.js";
 import { Auth, Signatures } from "./auth/auth.js";
 import { EnsRoles } from "./core/ens-roles.js";
+import { MachineRoles } from "./core/machine-roles.js";
 import { Handles } from "./core/handles.js";
 import { NameResolver } from "./core/name-resolver.js";
 import { Assessments } from "./core/assessments.js";
@@ -101,6 +102,7 @@ export interface System {
   openings: Openings;
   jobs: Jobs;
   names: Names;
+  machineRoles: MachineRoles;
   lotNames: LotNames;
   readings: Readings;
   /** The media each stage's machine captures for its outcomes */
@@ -214,6 +216,10 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const templates = new Templates(db, rec);
   await templates.ensureLibrary();
   const engine = new RunEngine(db, plant, templates, rec, now);
+  // machine roles (Attester, Buyer, Runner): ENS role names a manager grants; what each machine may do follows them
+  const machineRoles = new MachineRoles(db, rec, sigs, cfg.SIGNATURE_CHAIN_ID);
+  plant.machineRoles = machineRoles;
+  engine.machineRoles = machineRoles;
   const series = new StageSeries(db, plant, now);
   engine.series = series;
   engine.requireMachines = cfg.STAGE_MACHINES === "required";
@@ -352,6 +358,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     now,
   );
   monitor.machines = machines;
+  machines.machineRoles = machineRoles;
 
   // ---- Pay on proof: Ordo USD (Stablecoin Studio) held for a lot until OrdoTrust records its release ----
   let payChain: import("./chain/payonproof.js").PayOnProofChain | null = null;
@@ -386,6 +393,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   passports.specs = new SpecProofs(db, rec, now);
   const stageProofs = new StageProofs(db, engine, now);
   const readings = new Readings(db, engine, plant, rec, now);
+  readings.machineRoles = machineRoles;
   const outputs = new MachineOutputs(db, engine, readings, plant, rec, now);
   validation.stageProofs = stageProofs;
   validation.specProofs = passports.specs;
@@ -429,7 +437,8 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   // a machine's name carries its live status (running, idle, alarm…), from the same views the floor shows
   names.useMachineStatus((siteId) => plant.views(siteId));
   // roles are decided by ENS names: a promotion counts once its role name is on-chain, then goes to OrdoTrust
-  if (names.live && nameRail) names.useRoles(new EnsRoles(db, rec, nameRail, (name, ms) => plant.tryLease(name, ms), now, (siteId, userId, role) => trust.releaseWaitingEns(siteId, userId, role)));
+  if (names.live && nameRail) names.useRoles(new EnsRoles(db, rec, nameRail, (name, ms) => plant.tryLease(name, ms), now, (siteId, userId, role) => trust.releaseWaitingEns(siteId, userId, role), machineRoles));
+  machineRoles.useEns(() => names.live);
   trust.useEns(() => names.live, nameRail && names.live ? (siteId, address) => nameRail.roles(siteId, address as Hex) : undefined);
   const lotNames = new LotNames(db, rec, nameRail?.releasesLive ? nameRail : null, names, now);
   const nameResolver = new NameResolver(names, nameRail, (cfg.HEDERA_MIRROR_URL ?? `https://${cfg.HEDERA_NETWORK}.mirrornode.hedera.com`).replace(/\/$/, ""), cfg.HEDERA_NETWORK);
@@ -717,6 +726,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     openings,
     jobs,
     names,
+    machineRoles,
     lotNames,
     readings,
     outputs,

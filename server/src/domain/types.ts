@@ -18,6 +18,17 @@ export const ROLE_INFO: Record<Role, string> = {
   tester: "Stakes, investigates stages that went wrong, and opens cases against validators",
   contributor: "Joins openly, learns the process, and submits proof of work",
 };
+// ---------- Machine roles: each an ENS role name a manager grants (cnc-07.runners.acme.ordo.eth) ----------
+export const MACHINE_ROLES = ["attester", "buyer", "runner"] as const;
+export const MachineRole = z.enum(MACHINE_ROLES);
+export type MachineRole = z.infer<typeof MachineRole>;
+export const MACHINE_ROLE_LABEL: Record<MachineRole, string> = { attester: "Attester", buyer: "Buyer", runner: "Runner" };
+export const MACHINE_ROLE_INFO: Record<MachineRole, string> = {
+  attester: "Signs readings, measurements and outputs, for the stages it runs only",
+  buyer: "Buys resources over x402 and asks for top-ups, within its caps per order and per day",
+  runner: "Can be given stages to run, of the kinds listed on its role name",
+};
+
 /** Roles from before the four-role model, as stored in older rows, templates and policies. */
 export const LEGACY_ROLE: Record<string, Role> = {
   admin: "manager",

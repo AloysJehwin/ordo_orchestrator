@@ -131,7 +131,7 @@ export class MachineOutputs {
     if (!siteId) throw new HttpError(404, "Run not found");
     const st = (await this.engine.view(siteId, meta.runId)).stages.find((x) => x.code === meta.stage);
     if (!st) throw new HttpError(404, "Stage not found");
-    if (!st.assetId || !(await this.readings.assetsOf(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This machine is not the one running that stage");
+    if (!st.assetId || !(await this.readings.attesting(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This machine is not the one running that stage, or it is not an Attester");
     if (!st.startedAt || st.state === "queued" || st.state === "skipped") throw new HttpError(409, "The stage has not started");
     const outcome = st.outcomes.find((o) => o.key === meta.outcome);
     if (!outcome) throw new HttpError(400, `${meta.outcome} is not an outcome of stage ${st.code}`);

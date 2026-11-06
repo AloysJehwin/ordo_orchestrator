@@ -2,8 +2,9 @@ import { keccak256, stringToBytes, toBytes, type Address, type Hex } from "viem"
 import { chainErrorMessage } from "../chain/errors.js";
 import { hederaEvm, OP, recordCalls, ROLE_REGISTRAR, type BatchState, type NameOp } from "../chain/ensv2.js";
 import type { Db } from "../db/db.js";
-import { AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ROLE_LABEL, type AgentKey, type AssetKind, type Role } from "../domain/types.js";
+import { AGENT_INFO, AGENTS, ASSET_KIND_LABEL, MACHINE_ROLE_LABEL, ROLE_LABEL, type AgentKey, type AssetKind, type MachineRole, type Role } from "../domain/types.js";
 import type { EnsRoles } from "./ens-roles.js";
+import { capsTexts, type MachineCaps } from "./machine-roles.js";
 import type { Handles } from "./handles.js";
 import {
   agentLabel,
@@ -11,6 +12,7 @@ import {
   COLLECTION_LABEL,
   COLLECTIONS,
   hederaCoin,
+  MACHINE_ROLE_COLLECTION,
   MEMBER,
   ROLE_COLLECTION,
   runLabel,
@@ -63,6 +65,7 @@ export type NameKind =
   | "role"
   | "registrar"
   | "machine"
+  | "machinerole"
   | "agent"
   | "line"
   | "vendor"
@@ -450,6 +453,10 @@ export class Names {
       [siteId],
     );
     const job = new Map(jobs.rows.map((j) => [j.asset_id, j]));
+    // each machine's roles (attester, buyer, runner): a role name each, held by the machine's key, with its caps
+    const machineRoles = new Map<string, { role: MachineRole; caps: MachineCaps }[]>();
+    for (const r of (await this.db.query<{ asset_id: string; role: MachineRole; caps_json: string }>("SELECT asset_id, role, caps_json FROM machine_roles WHERE site_id = $1 ORDER BY role", [siteId])).rows)
+      machineRoles.set(r.asset_id, [...(machineRoles.get(r.asset_id) ?? []), { role: r.role, caps: JSON.parse(r.caps_json) as MachineCaps }]);
     for (const a of assets.rows) {
       const src = JSON.parse(a.source_json) as { type: string; device?: string };
       const device = src.type === "gateway" && src.device && /^0x[0-9a-fA-F]{40}$/.test(src.device) ? (src.device.toLowerCase() as Address) : null;
@@ -488,6 +495,22 @@ export class Names {
         address: device,
         hedera: a.account_id,
       });
+      const machineRow = byKey.get(key("machine", a.id));
+      const machineName = names.get(key("machine", a.id));
+      if (!machineRow || !machineName) continue;
+      for (const mr of machineRoles.get(a.id) ?? []) {
+        // signing needs the machine's own key: a machine without one never holds Attester on-chain
+        if (mr.role === "attester" && !device) continue;
+        await upsert({
+          kind: "machinerole",
+          ref: `${mr.role}:${a.id}`,
+          parent: coll(MACHINE_ROLE_COLLECTION[mr.role]),
+          label: machineRow.label,
+          prio: 0,
+          want: want(device ?? ordo, T("machinerole", `${MACHINE_ROLE_LABEL[mr.role]} at ${site.name}`, { "com.ordo.machine": machineName, ...capsTexts(mr.role, mr.caps) })),
+          address: device,
+        });
+      }
     }
     const lines = await this.db.query<{ id: string; name: string; autonomy: string }>("SELECT id, name, autonomy FROM lines WHERE site_id = $1 ORDER BY created_at", [siteId]);
     for (const l of lines.rows) await upsert({ kind: "line", ref: l.id, parent: coll("lines"), label: toLabel(l.name), prio: 1, want: want(ordo, T("line", `${l.name} at ${site.name}`, { "com.ordo.autonomy": l.autonomy })) });

@@ -13,7 +13,7 @@
  * public for good, so they are checked strictly; display names never go on-chain.
  */
 import { toLabel } from "../chain/ensv2.js";
-import type { AgentKey, Role } from "../domain/types.js";
+import type { AgentKey, MachineRole, Role } from "../domain/types.js";
 
 export { toLabel };
 
@@ -23,7 +23,7 @@ export const HEDERA_COIN_MAINNET = 2147483943;
 export const hederaCoin = (network: string | undefined) => (network === "mainnet" ? HEDERA_COIN_MAINNET : HEDERA_COIN_TESTNET);
 
 /** The names an org holds others under. */
-export const COLLECTIONS = ["managers", "validators", "testers", "contributors", "machines", "agents", "lines", "vendors", "customers", "financiers", "pipelines", "workorders", "runs"] as const;
+export const COLLECTIONS = ["managers", "validators", "testers", "contributors", "machines", "attesters", "buyers", "runners", "agents", "lines", "vendors", "customers", "financiers", "pipelines", "workorders", "runs"] as const;
 export type Collection = (typeof COLLECTIONS)[number];
 export const COLLECTION_LABEL: Record<Collection, string> = {
   managers: "Managers",
@@ -31,6 +31,9 @@ export const COLLECTION_LABEL: Record<Collection, string> = {
   testers: "Testers",
   contributors: "Contributors",
   machines: "Machines",
+  attesters: "Machine attesters",
+  buyers: "Machine buyers",
+  runners: "Machine runners",
   agents: "Agents",
   lines: "Lines",
   vendors: "Vendors",
@@ -42,7 +45,7 @@ export const COLLECTION_LABEL: Record<Collection, string> = {
 };
 
 /** The registries OrdoNames keeps per org, which roles are read from (the numbers are OrdoNames' slot constants). */
-export const SLOT = { org: 1, managers: 2, validators: 3, testers: 4, contributors: 5, machines: 6, vendors: 7, runs: 8 } as const;
+export const SLOT = { org: 1, managers: 2, validators: 3, testers: 4, contributors: 5, machines: 6, vendors: 7, runs: 8, attesters: 9, buyers: 10, runners: 11 } as const;
 export const slotOf = (c: Collection | "org"): number => (SLOT as Record<string, number>)[c] ?? 0;
 
 /** Whose label a name is, for OrdoNames' account → name lookups (its member constants). */
@@ -51,6 +54,8 @@ export const MEMBER = { person: 1, machine: 2, supplier: 3 } as const;
 /** Holding a name in this collection is holding the role. */
 export const ROLE_COLLECTION: Record<Role, Collection> = { manager: "managers", validator: "validators", tester: "testers", contributor: "contributors" };
 export const COLLECTION_ROLE: Partial<Record<Collection, Role>> = { managers: "manager", validators: "validator", testers: "tester", contributors: "contributor" };
+/** A machine holds a role while its label is held in this collection (cnc-07.attesters.acme.ordo.eth). */
+export const MACHINE_ROLE_COLLECTION: Record<MachineRole, Collection> = { attester: "attesters", buyer: "buyers", runner: "runners" };
 
 /** The role bits OrdoNames gives for each name (OrdoTrust's bits). */
 export const ROLE_BITS: Record<Role, number> = { manager: 31, validator: 4, tester: 128, contributor: 1 };

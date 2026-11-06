@@ -614,4 +614,24 @@ ALTER TABLE ens_names ADD COLUMN expires_at TIMESTAMPTZ;
 UPDATE ens_names SET expires_at = created_at + interval '365 days' WHERE have_json IS NOT NULL;
 `,
   },
+  {
+    version: 38,
+    name: "Machine roles, each an ENS role name a manager grants: attester (signs its own stages), buyer (within caps), runner (for the kinds listed); every machine keeps what it could do; signed edge requests are remembered in the database",
+    sql: `
+-- caps_json: what was signed (runner {kinds}, buyer {order, daily} in tinybar); held_caps_json: what the name on ENS says
+CREATE TABLE machine_roles (site_id TEXT NOT NULL REFERENCES sites(id), asset_id TEXT NOT NULL REFERENCES assets(id), role TEXT NOT NULL CHECK (role IN ('attester','buyer','runner')),
+  state TEXT NOT NULL DEFAULT 'held', caps_json TEXT NOT NULL DEFAULT '{}', held_caps_json TEXT, granted_by TEXT, signature_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), confirmed_at TIMESTAMPTZ, PRIMARY KEY (asset_id, role));
+CREATE INDEX machine_roles_site ON machine_roles (site_id, role);
+INSERT INTO machine_roles (site_id, asset_id, role, caps_json, held_caps_json, granted_by)
+  SELECT site_id, id, 'runner', json_build_object('kinds', json_build_array(kind))::text, json_build_object('kinds', json_build_array(kind))::text, 'migration' FROM assets WHERE archived_at IS NULL;
+INSERT INTO machine_roles (site_id, asset_id, role, granted_by)
+  SELECT site_id, id, 'attester', 'migration' FROM assets WHERE archived_at IS NULL AND source_json LIKE '%"type":"gateway"%' AND source_json LIKE '%"device":"0x%';
+INSERT INTO machine_roles (site_id, asset_id, role, caps_json, held_caps_json, granted_by)
+  SELECT w.site_id, w.asset_id, 'buyer', json_build_object('order', w.per_call, 'daily', w.daily_budget)::text, json_build_object('order', w.per_call, 'daily', w.daily_budget)::text, 'migration'
+    FROM machine_wallets w JOIN assets a ON a.id = w.asset_id WHERE a.archived_at IS NULL AND w.status IN ('active','opening');
+-- a signed edge request is used once, across every server instance
+CREATE TABLE edge_nonces (key TEXT PRIMARY KEY, seen_at TIMESTAMPTZ NOT NULL DEFAULT now());
+`,
+  },
 ];

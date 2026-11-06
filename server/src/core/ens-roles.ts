@@ -1,6 +1,7 @@
 import type { Address } from "viem";
 import type { Db } from "../db/db.js";
-import { ROLE_LABEL, type Role } from "../domain/types.js";
+import { ROLE_LABEL, type MachineRole, type Role } from "../domain/types.js";
+import type { MachineRoles } from "./machine-roles.js";
 import type { Recorder } from "./recorder.js";
 
 /** What EnsRoles reads on-chain: who holds a label in a registry (EnsV2 in production). */
@@ -28,10 +29,17 @@ export class EnsRoles {
     private now: () => number,
     /** a promotion now counts: its signed OrdoTrust grant goes out */
     private onHeld: (siteId: string, userId: string, role: Role) => Promise<void>,
+    /** machines' roles follow their role names the same way */
+    private machines: MachineRoles | null = null,
   ) {}
 
   /** Pending promotions whose role name, and the person's own name, are now on-chain become held. */
   async promote(): Promise<number> {
+    const m = (await this.machines?.promote()) ?? 0;
+    return m + (await this.promotePeople());
+  }
+
+  private async promotePeople(): Promise<number> {
     const r = await this.db.query<{ site_id: string; user_id: string; role: Role; role_have: string; person_have: string; name: string }>(
       `SELECT m.site_id, m.user_id, m.role, rn.have_json AS role_have, pn.have_json AS person_have, rn.name
          FROM memberships m
@@ -60,7 +68,7 @@ export class EnsRoles {
     const rows = await this.db.query<{ id: string; ref: string; label: string; name: string; have_json: string; expires_at: string | null; registry: string | null }>(
       `SELECT n.id, n.ref, n.label, n.name, n.have_json, n.expires_at::text AS expires_at, p.registry
          FROM ens_names n JOIN ens_names p ON p.id = n.parent_id
-        WHERE n.site_id = $1 AND n.kind IN ('role', 'person') AND n.status = 'issued' AND n.id NOT LIKE '%:was:%'`,
+        WHERE n.site_id = $1 AND n.kind IN ('role', 'person', 'machinerole') AND n.status = 'issued' AND n.id NOT LIKE '%:was:%'`,
       [siteId],
     );
     for (const x of rows.rows) {
@@ -70,6 +78,17 @@ export class EnsRoles {
       const holder = await this.chain.ownerOf(x.registry as Address, x.label).catch(() => null);
       // unreadable now, or still held: nothing to do
       if (holder === null || holder.toLowerCase() === have.owner.toLowerCase()) continue;
+      if (x.id.includes(":machinerole:")) {
+        const [mrole, assetId] = x.ref.split(":") as [MachineRole, string];
+        if (holder === ZERO && x.expires_at !== null && Date.parse(x.expires_at) <= this.now()) {
+          await this.db.query("UPDATE ens_names SET have_json = NULL, status = 'pending', attempts = 0, error = NULL, next_try_at = now(), updated_at = now() WHERE id = $1", [x.id]);
+          await this.rec.decide(siteId, { agent: "system:ens", kind: "ens.reissue", summary: `${x.name} expired: issuing it again`, data: { name: x.name } });
+        } else {
+          await this.machines?.lapse(siteId, assetId, mrole, x.name);
+          await this.db.query("UPDATE ens_names SET have_json = $1, updated_at = now() WHERE id = $2", [JSON.stringify({ ...have, revoke: true }), x.id]);
+        }
+        continue;
+      }
       const person = !x.ref.includes(":");
       const [role, userId] = (person ? ["contributor", x.ref] : x.ref.split(":")) as [Role, string];
       const expired = holder === ZERO && x.expires_at !== null && Date.parse(x.expires_at) <= this.now();

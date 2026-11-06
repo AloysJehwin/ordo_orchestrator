@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { MachineRoles } from "../core/machine-roles.js";
 import type { Db } from "../db/db.js";
 import { HttpError } from "../engine/errors.js";
 import {
@@ -44,6 +45,9 @@ export interface AssetRow {
   idealCycleS: number | null;
 }
 type Latest = Record<string, { value: number | null; text: string | null; ts: string; quality: Quality }>;
+
+/** A machine with its own key (a gateway or a machine body) can sign. */
+const hasKey = (s: { type: string; device?: string }) => s.type === "gateway" && /^0x[0-9a-fA-F]{40}$/.test(s.device ?? "");
 
 export class PlantService {
   constructor(
@@ -180,20 +184,32 @@ export class PlantService {
   }
 
   // ---------------- Assets ----------------
+  /** Machine roles (Runner, Attester, Buyer): a new machine gets Runner for its kind, and Attester when it has its own key */
+  machineRoles: MachineRoles | null = null;
+
   async createAsset(siteId: string, input: Omit<AssetRow, "id" | "siteId">, by: string): Promise<string> {
     const id = newId("ast");
-    await this.db.query(
-      "INSERT INTO assets (id, site_id, zone_id, name, kind, description, owning_agent, source_json, limits_json, ideal_cycle_s, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-      [id, siteId, input.zoneId, input.name, input.kind, input.description, input.owningAgent, JSON.stringify(DataSource.parse(input.source)), JSON.stringify(input.limits), input.idealCycleS, by],
-    );
+    const source = DataSource.parse(input.source);
+    await this.db.tx(async (q) => {
+      await q.query(
+        "INSERT INTO assets (id, site_id, zone_id, name, kind, description, owning_agent, source_json, limits_json, ideal_cycle_s, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        [id, siteId, input.zoneId, input.name, input.kind, input.description, input.owningAgent, JSON.stringify(source), JSON.stringify(input.limits), input.idealCycleS, by],
+      );
+      await this.machineRoles?.seedMachine(q, siteId, id, input.kind, hasKey(source), by);
+    });
     return id;
   }
   async updateAsset(siteId: string, id: string, input: Omit<AssetRow, "id" | "siteId">) {
-    const r = await this.db.query(
-      "UPDATE assets SET zone_id=$1, name=$2, kind=$3, description=$4, owning_agent=$5, source_json=$6, limits_json=$7, ideal_cycle_s=$8 WHERE id=$9 AND site_id=$10 RETURNING id",
-      [input.zoneId, input.name, input.kind, input.description, input.owningAgent, JSON.stringify(DataSource.parse(input.source)), JSON.stringify(input.limits), input.idealCycleS, id, siteId],
-    );
-    if (!r.rows.length) throw new HttpError(404, "Asset not found");
+    const source = DataSource.parse(input.source);
+    await this.db.tx(async (q) => {
+      const before = (await q.query<{ kind: AssetKind; source_json: string }>("SELECT kind, source_json FROM assets WHERE id = $1 AND site_id = $2", [id, siteId])).rows[0];
+      const r = await q.query(
+        "UPDATE assets SET zone_id=$1, name=$2, kind=$3, description=$4, owning_agent=$5, source_json=$6, limits_json=$7, ideal_cycle_s=$8 WHERE id=$9 AND site_id=$10 RETURNING id",
+        [input.zoneId, input.name, input.kind, input.description, input.owningAgent, JSON.stringify(source), JSON.stringify(input.limits), input.idealCycleS, id, siteId],
+      );
+      if (!r.rows.length || !before) throw new HttpError(404, "Asset not found");
+      await this.machineRoles?.machineChanged(q, id, { kind: before.kind, gateway: hasKey(JSON.parse(before.source_json)) }, { kind: input.kind, gateway: hasKey(source) });
+    });
     await this.db.query("DELETE FROM source_state WHERE asset_id = $1", [id]);
   }
   async archiveAsset(siteId: string, id: string) {

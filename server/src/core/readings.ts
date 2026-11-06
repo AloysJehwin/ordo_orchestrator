@@ -127,7 +127,10 @@ const anchorHex = (h: string) => `0x${h.replace(/^sha256:/, "").replace(/^0x/, "
  * an EIP-191 signature over `ordo-edge:<ts>:<nonce>:<METHOD>:<path>:<sha256 of the body>`.
  */
 export class Readings {
-  private seen = new Map<string, number>();
+  /** when this instance last cleared old edge nonces */
+  private sweptAt = 0;
+  /** machine roles: only an Attester signs its stages (set by wiring) */
+  machineRoles: { ofAsset(assetId: string): Promise<{ attester: boolean }> } | null = null;
   /** Set when criteria are proven: a source-signed measurement replaces Ordo's own commitment to the same value */
   specProofs: SpecProofs | null = null;
 
@@ -148,11 +151,13 @@ export class Readings {
     const message = edgeMessage(ts, h.nonce, method, path, body);
     const signer = await recoverMessageAddress({ message, signature: h.sig as Hex }).catch(() => null);
     if (signer?.toLowerCase() !== h.device.toLowerCase()) throw new HttpError(401, "The request's signature is not the gateway's");
-    // each signed request is used once (within the window its timestamp is accepted)
-    for (const [k, at] of this.seen) if (this.now() - at > SKEW_S * 2000) this.seen.delete(k);
-    const key = `${h.device.toLowerCase()}:${h.nonce}`;
-    if (this.seen.has(key)) throw new HttpError(401, "This request was already used");
-    this.seen.set(key, this.now());
+    // each signed request is used once (within the window its timestamp is accepted), across every server instance
+    if (this.now() - this.sweptAt > 60_000) {
+      this.sweptAt = this.now();
+      await this.db.query("DELETE FROM edge_nonces WHERE seen_at < $1", [new Date(this.now() - SKEW_S * 2000).toISOString()]);
+    }
+    const fresh = await this.db.query("INSERT INTO edge_nonces (key, seen_at) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING key", [`${h.device.toLowerCase()}:${h.nonce}`, new Date(this.now()).toISOString()]);
+    if (!fresh.rows.length) throw new HttpError(401, "This request was already used");
     return signer.toLowerCase() as Address;
   }
 
@@ -168,6 +173,16 @@ export class Readings {
     return mine;
   }
 
+  /** The assets of this machine's key that hold the Attester role: the ones whose stages it may sign. */
+  async attesting(device: Address) {
+    const mine = await this.assetsOf(device);
+    if (!this.machineRoles) return mine;
+    const ok = [];
+    for (const a of mine) if ((await this.machineRoles.ofAsset(a.id)).attester) ok.push(a);
+    if (!ok.length) throw new HttpError(403, "This machine does not hold the Attester role, so it cannot sign: a manager grants it on the floor");
+    return ok;
+  }
+
   async observations(device: Address, assetId: string, rows: { signal: string; ts: string; value: number | null; text: string | null }[]) {
     const a = (await this.assetsOf(device)).find((x) => x.id === assetId);
     if (!a) throw new HttpError(403, "This gateway is not the data source of that asset");
@@ -176,7 +191,7 @@ export class Readings {
 
   /** The stages on this gateway's machines it can sign, newest first. */
   async edgeStages(device: Address): Promise<EdgeStage[]> {
-    const assets = await this.assetsOf(device);
+    const assets = await this.attesting(device);
     const anchor = await this.latestAnchor();
     const out: EdgeStage[] = [];
     for (const a of assets) {
@@ -226,7 +241,7 @@ export class Readings {
     const siteId = run.rows[0]?.site_id;
     if (!siteId) throw new HttpError(404, "Run not found");
     const st = (await this.engine.view(siteId, runId)).stages.find((x) => x.code === stage);
-    if (!st?.assetId || !(await this.assetsOf(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This gateway is not the data source of that stage's machine");
+    if (!st?.assetId || !(await this.attesting(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This gateway is not the data source of that stage's machine, or that machine is not an Attester");
     return this.acceptMeasurements(siteId, runId, st, { signer: device, kind: "device" }, ms);
   }
 
@@ -291,7 +306,7 @@ export class Readings {
     const siteId = run.rows[0]?.site_id;
     if (!siteId) throw new HttpError(404, "Run not found");
     const st = (await this.engine.view(siteId, s.runId)).stages.find((x) => x.code === s.stage);
-    if (!st?.assetId || !(await this.assetsOf(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This gateway is not the data source of that stage's machine");
+    if (!st?.assetId || !(await this.attesting(device)).some((a) => a.id === st.assetId)) throw new HttpError(403, "This gateway is not the data source of that stage's machine, or that machine is not an Attester");
     return this.accept(siteId, st, { signer: device, kind: "device" }, s);
   }
 

@@ -93,6 +93,8 @@ export class RunEngine {
   series: StageSeries | null = null;
   /** a run starts only when every stage has a machine (STAGE_MACHINES=required) */
   requireMachines = true;
+  /** machine roles: only a Runner for a stage's kind is given the stage (set by wiring) */
+  machineRoles: { runners(siteId: string): Promise<Map<string, string[]>> } | null = null;
   /** Set when a stage waits for the resources it consumes (core/resources.ts): what has not arrived yet, by label */
   resources: { missing(runId: string, quantity: number, resources: StageSpec["resources"], stage: string): Promise<string[]> } | null = null;
   constructor(
@@ -234,6 +236,8 @@ export class RunEngine {
     const target = (await this.plant.views(siteId)).find((a) => a.id === targetAssetId);
     if (!target) throw new HttpError(404, "Asset not found");
     if (target.kind !== spec.resourceKind) throw new HttpError(400, `${target.name} is not a ${ASSET_KIND_LABEL[spec.resourceKind]}`);
+    if (this.machineRoles && !((await this.machineRoles.runners(siteId)).get(target.id) ?? []).includes(spec.resourceKind))
+      throw new HttpError(409, `${target.name} does not hold the Runner role for ${ASSET_KIND_LABEL[spec.resourceKind].toLowerCase()} stages`);
     if (!ACTIVE.includes(row.state)) throw new HttpError(409, `Stage ${code} is not active`);
     const baseline = target.latest.part_count?.value ?? null;
     await this.db.query("UPDATE stage_runs SET asset_id = $1, baseline_json = $2 WHERE run_id = $3 AND code = $4", [
@@ -349,6 +353,7 @@ export class RunEngine {
     const act = await this.db.query<{ asset_id: string; n: string }>("SELECT asset_id, COUNT(*)::text n FROM stage_runs sr JOIN runs r ON r.id = sr.run_id WHERE r.status = 'running' AND sr.state IN ('running','awaiting_approval','held') AND sr.asset_id IS NOT NULL GROUP BY asset_id");
     for (const r of act.rows) busy.set(r.asset_id, Number(r.n));
     let funded: Map<string, string> | null = null;
+    let runners: Map<string, string[]> | null = null;
     for (const row of ctx.rows) {
       if (row.state !== "queued") continue;
       if (!(preds.get(row.code) ?? []).every((p) => DONE.includes(state.get(p)!))) continue;
@@ -376,7 +381,15 @@ export class RunEngine {
         }
       }
       const pinned = spec.machine ? ctx.assets.get(spec.machine) ?? null : null;
-      const candidates = pinned ? [pinned] : [...ctx.assets.values()].filter((a) => a.kind === spec.resourceKind);
+      const ofKind = pinned ? [pinned] : [...ctx.assets.values()].filter((a) => a.kind === spec.resourceKind);
+      // only a machine holding Runner for this kind of stage is given it
+      runners ??= this.machineRoles ? await this.machineRoles.runners(ctx.run.site_id) : null;
+      const candidates = runners ? ofKind.filter((a) => (runners!.get(a.id) ?? []).includes(spec.resourceKind)) : ofKind;
+      if (ofKind.length && !candidates.length) {
+        const reason = `No ${ASSET_KIND_LABEL[spec.resourceKind].toLowerCase()} holds the Runner role for this kind of stage: a manager grants it on the floor`;
+        if ((JSON.parse(row.data_json) as StageData).waitingReason !== reason) await this.patchData(ctx.run.id, row.code, { waitingReason: reason });
+        continue;
+      }
       if (!candidates.length && this.requireMachines) {
         // the run checked every stage had a machine when it started; one was removed since, so the stage waits for one
         await this.patchData(ctx.run.id, row.code, { waitingReason: `No ${ASSET_KIND_LABEL[spec.resourceKind].toLowerCase()} to run on: add a machine for this stage` });
