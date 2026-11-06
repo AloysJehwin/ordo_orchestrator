@@ -72,7 +72,8 @@ export const sandboxName = (siteId: string, assetId: string): string => {
 };
 
 const defaultBodyDir = (): string => {
-  const dirs = [process.env.ORDO_BODY_DIR, fileURLToPath(new URL("../../../body/", import.meta.url))].filter(Boolean) as string[];
+  // the checkout's body package, or (in the Vercel function, where the server is one bundle) the copy the build puts beside it
+  const dirs = [process.env.ORDO_BODY_DIR, fileURLToPath(new URL("../../../body/", import.meta.url)), fileURLToPath(new URL("./body/", import.meta.url))].filter(Boolean) as string[];
   return dirs.find((d) => existsSync(join(d, "dist", "body.mjs"))) ?? dirs[dirs.length - 1]!;
 };
 

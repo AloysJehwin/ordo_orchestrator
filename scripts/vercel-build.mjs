@@ -12,6 +12,13 @@ mkdirSync(`${out}/functions/api.func`, { recursive: true });
 execSync("pnpm --filter @ordo/web build", { stdio: "inherit", env: { ...process.env, VITE_API_BASE: "" } });
 cpSync("web/dist", `${out}/static`, { recursive: true });
 
+// 1b. The machine body: BODY_RUNTIME=sandbox uploads body/dist to each machine's Vercel Sandbox, so the function carries
+// it (body/dist/body.mjs without its source map, and package.json for the VM's npm dependencies)
+execSync("pnpm --filter @ordo/body build", { stdio: "inherit" });
+mkdirSync(`${out}/functions/api.func/body/dist`, { recursive: true });
+cpSync("body/dist/body.mjs", `${out}/functions/api.func/body/dist/body.mjs`);
+cpSync("body/package.json", `${out}/functions/api.func/body/package.json`);
+
 // 2. API function: one ESM bundle with every dependency inlined
 await build({
   entryPoints: ["server/src/vercel.ts"],
