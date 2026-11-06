@@ -73,12 +73,34 @@ export const takeAccountPick = () => {
   }
 };
 
+/**
+ * The wallet, on the account the person signed in with. A wallet lists every account it has connected to Ordo, the
+ * selected one first, and signs with any of them, so the signed-in account is used even when another is selected.
+ * When the wallet has not connected that account, its account picker opens once so the person can choose it.
+ */
 async function client(expected?: string) {
   if (!active) throw new Error("Connect your wallet first");
-  const c = createWalletClient({ transport: custom(active.provider) });
-  const [account] = await c.requestAddresses();
-  if (!account) throw new Error("The wallet returned no account");
-  if (expected && getAddress(account) !== getAddress(expected)) throw new Error(`Switch your wallet to ${short(expected)}: you are signed in with that address`);
+  const w = active;
+  const c = createWalletClient({ transport: custom(w.provider) });
+  const find = (list: readonly `0x${string}`[]) => (expected ? list.find((a) => getAddress(a) === getAddress(expected)) : list[0]);
+  let list = await c.requestAddresses();
+  if (!list.length) throw new Error("The wallet returned no account");
+  let account = find(list);
+  if (!account && expected) {
+    try {
+      await pickAccount(w);
+      list = await c.requestAddresses();
+      account = find(list);
+    } catch {
+      // the person closed the picker: say which account is needed rather than "cancelled"
+    }
+  }
+  if (!account) {
+    const on = list[0] ? short(list[0]) : "another account";
+    throw new Error(
+      `Your wallet is on ${on}, but you are signed in as ${short(expected!)}. In your wallet, choose ${short(expected!)} (and connect it to this site if it asks), then sign again. Or sign out and sign in as ${on}.`,
+    );
+  }
   return { c, account };
 }
 
