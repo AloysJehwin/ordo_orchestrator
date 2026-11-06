@@ -329,6 +329,20 @@ export class EnsV2 {
     }
   }
 
+  /**
+   * Gas one operation needs, measured on its own: `executeOne` has no try/catch around it, so the estimate is the gas
+   * at which the operation really succeeds. Null when it cannot be measured yet (its parent is in the same batch) or
+   * would fail anyway.
+   */
+  async estimateOne(op: NameOp): Promise<bigint | null> {
+    const names = this.need(this.cfg.names, "ENS_NAMES_ADDRESS");
+    try {
+      return await this.pub.estimateGas({ account: names, to: names, data: encodeFunctionData({ abi: ORDO_NAMES_ABI as Abi, functionName: "executeOne", args: [op, 0n] }) });
+    } catch {
+      return null;
+    }
+  }
+
   /** How a batch went, operation by operation. */
   async batchState(hash: Hex): Promise<BatchState> {
     const r = await this.pub.getTransactionReceipt({ hash }).catch(() => null);

@@ -30,6 +30,8 @@ export interface NameRail {
   readonly cfg: { parentName: string; parentRegistry: Address; names?: Address; runResolver?: Address };
   predictRegistry(salt: bigint): Promise<Address>;
   sendExecute(ops: NameOp[], gas: bigint): Promise<Hex>;
+  /** gas one operation needs on its own, or null when it cannot be measured yet */
+  estimateOne(op: NameOp): Promise<bigint | null>;
   batchState(hash: Hex): Promise<BatchState>;
   baseFeeGwei(): Promise<number>;
   balanceEth(): Promise<number>;
@@ -202,6 +204,8 @@ const sort = (o: Record<string, string>) => Object.fromEntries(Object.entries(o)
 export class Names {
   private gas: GasState;
   private gasCheckedAt = 0;
+  /** a reconcile in progress: engine cycles can overlap, and two passes would send the same names twice */
+  private running = false;
   private sites = new Set<string>();
 
   constructor(
@@ -234,11 +238,16 @@ export class Names {
   // ---------------------------------------------------------------- engine cycle
   /** Plan every org's names, confirm batches in flight, and send the next batch. */
   async reconcile(_limit?: number): Promise<number> {
-    if (!this.live) return 0;
-    const sites = await this.db.query<{ id: string }>("SELECT id FROM sites ORDER BY created_at");
-    for (const s of sites.rows) await this.plan(s.id).catch((e) => console.error(`[ordo] ens plan ${s.id}`, e));
-    await this.confirm();
-    return this.send();
+    if (!this.live || this.running) return 0;
+    this.running = true;
+    try {
+      const sites = await this.db.query<{ id: string }>("SELECT id FROM sites ORDER BY created_at");
+      for (const s of sites.rows) await this.plan(s.id).catch((e) => console.error(`[ordo] ens plan ${s.id}`, e));
+      await this.confirm();
+      return await this.send();
+    } finally {
+      this.running = false;
+    }
   }
 
   /** Ask for an org's names to be planned again soon (after a change a route made). */
@@ -636,7 +645,9 @@ export class Names {
   /** Pack the most urgent pending names into one OrdoNames batch and send it. */
   private async send(): Promise<number> {
     const rail = this.rail!;
-    const inFlight = Number((await this.db.query<{ n: string }>("SELECT count(*)::text AS n FROM ens_batches WHERE status = 'sent'")).rows[0]?.n ?? 0);
+    const inFlight = Number(
+      (await this.db.query<{ n: string }>("SELECT count(*)::text AS n FROM ens_batches WHERE status = 'sent' OR (status = 'sending' AND created_at > $1)", [this.iso(-120_000)])).rows[0]?.n ?? 0,
+    );
     if (inFlight >= MAX_IN_FLIGHT) return 0;
     const due = await this.db.query<Row>(
       `SELECT ${COLS} FROM ens_names WHERE status = 'pending' AND next_try_at <= $1 AND (quiet_until IS NULL OR quiet_until <= $1) ORDER BY prio, depth, ord, created_at LIMIT 300`,
@@ -664,7 +675,10 @@ export class Names {
         await this.done(r, built.result, null, null);
         continue;
       }
-      const g = built.ops.reduce((s, o) => s + guide(o), 0);
+      // measured when the parent is already on-chain; a parent in this same batch is not, so the guide stands in
+      const measurable = !r.parent_id || parent?.status === "issued";
+      let g = 0;
+      for (const o of built.ops) g += measurable ? await this.opGas(o) : guide(o);
       if (ops.length && (gas + g > this.limits.batchGas || ops.length + built.ops.length > MAX_OPS)) break;
       entries.push({ id: r.id, ops: built.ops.map((_, i) => ops.length + i), what: built.what, parent: r.parent_id });
       ops.push(...built.ops);
@@ -674,7 +688,8 @@ export class Names {
     }
     if (!ops.length) return 0;
     const batchId = `ensb_${this.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    const gasLimit = BigInt(Math.min(15_500_000, Math.ceil(gas * 1.5) + 200_000));
+    // each operation's share already carries its margin; the rest is the batch's own overhead
+    const gasLimit = BigInt(Math.min(15_500_000, Math.ceil(gas) + 150_000));
     await this.db.query("INSERT INTO ens_batches (id, rows_json, ops, gas_limit, status) VALUES ($1,$2,$3,$4,'sending')", [batchId, JSON.stringify(entries), ops.length, gasLimit.toString()]);
     let hash: Hex;
     try {
@@ -688,6 +703,16 @@ export class Names {
     await this.db.query("UPDATE ens_batches SET status = 'sent', tx_hash = $1, sent_at = $2 WHERE id = $3", [hash, this.iso(), batchId]);
     for (const en of entries) await this.db.query("UPDATE ens_names SET status = 'sent', sent_json = $1, batch_id = $2, updated_at = now() WHERE id = $3", [JSON.stringify(sent.get(en.id)), batchId, en.id]);
     return entries.length;
+  }
+
+  /**
+   * Gas to give one operation in a batch. Its own estimate when there is one, scaled for the 63/64 of the remaining gas
+   * a call passes on (the batch calls each operation through try/catch) plus a margin; the guide otherwise. Too little
+   * gas does not revert the batch: the operation fails inside it with no reason, so this errs on the generous side.
+   */
+  private async opGas(op: NameOp): Promise<number> {
+    const est = await this.rail!.estimateOne(op).catch(() => null);
+    return est ? Math.ceil((Number(est) * 64) / 63 * 1.3) + 40_000 : guide(op);
   }
 
   /** The registry of a name that has its own (its address is known before it is deployed). */
@@ -1010,18 +1035,23 @@ export class Names {
   }
 }
 
-/** Gas an operation is expected to use, for packing batches (generous: unused gas costs nothing). */
+/**
+ * Gas for an operation that cannot be measured before it is sent (its parent is in the same batch), generous on
+ * purpose: too little and the operation fails inside the batch with no reason; unused gas costs nothing. Measured on
+ * Sepolia (Nov 2026): a name that deploys its own registry needs about 1.8M; a person or role name about 0.3M, and
+ * each record up to 0.4M more (a person's records cost far more than a collection's of the same size).
+ */
 function guide(op: NameOp): number {
-  const records = op.records.length * 60_000;
+  const records = op.records.length * 420_000;
   switch (op.kind) {
     case OP.issue:
-      return (op.salt ? 750_000 : 260_000) + records;
+      return (op.salt ? 2_400_000 : 450_000) + records;
     case OP.records:
-      return 50_000 + records;
-    case OP.revoke:
       return 120_000 + records;
+    case OP.revoke:
+      return 200_000 + records;
     default:
-      return 100_000;
+      return 200_000;
   }
 }
 

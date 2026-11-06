@@ -595,4 +595,12 @@ CREATE INDEX ens_releases_due ON ens_releases (status, next_try_at);
 CREATE INDEX ens_releases_run ON ens_releases (run_id);
 `,
   },
+  {
+    version: 36,
+    name: "ENS names that failed for want of gas go back in the queue: batches gave each operation a fixed guess that was far below what Sepolia needs, so they failed inside the batch with no reason",
+    sql: `
+UPDATE ens_names SET status = 'pending', attempts = 0, error = NULL, next_try_at = now(), updated_at = now() WHERE status = 'failed';
+UPDATE ens_names SET attempts = 0, error = NULL, next_try_at = now() WHERE status = 'pending' AND attempts > 0;
+`,
+  },
 ];
