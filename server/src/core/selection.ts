@@ -233,14 +233,15 @@ export class Selection {
   }
 
   /** Credit a vested acceptance to the contributor and validator (anyone may ask; Ordo's relayer pays the gas). */
-  async settle(siteId: string, contributionId: string) {
+  /** `wait`: how long to wait for the receipt (the engine cycle waits it out, so it never sends a settle twice). */
+  async settle(siteId: string, contributionId: string, wait?: number) {
     if (!(await this.v3())) throw new HttpError(409, "Rewards need the v3 OrdoTrust contract on this deployment");
     const a = await this.trust.chain!.acceptance(siteId, contributionId);
     if (!a) throw new HttpError(404, "No acceptance on-chain for this proof of work yet");
     if (a.settled) throw new HttpError(409, "Already settled");
     if (a.frozen) throw new HttpError(409, "A case froze this acceptance");
     if (a.vestAt * 1000 > this.now()) throw new HttpError(409, `It vests ${new Date(a.vestAt * 1000).toISOString()}`);
-    return this.trust.relay(siteId, "settle", `settle_${contributionId}`, { contributionId }, () => this.trust.chain!.settle(siteId, contributionId), false);
+    return this.trust.relay(siteId, "settle", `settle_${contributionId}`, { contributionId }, () => this.trust.chain!.settle(siteId, contributionId), false, undefined, { wait });
   }
 
   /** Pay my claimable rewards to my own wallet; Ordo's relayer pays the gas. */
@@ -260,7 +261,7 @@ export class Selection {
     );
     for (const r of rows.rows) {
       const a = await this.trust.chain!.acceptance(r.site_id, r.id).catch(() => null);
-      if (a && !a.settled && !a.frozen && a.vestAt * 1000 <= this.now()) await this.settle(r.site_id, r.id).catch((e) => console.error("[ordo] settle", e));
+      if (a && !a.settled && !a.frozen && a.vestAt * 1000 <= this.now()) await this.settle(r.site_id, r.id, Infinity).catch((e) => console.error("[ordo] settle", e));
     }
   }
 }

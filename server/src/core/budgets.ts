@@ -16,7 +16,7 @@ import { BUDGET_LABEL, topupLabel } from "./name-scheme.js";
 import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import type { Templates } from "./templates.js";
-import type { Trust } from "./trust.js";
+import type { RelayView, Trust } from "./trust.js";
 
 const AGENT = "system:treasury";
 /** A Hedera transfer carries at most 10 account amounts: the treasury's debit and nine credits. */
@@ -544,21 +544,25 @@ export class Budgets {
     const sig = await this.db.tx((q) => this.sigs.consume(q, user, { action: "budget.approve", entity }, proof));
     const arg = sigArg(sig.typed, proof.signature);
     await this.db.query("UPDATE budget_schedules SET status = 'approving', approved_by = $1, signature_id = $2, error = NULL, updated_at = now() WHERE id = $3", [user.address, sig.id, id]);
-    const relay = await this.trust.relay(siteId, "budget.approve", `budget_${id}`, { scheduleId, entity, sig: arg }, () => rail.approve(siteId, scheduleId, entity, arg), true, rail.contract);
-    if (relay.status === "done") {
-      await this.db.query("UPDATE budget_schedules SET approve_tx = $1, next_check_at = now(), updated_at = now() WHERE id = $2", [relay.txHash, id]);
-      await this.rec.decide(siteId, {
-        agent: `user:${user.address}`,
-        kind: "budget.approved",
-        runId: r.run_id,
-        stageCode: r.stage_code,
-        summary: `Approved ${hbar(r.total)} from the treasury (schedule ${scheduleId}); OrdoTreasury signed it with the org's key`,
-        data: { budgetId: id, scheduleId, entity, signatureId: sig.id, txHash: relay.txHash },
-      });
-      await this.check(await this.row(siteId, id));
-    } else {
-      await this.db.query("UPDATE budget_schedules SET status = 'pending', error = $1, updated_at = now() WHERE id = $2", [relay.error ?? "The approval did not reach OrdoTreasury", id]);
-    }
+    // the approval lands when its receipt does: in this request when the chain is quick, in the background otherwise
+    const settled = async (relay: RelayView) => {
+      if (relay.status === "done") {
+        await this.db.query("UPDATE budget_schedules SET approve_tx = $1, next_check_at = now(), updated_at = now() WHERE id = $2", [relay.txHash, id]);
+        await this.rec.decide(siteId, {
+          agent: `user:${user.address}`,
+          kind: "budget.approved",
+          runId: r.run_id,
+          stageCode: r.stage_code,
+          summary: `Approved ${hbar(r.total)} from the treasury (schedule ${scheduleId}); OrdoTreasury signed it with the org's key`,
+          data: { budgetId: id, scheduleId, entity, signatureId: sig.id, txHash: relay.txHash },
+        });
+        await this.check(await this.row(siteId, id));
+      } else if (relay.status === "failed" || relay.status === "waiting_site") {
+        await this.db.query("UPDATE budget_schedules SET status = 'pending', error = $1, updated_at = now() WHERE id = $2", [relay.error ?? "The approval did not reach OrdoTreasury", id]);
+      }
+    };
+    const relay = await this.trust.relay(siteId, "budget.approve", `budget_${id}`, { scheduleId, entity, sig: arg }, () => rail.approve(siteId, scheduleId, entity, arg), true, rail.contract, { then: settled });
+    if (relay.status === "waiting_site") await settled(relay);
     return this.get(siteId, id);
   }
 

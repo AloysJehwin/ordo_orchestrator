@@ -303,14 +303,18 @@ export class WorkOrders {
       return s;
     });
     const arg: SigArg = sigArg(sig.typed, proof.signature);
-    const relay = await this.trust.relay(siteId, "workorder.release", id, { sig: arg }, () => this.chain().releaseWorkOrder(siteId, id, arg), true, this.chain().cfg.workOrders!);
-    if (relay.status === "done") {
-      await this.db.query("UPDATE work_orders SET status = 'released', updated_at = now() WHERE id = $1", [id]);
-      await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: "work_order.released", summary: `Paid ${w.company ?? w.vendor_address} ${this.units(w.amount!)} for ${id}`, data: { workOrderId: id, txHash: relay.txHash, signatureId: sig.id } });
-    } else if (relay.status === "failed") {
-      // back to escrowed, so the refund timer and refundExpired still cover it and someone can sign again
-      await this.db.query("UPDATE work_orders SET status = 'escrowed', released_by = NULL, error = $1, updated_at = now() WHERE id = $2", [relay.error, id]);
-    }
+    // it stays `releasing` until the receipt lands: in this request when the chain is quick, in the background otherwise
+    await this.trust.relay(siteId, "workorder.release", id, { sig: arg }, () => this.chain().releaseWorkOrder(siteId, id, arg), true, this.chain().cfg.workOrders!, {
+      then: async (relay) => {
+        if (relay.status === "done") {
+          await this.db.query("UPDATE work_orders SET status = 'released', updated_at = now() WHERE id = $1", [id]);
+          await this.rec.decide(siteId, { agent: `user:${user.address}`, kind: "work_order.released", summary: `Paid ${w.company ?? w.vendor_address} ${this.units(w.amount!)} for ${id}`, data: { workOrderId: id, txHash: relay.txHash, signatureId: sig.id } });
+        } else if (relay.status === "failed") {
+          // back to escrowed, so the refund timer and refundExpired still cover it and someone can sign again
+          await this.db.query("UPDATE work_orders SET status = 'escrowed', released_by = NULL, error = $1, updated_at = now() WHERE id = $2", [relay.error, id]);
+        }
+      },
+    });
     return this.get(siteId, id);
   }
 
@@ -339,7 +343,7 @@ export class WorkOrders {
         }
         if (this.now() < Date.parse(schedule.executeAt) + SCHEDULE_GRACE_MS) continue;
       }
-      const relay = await this.trust.relay(w.site_id, "workorder.refund", w.id, {}, () => this.chain().refundWorkOrder(w.site_id, w.id), true, this.chain().cfg.workOrders!);
+      const relay = await this.trust.relay(w.site_id, "workorder.refund", w.id, {}, () => this.chain().refundWorkOrder(w.site_id, w.id), true, this.chain().cfg.workOrders!, { wait: Infinity });
       if (relay.status === "done") {
         await this.db.query("UPDATE work_orders SET status = 'refunded', updated_at = now() WHERE id = $1", [w.id]);
         await this.rec.decide(w.site_id, { agent: "system:relayer", kind: "work_order.refunded", summary: `${w.id} expired unreleased: ${this.units(w.amount)} back to the site's fund`, data: { workOrderId: w.id, txHash: relay.txHash } });

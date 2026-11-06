@@ -27,7 +27,8 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
   const toast = useToast();
   const [job, setJob] = useState<SignJob<unknown> | null>(null);
   const [typed, setTyped] = useState<TypedSignature | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "signing" | "error">("loading");
+  // signing: the wallet's prompt is open; saving: signed, Ordo is recording it
+  const [state, setState] = useState<"loading" | "ready" | "signing" | "saving" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
   const resolver = useRef<((v: unknown) => void) | null>(null);
@@ -75,6 +76,7 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
       // wallets refuse typed data for a chain they are not on; a release statement names no chain
       if ("chainId" in typed.domain) await ensureChain(typed.domain.chainId, props.trust);
       const signature = await signTyped(typed, props.address);
+      setState("saving");
       const out = await job.submit({ nonce: typed.message.nonce, signature });
       toast(job.done ?? "Signed and recorded in the ledger", "ok");
       close(out);
@@ -98,13 +100,17 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
         title={job?.title ?? ""}
         footer={
           <div className="btns end">
-            <button type="button" className="btn" onClick={() => close()}>
+            <button type="button" className="btn" disabled={state === "saving"} onClick={() => close()}>
               Cancel
             </button>
             <button type="button" className="btn accent" disabled={state !== "ready" || needPick || !wallets.length} onClick={sign}>
               {state === "signing" ? (
                 <>
                   <Spinner /> Waiting for wallet…
+                </>
+              ) : state === "saving" ? (
+                <>
+                  <Spinner /> Recording…
                 </>
               ) : (
                 "Sign with wallet"
@@ -159,6 +165,7 @@ export function SignerProvider(props: { address: string; trust: TrustChainInfo |
           </div>
         )}
         {!wallets.length && state !== "loading" && <p className="field-e">No browser wallet found. Install MetaMask, Rabby or another EIP-1193 wallet to sign.</p>}
+        {state === "saving" && <p className="muted small">Signed. Ordo is checking the signature and recording it; anything it sends on-chain finishes in the background.</p>}
         {error && <p className="field-e">{error}</p>}
       </Modal>
     </SignCtx.Provider>

@@ -8,6 +8,7 @@ import { hashOf } from "../domain/canonical.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ROLE_LABEL, ROLES, type Role } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
+import { within } from "../adapters/keep-alive.js";
 import { newId } from "../plant/plant.js";
 import type { Recorder } from "./recorder.js";
 import type { Schedules } from "./schedules.js";
@@ -196,22 +197,44 @@ export class Trust {
   }
 
   /** Send a signed authorisation to a contract and record the outcome (pending → done | failed | waiting_site). */
-  async relay(siteId: string, kind: string, ref: string, payload: unknown, run: () => Promise<Hex>, waitForSite = true, contract?: string): Promise<RelayView> {
+  /**
+   * Send a signed action to the trust chain. The request waits for the receipt for at most `wait` ms (RELAY_WAIT_MS by
+   * default): past that it answers `pending` and the transaction finishes in the background, so a slow chain never
+   * holds the person's signature dialog until the function times out. `then` runs once it settles, however long that takes.
+   */
+  async relay(
+    siteId: string,
+    kind: string,
+    ref: string,
+    payload: unknown,
+    run: () => Promise<Hex>,
+    waitForSite = true,
+    contract?: string,
+    opts: { wait?: number; then?: (v: RelayView) => Promise<void> } = {},
+  ): Promise<RelayView> {
     const id = newId("rly");
     const registered = !waitForSite || (await this.siteRegistered(siteId));
     await this.db.query("INSERT INTO chain_relays (id, site_id, kind, ref, payload_json, status) VALUES ($1,$2,$3,$4,$5,$6)", [id, siteId, kind, ref, JSON.stringify(payload), registered ? "pending" : "waiting_site"]);
     if (!registered) return this.relayView({ kind, status: "waiting_site", tx_hash: null, error: null });
-    try {
-      const tx = await run();
-      await this.db.query("UPDATE chain_relays SET status = 'done', tx_hash = $1, updated_at = now() WHERE id = $2", [tx, id]);
-      await this.rec.event("system:relayer", `chain.${kind}`, ref, { site: siteId, txHash: tx, chainId: this.chain!.cfg.chainId, contract: contract ?? this.chain!.cfg.address });
-      return this.relayView({ kind, status: "done", tx_hash: tx, error: null });
-    } catch (e) {
-      const msg = chainErrorMessage(e);
-      await this.db.query("UPDATE chain_relays SET status = 'failed', error = $1, updated_at = now() WHERE id = $2", [msg, id]);
-      return this.relayView({ kind, status: "failed", tx_hash: null, error: msg });
-    }
+    const work = (async () => {
+      let v: RelayView;
+      try {
+        const tx = await run();
+        await this.db.query("UPDATE chain_relays SET status = 'done', tx_hash = $1, updated_at = now() WHERE id = $2", [tx, id]);
+        await this.rec.event("system:relayer", `chain.${kind}`, ref, { site: siteId, txHash: tx, chainId: this.chain!.cfg.chainId, contract: contract ?? this.chain!.cfg.address });
+        v = this.relayView({ kind, status: "done", tx_hash: tx, error: null });
+      } catch (e) {
+        const msg = chainErrorMessage(e);
+        await this.db.query("UPDATE chain_relays SET status = 'failed', error = $1, updated_at = now() WHERE id = $2", [msg, id]);
+        v = this.relayView({ kind, status: "failed", tx_hash: null, error: msg });
+      }
+      await opts.then?.(v).catch((e: unknown) => console.error(`[ordo] after relay ${kind}`, e));
+      return v;
+    })();
+    return (await within(work, opts.wait ?? this.relayWait)) ?? this.relayView({ kind, status: "pending", tx_hash: null, error: null });
   }
+  /** How long a request waits for a relay's receipt before answering `pending` (the work goes on). */
+  relayWait = 8_000;
   private relayView(r: { kind: string; status: string; tx_hash: string | null; error: string | null }): RelayView {
     return { kind: r.kind, status: r.status as RelayView["status"], txHash: r.tx_hash, txUrl: r.tx_hash && this.chain ? this.chain.txUrl(r.tx_hash) : null, error: r.error };
   }
@@ -228,8 +251,12 @@ export class Trust {
   /** Retry a failed relay, or one that waited for the site's registration. */
   async retry(siteId: string, ref: string): Promise<RelayView | null> {
     if (!this.chain) throw new HttpError(409, "No trust contract is configured");
-    const r = (await this.db.query<{ id: string; kind: string; payload_json: string; status: string }>("SELECT id, kind, payload_json, status FROM chain_relays WHERE site_id = $1 AND ref = $2 ORDER BY created_at DESC LIMIT 1", [siteId, ref])).rows[0];
-    if (!r || r.status === "done") return r ? this.relayOf(siteId, ref) : null;
+    const r = (await this.db.query<{ id: string; kind: string; payload_json: string; status: string; fresh: boolean }>(
+      "SELECT id, kind, payload_json, status, updated_at > now() - interval '5 minutes' AS fresh FROM chain_relays WHERE site_id = $1 AND ref = $2 ORDER BY created_at DESC LIMIT 1",
+      [siteId, ref],
+    )).rows[0];
+    // done, or still in flight (its receipt is awaited in the background): sending it again would send it twice
+    if (!r || r.status === "done" || (r.status === "pending" && r.fresh)) return r ? this.relayOf(siteId, ref) : null;
     const p = JSON.parse(r.payload_json);
     await this.db.query("UPDATE chain_relays SET status = 'superseded' WHERE id = $1", [r.id]);
     if (r.kind === "grant") return this.relayGrant(siteId, ref, p.address, p.role, p.sig);
@@ -489,10 +516,10 @@ export class Trust {
 
   // ---------------------------------------------------------------- releases on-chain
   /** Relay a released validation package's three release statements to the contract. */
-  async recordRelease(siteId: string, lot: ReleaseLot): Promise<RelayView | null> {
+  async recordRelease(siteId: string, lot: ReleaseLot, then?: (v: RelayView) => Promise<void>): Promise<RelayView | null> {
     if (!this.chain) return null;
     const sigs = await this.releaseSigs(lot.packageId);
-    return this.relay(siteId, "release", lot.packageId, { lot, sigs: sigs.map(jsonSafe) }, () => this.chain!.recordRelease(lot, sigs));
+    return this.relay(siteId, "release", lot.packageId, { lot, sigs: sigs.map(jsonSafe) }, () => this.chain!.recordRelease(lot, sigs), true, undefined, { then });
   }
 
   /** The package's three current release statements, [performed, reviewed, approved], as the contracts take them. */

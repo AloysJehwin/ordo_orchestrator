@@ -17,6 +17,7 @@ import { MAX_OUTPUT_BYTES, MAX_PREVIEW_BYTES, OutputMeta } from "../core/outputs
 import { OfferBody, OfferPatch } from "../core/resources.js";
 import { BodyCreate, BodyHold, BodyReport, MAX_EPISODE_BYTES } from "../core/body-service.js";
 import { chosenBase } from "../config.js";
+import { within } from "../adapters/keep-alive.js";
 import { canApproveAny } from "../domain/policy.js";
 import { ACCESS_LABEL, ACCESS_LEVELS, AccessScope, AGENT_INFO, AGENTS, ASSET_KIND_LABEL, ASSET_KINDS, AgentKey, AssetKind, AutonomyLevel, DataSource, DEFAULT_LEVEL, MachineRole, PackageType, Role, ROLE_INFO, ROLE_LABEL, ROLES, SignalLimit, TemplateSpec, type AccessLevel } from "../domain/types.js";
 import { HttpError } from "../engine/errors.js";
@@ -1343,7 +1344,11 @@ export function createApp(sys: System, opts: AppOptions = {}) {
 
   /** One call per poll: advances the engine, then returns everything a screen needs to refresh. */
   site.get("/live", async (c) => {
-    await sys.advance().catch((e) => console.error("[ordo] advance", e));
+    // on Vercel a slow cycle (chain receipts, sandboxes) must not hold the console's poll: it finishes in the background
+    await within(
+      sys.advance().catch((e) => console.error("[ordo] advance", e)),
+      sys.cfg.VERCEL ? 2_500 : Infinity,
+    );
     const s = sid(c);
     const a = c.get("access");
     const none = <T>(): Promise<T[]> => Promise.resolve([]);

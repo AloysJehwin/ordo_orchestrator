@@ -550,12 +550,14 @@ export class Validation {
     await this.audit(siteId, actor, p.id, "released", { outcome });
     const st = await this.signedStatement(p.id);
     const lot: ReleaseLot = { siteId, lotLabel: st.lot, packageId: p.id, runId: st.runId, contentHash: st.contentHash, proofRoot: st.proofRoot };
-    const relay = await this.trust.recordRelease(siteId, lot);
-    // OrdoLotResolver re-checks every stage and parameter proof the root folds before it records the release
+    // OrdoLotResolver re-checks every stage and parameter proof the root folds before it records the release (queued: sent in the engine cycle)
     const stages = st.stages.length && this.stageProofs ? await this.stageProofs.bundle(st.runId, st.stages) : { root: ZERO_ROOT, proofs: [] };
     const params = st.params?.length && this.specProofs ? (await this.specProofs.bundle(st.runId, stages.root, st.params)).params : [];
     if (st.runId) await this.lots?.release(siteId, lot, stages.proofs, params).catch((e: unknown) => console.error("[ordo] ens release", e));
-    if (relay) await this.audit(siteId, "system:relayer", p.id, relay.status === "done" ? "recorded_onchain" : "onchain_failed", { txHash: relay.txHash, error: relay.error });
+    // OrdoTrust records it too; a slow chain finishes in the background and the audit follows when it does
+    await this.trust.recordRelease(siteId, lot, (relay) =>
+      relay.status === "done" || relay.status === "failed" ? this.audit(siteId, "system:relayer", p.id, relay.status === "done" ? "recorded_onchain" : "onchain_failed", { txHash: relay.txHash, error: relay.error }) : Promise.resolve(),
+    );
   }
 
   async list(siteId: string, user: User, roles: Role[], level: AccessLevel = 4) {
