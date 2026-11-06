@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { keccak256, toBytes, type Hex } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import { HttpError } from "../engine/errors.js";
 import { fundedBuyers, type RunEngine } from "../pipelines/engine.js";
 import { predecessors } from "../pipelines/graph.js";
 import { newId, type PlantService } from "../plant/plant.js";
+import type { MachineRoles } from "./machine-roles.js";
 import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import { amountFor, hbarToTinybar, resourceNeed, roundQty, runBudget, tinybarToHbar, type RunBudget } from "./run-budget.js";
@@ -200,6 +202,9 @@ export interface NeededResource {
   /** the most it may pay, HBAR per unit, and in tinybars */
   maxPrice: number;
   maxPriceTinybar: string;
+  /** the buying machine's Buyer caps: per order, and what is left of today's (tinybar); null without caps */
+  capOrderTinybar?: string | null;
+  capDailyLeftTinybar?: string | null;
   /** the cheapest offer of its kind from a vendor that can be paid; null when none sells it */
   offer: {
     vendorId: string;
@@ -315,8 +320,10 @@ const longZero = (account: string | null) => {
   if (!m) return `0x${"0".repeat(40)}`;
   return `0x${BigInt(m[1]!).toString(16).padStart(8, "0")}${BigInt(m[2]!).toString(16).padStart(16, "0")}${BigInt(m[3]!).toString(16).padStart(16, "0")}`;
 };
-export const storefrontPath = (vendorId: string, sku: string, qty: number, b?: Binding) =>
-  `/v1/x402/vendors/${vendorId}/offers/${encodeURIComponent(sku)}?qty=${roundQty(qty)}${b ? `&run=${encodeURIComponent(b.runId)}&stage=${encodeURIComponent(b.stage)}&resource=${encodeURIComponent(b.resource)}` : ""}`;
+export const storefrontPath = (vendorId: string, sku: string, qty: number, b?: Binding, ticket?: string) =>
+  `/v1/x402/vendors/${vendorId}/offers/${encodeURIComponent(sku)}?qty=${roundQty(qty)}${b ? `&run=${encodeURIComponent(b.runId)}&stage=${encodeURIComponent(b.stage)}&resource=${encodeURIComponent(b.resource)}` : ""}${ticket ? `&${ticket}` : ""}`;
+/** The query of a storefront purchase. */
+export type OfferQuery = { qty?: string; run?: string; stage?: string; resource?: string; buyer?: string; exp?: string; t?: string };
 
 /**
  * The resources a stage consumes, and how machines buy them ahead of the stage.
@@ -348,6 +355,9 @@ export class Resources {
   store: import("hono").MiddlewareHandler | null = null;
   /** ENS names, so a purchase's HCS line and the storefront say who sold, who bought and for which stage by name */
   names: Pick<Names, "many" | "nameOf"> | null = null;
+  /** machine roles: only a Buyer buys a stage's resources, within its caps (set by wiring) */
+  machineRoles: Pick<MachineRoles, "of" | "ofAsset"> | null = null;
+  private ticketKey: string;
 
   constructor(
     private db: Db,
@@ -361,6 +371,33 @@ export class Resources {
     private now: () => number,
   ) {
     this.receiptKey = privateKeyToAccount(keccak256(toBytes(`ordo:resource-receipts:${secret}`)));
+    this.ticketKey = keccak256(toBytes(`ordo:buyer-tickets:${secret}`));
+  }
+
+  // ---------------------------------------------------------------- Buyer tickets
+  /** A storefront path's proof that Ordo named this machine as the buyer (from its device-signed needed list), valid an hour. */
+  private ticket(assetId: string, b: Binding): string {
+    const exp = Math.floor(this.now() / 1000) + 3600;
+    return `buyer=${encodeURIComponent(assetId)}&exp=${exp}&t=${this.mac(assetId, exp, b)}`;
+  }
+  private mac(assetId: string, exp: number, b: Binding) {
+    return createHmac("sha256", this.ticketKey).update(`${assetId}|${exp}|${b.runId}|${b.stage}|${b.resource}`).digest("hex").slice(0, 32);
+  }
+  /** The machine a purchase's ticket names, checked; throws when it is missing, forged or stale. */
+  private ticketBuyer(q: OfferQuery, b: Binding): string {
+    if (!q.buyer || !q.exp || !q.t) throw new HttpError(403, "A stage's resources are bought by a machine holding the Buyer role: use the path from /v1/edge/purchases/needed");
+    const exp = Number(q.exp);
+    if (!Number.isFinite(exp) || exp * 1000 < this.now()) throw new HttpError(403, "This purchase's ticket expired: ask /v1/edge/purchases/needed again");
+    const want = this.mac(q.buyer, exp, b);
+    if (q.t.length !== want.length || !timingSafeEqual(Buffer.from(q.t), Buffer.from(want))) throw new HttpError(403, "This purchase's ticket is not Ordo's");
+    return q.buyer;
+  }
+  /** What a machine spent today (UTC) on resources, pending purchases included. */
+  private async spentToday(assetId: string): Promise<bigint> {
+    const day = new Date(this.now());
+    day.setUTCHours(0, 0, 0, 0);
+    const r = await this.db.query<{ t: string | null }>("SELECT sum(CAST(amount_tinybar AS NUMERIC))::text AS t FROM resource_purchases WHERE by_asset = $1 AND status IN ('pending','delivered') AND created_at >= $2", [assetId, day.toISOString()]);
+    return BigInt((r.rows[0]?.t ?? "0").split(".")[0] || "0");
   }
 
   /** the address that signs delivery receipts */
@@ -513,7 +550,7 @@ export class Resources {
    * Check a sale before asking for payment (and again before recording it): the offer exists and can be paid, the
    * quantity is sane, and a sale tagged with a run's stage is for a resource that stage still needs.
    */
-  async check(vendorId: string, sku: string, q: { qty?: string; run?: string; stage?: string; resource?: string }) {
+  async check(vendorId: string, sku: string, q: OfferQuery) {
     const o = await this.activeOffer(vendorId, sku);
     if (!o) throw new HttpError(404, "This vendor has no such offer");
     const payTo = await this.payTo(vendorId);
@@ -521,6 +558,7 @@ export class Resources {
     const qty = Number(q.qty ?? "1");
     if (!Number.isFinite(qty) || qty <= 0 || qty > 1e6 || roundQty(qty) <= 0) throw new HttpError(400, "qty is a positive quantity, at most 1,000,000");
     let binding: Binding | null = null;
+    let buyer: string | null = null;
     if (q.run || q.stage || q.resource) {
       if (!q.run || !q.stage || !q.resource) throw new HttpError(400, "A purchase for a stage names its run, stage and resource");
       binding = { runId: q.run, stage: q.stage, resource: q.resource };
@@ -538,18 +576,30 @@ export class Resources {
       const remaining = roundQty(resourceNeed(r, Number(run.quantity)) - have.delivered - have.pending);
       if (remaining <= EPS) throw new HttpError(409, `${r.label} for ${st.code} is already bought`);
       if (qty > remaining + EPS) throw new HttpError(409, `${st.code} needs only ${remaining} ${r.unit} more of ${r.label}`);
+      // a machine holding Buyer, within its caps and the stage's max price (or a top-up a manager approved)
+      if (this.machineRoles) {
+        buyer = this.ticketBuyer(q, binding);
+        const auth = await this.machineRoles.ofAsset(buyer);
+        if (!auth.buyer) throw new HttpError(403, "That machine does not hold the Buyer role: a manager grants it on the floor");
+        const amount = amountFor(BigInt(o.price), roundQty(qty));
+        if (amount > auth.buyer.order) throw new HttpError(403, `${amount} tinybar is over the machine's Buyer cap of ${auth.buyer.order} an order`);
+        if ((await this.spentToday(buyer)) + amount > auth.buyer.daily) throw new HttpError(403, `That would take the machine over its Buyer cap of ${auth.buyer.daily} tinybar a day`);
+        const ok = (await this.approvals(q.run)).get(`${st.code}/${r.key}`);
+        if (!this.within(BigInt(o.price), hbarToTinybar(r.maxPrice), amount, ok)) throw new HttpError(409, `${o.label} costs more than the stage's max price, and no top-up was approved for it`);
+      }
     }
-    return { offer: o, payTo, qty: roundQty(qty), binding };
+    return { offer: o, payTo, qty: roundQty(qty), binding, buyer };
   }
 
   /** After the payment is verified: hold the sale as pending until it settles. Returns what the buyer receives. */
-  async sell(vendorId: string, sku: string, q: { qty?: string; run?: string; stage?: string; resource?: string }): Promise<DeliveryView> {
-    const { offer, payTo, qty, binding } = await this.check(vendorId, sku, q);
+  async sell(vendorId: string, sku: string, q: OfferQuery): Promise<DeliveryView> {
+    const { offer, payTo, qty, binding, buyer } = await this.check(vendorId, sku, q);
     const id = newId("rp");
     const amount = amountFor(BigInt(offer.price), qty);
+    // the buying machine counts against its daily cap from now, while the payment settles
     await this.db.query(
-      "INSERT INTO resource_purchases (id, site_id, run_id, stage_code, resource_key, kind, qty, unit, amount_tinybar, vendor_id, sku, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')",
-      [id, offer.site_id, binding?.runId ?? null, binding?.stage ?? null, binding?.resource ?? null, offer.kind, qty, offer.unit, amount.toString(), vendorId, offer.sku],
+      "INSERT INTO resource_purchases (id, site_id, run_id, stage_code, resource_key, kind, qty, unit, amount_tinybar, vendor_id, sku, status, by_asset) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12)",
+      [id, offer.site_id, binding?.runId ?? null, binding?.stage ?? null, binding?.resource ?? null, offer.kind, qty, offer.unit, amount.toString(), vendorId, offer.sku, buyer],
     );
     return this.delivery(id, payTo);
   }
@@ -559,7 +609,11 @@ export class Resources {
     const pending = JSON.parse(new TextDecoder().decode(s.body)) as DeliveryView;
     const row = await this.purchaseRow(pending.purchaseId);
     if (!row || row.vendor_id !== s.vendorId || row.status !== "pending") return null;
-    const byAsset = s.payer ? ((await this.db.query<{ asset_id: string }>("SELECT asset_id FROM machine_wallets WHERE account_id = $1 AND site_id = $2", [s.payer, row.site_id])).rows[0]?.asset_id ?? null) : null;
+    const paidBy = s.payer ? ((await this.db.query<{ asset_id: string }>("SELECT asset_id FROM machine_wallets WHERE account_id = $1 AND site_id = $2", [s.payer, row.site_id])).rows[0]?.asset_id ?? null) : null;
+    const named = (row as { by_asset?: string | null }).by_asset ?? null;
+    const byAsset = named ?? paidBy;
+    if (named && paidBy !== named)
+      await this.rec.decide(row.site_id, { agent: "system:x402", kind: "resource.payer_mismatch", assetId: named, summary: `A purchase made for ${named} was paid by ${s.payer ?? "an unknown account"}`, data: { purchaseId: row.id, payer: s.payer, paidBy } });
     const offer = await this.activeOffer(s.vendorId, s.sku);
     const deliveredAt = new Date(this.now() + (offer ? Number(offer.lead_min) : 0) * 60_000);
     await this.db.query("UPDATE resource_purchases SET status = 'delivered', buyer_account = $1, tx_id = $2, by_asset = $3, delivered_at = $4 WHERE id = $5", [s.payer, s.transaction || null, byAsset, deliveredAt.toISOString(), row.id]);
@@ -861,10 +915,14 @@ export class Resources {
     const wallets: NeededView["wallets"] = [];
     const w = await this.db.query<{ asset_id: string; account_id: string; status: string }>("SELECT asset_id, account_id, status FROM machine_wallets WHERE account_id IS NOT NULL AND status = 'active'");
     for (const x of w.rows.filter((r) => mine.has(r.asset_id))) wallets.push({ assetId: x.asset_id, accountId: x.account_id, balanceTinybar: this.bank ? await this.bank.balance(x.account_id).then(String).catch(() => null) : null });
-    const walletIds = new Set(w.rows.map((r) => r.asset_id));
     const needed: NeededResource[] = [];
     for (const siteId of [...new Set(assets.map((a) => a.site_id))]) {
       await this.ensureDemo(siteId);
+      // only machines holding the Buyer role buy, within their caps
+      const auth = this.machineRoles ? await this.machineRoles.of(siteId) : null;
+      const isBuyer = (id: string) => !auth || Boolean(auth.get(id)?.buyer);
+      const walletIds = new Set(w.rows.map((r) => r.asset_id).filter(isBuyer));
+      const spent = new Map<string, bigint>();
       const views = new Map<string, AssetView>((await this.plant.views(siteId)).map((a) => [a.id, a]));
       const runs = await this.db.query<{ id: string }>("SELECT id FROM runs WHERE site_id = $1 AND status = 'running' ORDER BY started_at", [siteId]);
       for (const { id: runId } of runs.rows) {
@@ -877,7 +935,7 @@ export class Resources {
           if (s.state !== "queued" || s.resourceKind === "system" || !s.resources.length) continue;
           const ps = (preds.get(s.code) ?? []).map((c) => byCode.get(c)!);
           // the machine of the stage before it buys ahead; a stage ready to start with nothing bought buys for itself
-          const before = ps.find((p) => p.assetId && mine.has(p.assetId) && ACTIVE.includes(p.state));
+          const before = ps.find((p) => p.assetId && mine.has(p.assetId) && ACTIVE.includes(p.state) && isBuyer(p.assetId));
           const ready = ps.every((p) => DONE.includes(p.state));
           // one machine of the org buys for itself, the same one whichever body asks (each body asks for its own machines):
           // the pinned one, else the one the run's budget funded, else the first of its kind by name with a wallet
@@ -894,6 +952,9 @@ export class Resources {
             const maxTb = hbarToTinybar(r.maxPrice);
             const amount = best ? amountFor(BigInt(best.price), remaining) : 0n;
             const ok = approved.get(`${s.code}/${r.key}`);
+            const caps = auth?.get(buyer)?.buyer ?? null;
+            if (caps && !spent.has(buyer)) spent.set(buyer, await this.spentToday(buyer));
+            const binding = { runId, stage: s.code, resource: r.key };
             needed.push({
               runId,
               stage: s.code,
@@ -910,6 +971,8 @@ export class Resources {
               remaining,
               maxPrice: r.maxPrice,
               maxPriceTinybar: maxTb.toString(),
+              capOrderTinybar: caps ? caps.order.toString() : null,
+              capDailyLeftTinybar: caps ? (caps.daily > spent.get(buyer)! ? caps.daily - spent.get(buyer)! : 0n).toString() : null,
               offer: best
                 ? {
                     vendorId: best.vendor_id,
@@ -923,7 +986,7 @@ export class Resources {
                     amountTinybar: amount.toString(),
                     withinMax: this.within(BigInt(best.price), maxTb, amount, ok),
                     approvedTinybar: ok?.toString() ?? null,
-                    path: storefrontPath(best.vendor_id, best.sku, remaining, { runId, stage: s.code, resource: r.key }),
+                    path: storefrontPath(best.vendor_id, best.sku, remaining, binding, auth ? this.ticket(buyer, binding) : undefined),
                   }
                 : null,
             });

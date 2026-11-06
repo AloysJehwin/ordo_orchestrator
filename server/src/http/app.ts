@@ -455,7 +455,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
 
   // A vendor's offers of stage resources, sold per quantity: price × qty paid to the vendor; a delivery receipt Ordo signs
   const VENDOR_OFFER = "/v1/x402/vendors/:vendorId/offers/:sku";
-  const offerQuery = (c: Context) => ({ qty: c.req.query("qty"), run: c.req.query("run"), stage: c.req.query("stage"), resource: c.req.query("resource") });
+  // a stage's purchase carries the ticket Ordo gave its Buyer machine (buyer, exp, t)
+  const offerQuery = (c: Context) => ({ qty: c.req.query("qty"), run: c.req.query("run"), stage: c.req.query("stage"), resource: c.req.query("resource"), buyer: c.req.query("buyer"), exp: c.req.query("exp"), t: c.req.query("t") });
   app.use("/v1/x402/vendors/:vendorId/offers", x402Cors);
   app.get("/v1/x402/vendors/:vendorId/offers", async (c) => c.json(await sys.resources.catalog(c.req.param("vendorId"))));
   app.use(VENDOR_OFFER, x402Cors);

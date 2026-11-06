@@ -122,6 +122,17 @@ export async function purchaseAhead(gw: EdgeClient, buyer: ResourceBuyer, opts: 
       });
       opts.log?.(`${tag}: over budget, ${detail}`);
     };
+    // the machine's Buyer caps: more needs a manager to raise them (on the floor), not a top-up
+    if (n.capOrderTinybar != null && amount > BigInt(n.capOrderTinybar)) {
+      out.skipped.push({ runId: n.runId, stage: n.stage, resource: n.resource, reason: `${fmt(amount)} is over the machine's Buyer cap of ${fmt(BigInt(n.capOrderTinybar))} an order: a manager raises it on the floor` });
+      opts.log?.(`${tag}: over the Buyer cap per order`);
+      continue;
+    }
+    if (n.capDailyLeftTinybar != null && amount > BigInt(n.capDailyLeftTinybar)) {
+      out.skipped.push({ runId: n.runId, stage: n.stage, resource: n.resource, reason: `${fmt(amount)} is more than the ${fmt(BigInt(n.capDailyLeftTinybar))} left of the machine's Buyer cap today` });
+      opts.log?.(`${tag}: over the Buyer cap for today`);
+      continue;
+    }
     if (!n.offer.withinMax) {
       over("price_above_max", `${n.offer.vendor} asks ${n.offer.price} HBAR per ${n.unit || "unit"}, above the stage's ${n.maxPrice} HBAR`);
       continue;

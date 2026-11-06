@@ -187,10 +187,14 @@ export class Machines {
   private async buy(siteId: string, assetId: string, incidentId: string): Promise<Record<string, unknown>> {
     const w = await this.row(assetId);
     if (!w || w.status !== "active" || !w.account_id || !w.key_enc) return { skipped: "The machine has no active wallet" };
+    // a machine spends only while it holds the Buyer role, and no more an order than its cap
+    const role = this.machineRoles ? (await this.machineRoles.ofAsset(assetId)).buyer : null;
+    if (this.machineRoles && !role) return { skipped: "The machine does not hold the Buyer role" };
     const asset = await this.plant.asset(siteId, assetId);
     const samples = (await this.plant.series(assetId, "vibration", WINDOW_MINUTES)).filter((p) => p.value !== null).map((p) => ({ t: p.ts, v: p.value! }));
     if (samples.length < 3) return { skipped: "Fewer than three vibration readings in the last 6 hours: nothing to assess" };
-    const buyer = this.buyerFor(w.account_id, this.unseal(w.key_enc), BigInt(w.per_call));
+    const perCall = role && role.order < BigInt(w.per_call) ? role.order : BigInt(w.per_call);
+    const buyer = this.buyerFor(w.account_id, this.unseal(w.key_enc), perCall);
     const who = `machine:${asset.name}`;
 
     const a = await buyer.post<Assessment>(this.urls.assess!, { machineClass: "medium", samples });

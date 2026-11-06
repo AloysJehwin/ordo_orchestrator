@@ -549,6 +549,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
 
   // ---- Stage resources: vendors' offers sold over x402, bought ahead by machines from their own accounts ----
   const resources = new Resources(db, rec, sigs, engine, plant, machines.bank, { payTo: payTo ?? null, network: cfg.HEDERA_NETWORK, chainId: cfg.SIGNATURE_CHAIN_ID }, cfg.HEDERA_OPERATOR_KEY ?? cfg.LEDGER_SIGNING_KEY ?? "ordo-local", now);
+  resources.machineRoles = machineRoles;
   engine.resources = resources;
   if (x402Net && payTo) {
     const { x402Seller } = await import("./chain/x402.js");
@@ -587,6 +588,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   }
   const { Budgets } = await import("./core/budgets.js");
   const budgets = new Budgets(db, rec, sigs, inbox, engine, templates, trust, trustChain ? treasuryRail : null, { marginPct: cfg.TREASURY_BUDGET_MARGIN_PCT, hours: cfg.TREASURY_BUDGET_HOURS, seed: cfg.TREASURY_SEED_TINYBARS, topUpMax: cfg.TREASURY_TOPUP_MAX_TINYBARS }, now);
+  budgets.machineRoles = machineRoles;
   budgets.offerPrices = (siteId) => resources.offerPrices(siteId);
   budgets.names = names;
   resources.names = names;

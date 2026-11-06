@@ -195,6 +195,8 @@ const iso = (s: string | null) => (s ? new Date(s).toISOString() : null);
  * that waited on a top-up is held as not approved. With no treasury contract configured this does nothing.
  */
 export class Budgets {
+  /** machine roles: only a Buyer asks for a top-up (set by wiring) */
+  machineRoles: { ofAsset(assetId: string): Promise<{ buyer: unknown }> } | null = null;
   /** today's cheapest offer per resource kind (tinybars per unit), so a run budget counts what machines will pay */
   offerPrices: ((siteId: string) => Promise<Map<string, bigint>>) | null = null;
   /** ENS names, so a schedule's memo and an over-budget HCS line say which run, stage and machine by name */
@@ -726,6 +728,7 @@ export class Budgets {
     const asset = b.assetId ? mine.find((a) => a.id === b.assetId) : (mine.find((a) => a.account_id) ?? mine[0]);
     if (!asset) throw new HttpError(403, b.assetId ? `${b.assetId} is not a machine of that run that this device feeds` : "This device is not the data source of a machine in that run");
     if (!asset.account_id) throw new HttpError(409, `${asset.name} has no Hedera account to top up`);
+    if (this.machineRoles && !(await this.machineRoles.ofAsset(asset.id)).buyer) throw new HttpError(403, `${asset.name} does not hold the Buyer role, so it asks for no top-ups: a manager grants it on the floor`);
     if (!t) {
       // nothing to top it up from: tell the managers once, instead of the machine asking into the void
       await this.noTreasury(run, device, b, asset, resource.label).catch((e: Error) => console.error("[ordo] no-treasury notice", e.message));
