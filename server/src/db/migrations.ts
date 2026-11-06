@@ -2,7 +2,7 @@
  * Versioned, forward-only migrations. Each runs once, in order, inside a transaction.
  * v1 = the original demo schema (kept so existing databases upgrade cleanly).
  * v2 = real accounts, sites, assets, telemetry, templates, runs, inbox, validation, signatures.
- * v3 = validation workflow · v4 = onboarding and on-chain trust · v5 = agent work orders and autonomy proposals · v6 = lot passports · v7 = jobs on other networks (ENS, 0G) · v11–15 = Hedera schedules, ENS lot names and credentials, one World ID per validator, zero-knowledge spec proofs, agent licences.
+ * v3 = validation workflow · v4 = onboarding and on-chain trust · v5 = agent work orders and autonomy proposals · v6 = lot passports · v7 = jobs on other networks (ENS, 0G) · v11–15 = Hedera schedules, ENS lot names and credentials, one World ID per validator, zero-knowledge spec proofs, agent licences · v34 = handles.
  */
 export const MIGRATIONS: { version: number; name: string; sql: string }[] = [
   {
@@ -542,6 +542,14 @@ ALTER TABLE contribution_sessions ADD COLUMN router_trust_mode TEXT NOT NULL DEF
     sql: `
 DROP INDEX budget_schedules_run;
 CREATE UNIQUE INDEX budget_schedules_run ON budget_schedules (run_id) WHERE kind = 'run' AND NOT (status = 'failed' AND executed_at IS NOT NULL);
+`,
+  },
+  {
+    version: 34,
+    name: "Handles: the label of each person's ENS name (priya.acme.ordo.eth), one per wallet, unique across Ordo",
+    sql: `
+ALTER TABLE users ADD COLUMN handle TEXT;
+CREATE UNIQUE INDEX users_handle ON users (handle) WHERE handle IS NOT NULL;
 `,
   },
 ];

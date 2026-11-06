@@ -14,6 +14,8 @@ export interface User {
   id: string;
   address: string;
   displayName: string | null;
+  /** the label of their ENS name in each org (priya → priya.acme.ordo.eth); null until chosen or assigned */
+  handle: string | null;
 }
 export interface Membership {
   siteId: string;
@@ -85,14 +87,14 @@ export class Auth {
 
   async principal(token: string | undefined): Promise<Principal | null> {
     if (!token) return null;
-    const r = await this.db.query<{ id: string; user_id: string; address: string; display_name: string | null }>(
-      "SELECT s.id, s.user_id, u.address, u.display_name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1 AND s.expires_at > now()",
+    const r = await this.db.query<{ id: string; user_id: string; address: string; display_name: string | null; handle: string | null }>(
+      "SELECT s.id, s.user_id, u.address, u.display_name, u.handle FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1 AND s.expires_at > now()",
       [sha(token)],
     );
     const row = r.rows[0];
     if (!row) return null;
     await this.db.query("UPDATE users SET last_seen_at = now() WHERE id = $1", [row.user_id]);
-    const user = { id: row.user_id, address: row.address, displayName: row.display_name };
+    const user = { id: row.user_id, address: row.address, displayName: row.display_name, handle: row.handle };
     return { user, sessionId: row.id, memberships: await this.memberships(user.id) };
   }
 
@@ -101,12 +103,12 @@ export class Auth {
   }
 
   private async upsertUser(address: string): Promise<User> {
-    const existing = await this.db.query<{ id: string; display_name: string | null }>("SELECT id, display_name FROM users WHERE address = $1", [address]);
-    if (existing.rows[0]) return { id: existing.rows[0].id, address, displayName: existing.rows[0].display_name };
+    const existing = await this.db.query<{ id: string; display_name: string | null; handle: string | null }>("SELECT id, display_name, handle FROM users WHERE address = $1", [address]);
+    if (existing.rows[0]) return { id: existing.rows[0].id, address, displayName: existing.rows[0].display_name, handle: existing.rows[0].handle };
     const id = newId("usr");
     await this.db.query("INSERT INTO users (id, address) VALUES ($1, $2) ON CONFLICT (address) DO NOTHING", [id, address]);
-    const r = await this.db.query<{ id: string; display_name: string | null }>("SELECT id, display_name FROM users WHERE address = $1", [address]);
-    return { id: r.rows[0]!.id, address, displayName: r.rows[0]!.display_name };
+    const r = await this.db.query<{ id: string; display_name: string | null; handle: string | null }>("SELECT id, display_name, handle FROM users WHERE address = $1", [address]);
+    return { id: r.rows[0]!.id, address, displayName: r.rows[0]!.display_name, handle: r.rows[0]!.handle };
   }
 
   async setDisplayName(userId: string, name: string): Promise<void> {

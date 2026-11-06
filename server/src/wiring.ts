@@ -8,6 +8,7 @@ import { geminiProvider, OfflineLlm, openAiCompatProvider, type LlmProvider } fr
 import { LocalSignedAnchor, type AnchorAdapter } from "./adapters/rails.js";
 import { Agents } from "./agents/agents.js";
 import { Auth, Signatures } from "./auth/auth.js";
+import { Handles } from "./core/handles.js";
 import { Assessments } from "./core/assessments.js";
 import { Machines } from "./core/machines.js";
 import { Resources } from "./core/resources.js";
@@ -75,6 +76,8 @@ export interface System {
   ledger: LedgerStore;
   rec: Recorder;
   auth: Auth;
+  /** people's handles: the label of their ENS name in each org */
+  handles: Handles;
   sigs: Signatures;
   plant: PlantService;
   templates: Templates;
@@ -201,6 +204,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const jobs = new Jobs(db, now);
   const rec = new Recorder(db, ledger);
   const auth = new Auth(db, { sessionTtlMs: cfg.SESSION_TTL_HOURS * 3_600_000, rpcUrl: cfg.AUTH_RPC_URL, bootstrapAdmin: cfg.BOOTSTRAP_ADMIN_ADDRESS });
+  const handles = new Handles(db);
   const sigs = new Signatures(db, cfg.AUTH_RPC_URL);
   const plant = new PlantService(db, now);
   const templates = new Templates(db, rec);
@@ -670,6 +674,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     ledger,
     rec,
     auth,
+    handles,
     sigs,
     plant,
     series,

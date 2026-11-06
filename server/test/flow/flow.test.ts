@@ -417,7 +417,7 @@ describe("lot passports", () => {
     await sys.db.query("UPDATE runs SET status = 'completed', finished_at = now() WHERE id = $1", [run2]);
     await passports.reconcile(50);
     const u = (await sys.db.query<{ id: string }>("SELECT id FROM users WHERE address = $1", [admin.address])).rows[0]!;
-    const me = { id: u.id, address: admin.address, displayName: null };
+    const me = { id: u.id, address: admin.address, displayName: null, handle: null };
     await expect(passports.shipRequest(site, me, ["contributor", "validator"], run2, "0.0.4242")).rejects.toThrow(/manager/);
     const typed = await passports.shipRequest(site, me, ["manager"], run2, "0.0.4242");
     const shipped = await passports.ship(site, me, ["manager"], run2, { to: "0.0.4242", nonce: typed.message.nonce, signature: await admin.sign(typed) });

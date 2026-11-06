@@ -138,7 +138,14 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   const meView = async (p: Principal) => {
     const ens = sys.ensNames ? (await sys.ensNames.lookup([p.user.address]))[p.user.address] ?? null : null;
     const canCreateSite = !sys.cfg.BOOTSTRAP_ADMIN_ADDRESS || sys.cfg.BOOTSTRAP_ADMIN_ADDRESS.toLowerCase() === p.user.address;
-    return { user: { ...p.user, ens }, memberships: p.memberships, canCreateSite };
+    // someone who has not chosen a handle (or was given member-…) is offered one from their display name
+    const handleSuggestion = !p.user.handle || p.user.handle.startsWith("member-") ? await sys.handles.suggestion(p.user.id) : null;
+    return { user: { ...p.user, ens, handleSuggestion }, memberships: p.memberships, canCreateSite };
+  };
+  /** an optional handle in a body: chosen before the action it comes with (joining, creating an org) */
+  const takeHandle = async (c: Context, userId: string) => {
+    const b = (await c.req.json().catch(() => ({}))) as { handle?: unknown };
+    if (typeof b.handle === "string" && b.handle.trim()) await sys.handles.set(userId, b.handle);
   };
   app.get("/v1/me", async (c) => {
     const p = c.get("principal");
@@ -146,16 +153,21 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     return c.json(await meView(p));
   });
   app.patch("/v1/me", async (c) => {
-    const b = await body(c, z.object({ displayName: z.string().trim().min(1).max(60) }));
-    await sys.auth.setDisplayName(me(c).user.id, b.displayName);
+    const b = await body(c, z.object({ displayName: z.string().trim().min(1).max(60).optional(), handle: z.string().trim().min(1).max(64).optional() }).refine((x) => x.displayName !== undefined || x.handle !== undefined, "Send a display name or a handle"));
+    if (b.displayName !== undefined) await sys.auth.setDisplayName(me(c).user.id, b.displayName);
+    if (b.handle !== undefined) await sys.handles.set(me(c).user.id, b.handle);
     return c.json(await meView((await sys.auth.principal(getCookie(c, SESSION_COOKIE)))!));
   });
+  // is a handle free? (signed out works too, for the join screen)
+  app.get("/v1/handles/:handle", async (c) => c.json(await sys.handles.check(c.req.param("handle").slice(0, 64), c.get("principal")?.user.id)));
 
   app.post("/v1/sites", async (c) => {
     const p = me(c);
     if (sys.cfg.BOOTSTRAP_ADMIN_ADDRESS && sys.cfg.BOOTSTRAP_ADMIN_ADDRESS.toLowerCase() !== p.user.address) throw new HttpError(403, "Only the configured administrator wallet can create sites");
-    const b = await body(c, z.object({ name: z.string().trim().min(2).max(80), timezone: z.string().min(1).max(60), lineName: z.string().trim().min(1).max(60), zones: z.array(z.string().max(60)).max(20) }));
-    const id = await sys.plant.createSite(b, p.user.id);
+    const b = await body(c, z.object({ name: z.string().trim().min(2).max(80), timezone: z.string().min(1).max(60), lineName: z.string().trim().min(1).max(60), zones: z.array(z.string().max(60)).max(20), handle: z.string().trim().min(1).max(64).optional() }));
+    if (b.handle) await sys.handles.set(p.user.id, b.handle);
+    const { handle: _handle, ...site } = b;
+    const id = await sys.plant.createSite(site, p.user.id);
     await sys.rec.decide(id, { agent: `user:${p.user.address}`, kind: "site.created", summary: `Created site ${b.name} with line ${b.lineName}` });
     return c.json({ id });
   });
@@ -193,6 +205,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const p = me(c);
     const siteId = c.req.param("siteId");
     if (!/^[\w-]{1,64}$/.test(siteId)) throw new HttpError(404, "No org with that code");
+    await takeHandle(c, p.user.id);
     const r = await sys.plant.join(siteId, p.user.id);
     if (r.joined) await sys.rec.decide(siteId, { agent: `user:${p.user.address}`, kind: "team.joined", summary: `${p.user.displayName ?? p.user.address} joined as a contributor` });
     return c.json({ ...r, me: await meView((await sys.auth.principal(getCookie(c, SESSION_COOKIE)))!) });
