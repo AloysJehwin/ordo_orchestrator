@@ -33,6 +33,8 @@ type Env = { Variables: { principal: Principal | null; siteId: string; roles: Ro
 
 const Hex = z.string().regex(/^0x[0-9a-fA-F]+$/) as unknown as z.ZodType<`0x${string}`>;
 const Address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+/** an address, or a name that resolves to one */
+const AddressOrName = z.string().trim().min(3).max(255);
 const SignedBody = z.object({ nonce: z.string().min(8), signature: Hex });
 const AssetBody = z.object({
   name: z.string().trim().min(1).max(60),
@@ -117,6 +119,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
       policy: sys.policy.policy,
       /** whether a run needs a machine on every stage (STAGE_MACHINES) */
       machinesRequired: sys.cfg.STAGE_MACHINES === "required",
+      /** the ENS root every name sits under (ordo.eth), when names are on */
+      ensRoot: sys.names.live ? sys.names.root : null,
     }),
   );
 
@@ -474,6 +478,17 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     await next();
   });
   const sid = (c: Context<Env>) => c.get("siteId");
+  // fields where people type an address also take a name (priya.acme.ordo.eth): resolved here, so the rest of Ordo sees addresses
+  const toAddress = async (c: Context<Env>, q: string) => (/^0x[0-9a-fA-F]{40}$/.test(q) ? (q.toLowerCase() as `0x${string}`) : sys.nameResolver.toAddress(sid(c), q));
+  const toAccount = async (c: Context<Env>, q: string) => (/^0\.0\.\d+$/.test(q) ? q : sys.nameResolver.toAccount(sid(c), q));
+  /** a ship-to: a Hedera account or an EVM address, or a name standing for one (its Hedera account first) */
+  const toShipTarget = async (c: Context<Env>, q: string) => {
+    if (/^(0\.0\.\d+|0x[0-9a-fA-F]{40})$/.test(q)) return q;
+    const r = await sys.nameResolver.resolve(sid(c), q);
+    const to = r.hedera ?? r.address;
+    if (!to) throw new HttpError(400, `${q} has no Hedera account or address to ship to`);
+    return to;
+  };
 
   site.get("/", async (c) => {
     const s = await sys.plant.site(sid(c));
@@ -559,9 +574,10 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   // a manager adds someone by wallet: they join as a contributor, and a manager promotes them from there
   site.post("/team/invites", async (c) => {
     need(c, "manager");
-    const b = await body(c, z.object({ address: Address }));
-    const r = await sys.plant.invite(sid(c), b.address, "contributor", me(c).user.id);
-    await sys.rec.decide(sid(c), { agent: actor(c), kind: "team.invited", summary: `${r.added ? "Added" : "Invited"} ${b.address} as a contributor` });
+    const b = await body(c, z.object({ address: AddressOrName }));
+    const address = await toAddress(c, b.address);
+    const r = await sys.plant.invite(sid(c), address, "contributor", me(c).user.id);
+    await sys.rec.decide(sid(c), { agent: actor(c), kind: "team.invited", summary: `${r.added ? "Added" : "Invited"} ${b.address === address ? address : `${b.address} (${address})`} as a contributor` });
     return c.json(r);
   });
   site.delete("/team/invites/:id", async (c) => {
@@ -678,8 +694,8 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     return c.json(await sys.budgets.view(sid(c)));
   });
   site.post("/treasury", async (c) => {
-    const b = await body(c, z.object({ accountId: z.string().regex(/^0\.0\.\d+$/, "a Hedera account id (0.0.x)").optional() }));
-    return c.json(await sys.budgets.open(sid(c), me(c).user, c.get("roles"), b.accountId));
+    const b = await body(c, z.object({ accountId: z.string().trim().min(3).max(255).optional() }));
+    return c.json(await sys.budgets.open(sid(c), me(c).user, c.get("roles"), b.accountId ? await toAccount(c, b.accountId) : undefined));
   });
   site.post("/budgets/:id/approve/sign-request", async (c) => c.json(await sys.budgets.approveRequest(sid(c), me(c).user, c.get("roles"), c.req.param("id"))));
   site.post("/budgets/:id/approve", async (c) => c.json(await sys.budgets.approve(sid(c), me(c).user, c.get("roles"), c.req.param("id"), await body(c, SignedBody))));
@@ -936,9 +952,12 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     await runFor(c, c.req.param("runId"));
     return c.json(await sys.passports.get(sid(c), c.req.param("runId")));
   });
-  const ShipTo = z.object({ to: z.string().regex(/^(0\.0\.\d+|0x[0-9a-fA-F]{40})$/, "A Hedera account id (0.0.x) or an EVM address") });
-  site.post("/runs/:runId/ship/sign-request", async (c) => c.json(await sys.passports.shipRequest(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), (await body(c, ShipTo)).to)));
-  site.post("/runs/:runId/ship", async (c) => c.json(await sys.passports.ship(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), await body(c, SignedBody.merge(ShipTo)))));
+  const ShipTo = z.object({ to: z.string().trim().min(3).max(255) });
+  site.post("/runs/:runId/ship/sign-request", async (c) => c.json(await sys.passports.shipRequest(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), await toShipTarget(c, (await body(c, ShipTo)).to))));
+  site.post("/runs/:runId/ship", async (c) => {
+    const b = await body(c, SignedBody.merge(ShipTo));
+    return c.json(await sys.passports.ship(sid(c), me(c).user, c.get("roles"), c.req.param("runId"), { ...b, to: await toShipTarget(c, b.to) }));
+  });
   site.get("/runs/:runId", async (c) => {
     const runId = c.req.param("runId");
     const run = await runFor(c, runId);
@@ -1164,7 +1183,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     return c.json(await sys.trust.vendors(sid(c)));
   });
   const VendorBody = z.object({
-    address: Address,
+    address: AddressOrName,
     company: z.string().trim().min(2).max(120),
     categories: z.string().max(200).default(""),
     hourlyRate: z.string().regex(/^\d+(\.\d+)?$/).nullable().default(null),
@@ -1173,11 +1192,12 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   site.post("/vendors/sign-request", async (c) => {
     need(c, "manager");
     const b = await body(c, VendorBody.extend({ chainId: z.number().int().optional() }));
-    return c.json(await sys.trust.vendorRequest(sid(c), me(c).user, b, b.chainId));
+    return c.json(await sys.trust.vendorRequest(sid(c), me(c).user, { ...b, address: await toAddress(c, b.address) }, b.chainId));
   });
   site.post("/vendors", async (c) => {
     need(c, "manager");
-    return c.json(await sys.trust.addVendor(sid(c), me(c).user, await body(c, VendorBody.merge(SignedBody))));
+    const b = await body(c, VendorBody.merge(SignedBody));
+    return c.json(await sys.trust.addVendor(sid(c), me(c).user, { ...b, address: await toAddress(c, b.address) }));
   });
   site.get("/chain", async (c) => c.json(await sys.trust.chainStatus(sid(c))));
   // registering the org in OrdoTrust: right after creating it (Setup), or later from Settings

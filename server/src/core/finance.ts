@@ -9,6 +9,7 @@ import { HttpError } from "../engine/errors.js";
 import { newId } from "../plant/plant.js";
 import type { Jobs } from "./jobs.js";
 import { KeyBox } from "./keybox.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 
 const JOB = { party: "finance.party", cashIn: "finance.cashin", fund: "finance.fund", offer: "finance.offer", take: "finance.take", waive: "finance.waive" } as const;
@@ -94,6 +95,8 @@ export interface FinanceOrderView {
  */
 export class PayOnProof {
   private keys: KeyBox;
+  /** ENS names: a customer's or financier's account memo is its name, so HashScan shows it */
+  names: Pick<Names, "ensure"> | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -172,7 +175,8 @@ export class PayOnProof {
     const p = await this.party(id);
     if (p.status !== "opening") return { skipped: "already open" };
     try {
-      const a = await this.bank!.open(`ordo:${p.kind}:${p.name}`);
+      const name = p.kind === "plant" ? null : await this.names?.ensure(p.site_id, p.kind === "financier" ? "financier" : "customer", id).catch(() => null);
+      const a = await this.bank!.open(name && name.length <= 100 ? name : `ordo:${p.kind}:${p.name}`);
       await this.db.query("UPDATE finance_parties SET account_id = $1, evm_address = $2, key_enc = $3, open_tx = $4, status = 'active', error = NULL WHERE id = $5", [
         a.accountId,
         a.evmAddress.toLowerCase(),

@@ -20,6 +20,8 @@ export interface BodyEnv {
   /** the machine's device key: its address is the asset's gateway (data source) */
   BODY_KEY: Hex;
   BODY_ASSET: string;
+  /** the machine's ENS name (cnc-07.machines.acme.ordo.eth), which its logs and episode header use */
+  BODY_NAME?: string;
   /** the kind of machine, which picks its process model and media */
   BODY_PROFILE: AssetKind;
   /** seed for the process model, so a run can be replayed */

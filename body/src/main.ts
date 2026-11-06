@@ -11,7 +11,7 @@ const USAGE = `ordo-body: a virtual machine's body.
   ordo-body                      run, configured by the environment Ordo starts it with
   ordo-body replay <log> [dir]   render an episode log's captures again and check them against what was signed
 
-Environment: ORDO_URL, BODY_KEY, BODY_ASSET, BODY_PROFILE, BODY_SEED; optional BODY_ASK_PORT, BODY_ASK_TOKEN,
+Environment: ORDO_URL, BODY_KEY, BODY_ASSET, BODY_PROFILE, BODY_SEED; optional BODY_NAME (the machine's ENS name), BODY_ASK_PORT, BODY_ASK_TOKEN,
 BODY_ASK_HOST, BODY_DATA_DIR, BODY_STAGE_S, BODY_TICK_S, BODY_DECIDE_S, BODY_FFMPEG, ZG_ROUTER_URL, ZG_ROUTER_KEY,
 ZG_ROUTER_MODEL, ZG_ROUTER_TRUST_MODE, HEDERA_NETWORK, MACHINE_ACCOUNT_ID, MACHINE_ACCOUNT_KEY (the machine's own account, which buys what its
 next stages consume over x402).`;
@@ -45,6 +45,7 @@ async function run() {
     url,
     key,
     asset: need("BODY_ASSET"),
+    name: process.env.BODY_NAME?.trim() || null,
     kind: kind as Exclude<AssetKind, "system">,
     seed: need("BODY_SEED"),
     dataDir: process.env.BODY_DATA_DIR?.trim() || null,

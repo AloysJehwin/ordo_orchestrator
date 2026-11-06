@@ -91,6 +91,17 @@
  * @property {Stage} stage
  * @property {string} guide
  * @property {RouterConfig} router
+ * @property {SessionNames} [names]  each party's ENS name, when the Ordo deployment issues names
+ */
+
+/**
+ * ENS names (ENSv2 under ordo.eth), each present only once issued or planned.
+ * @typedef {object} SessionNames
+ * @property {string} [org]  the org, like `acme.ordo.eth`
+ * @property {string} [run]  the lot, like `so-7781.runs.acme.ordo.eth`
+ * @property {string} [stage]  the stage, like `03-shell-build.so-7781.runs.acme.ordo.eth`
+ * @property {string} [machine]  the machine, like `cnc-07.machines.acme.ordo.eth`
+ * @property {string} [contributor]  you, like `priya.acme.ordo.eth`
  */
 
 /**

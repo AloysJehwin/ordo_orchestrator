@@ -263,13 +263,19 @@ function routerConfig(session) {
 function printBanner(terminal, session, { mock, model }) {
   const { style } = terminal;
   const { stage, org, contributor } = session;
+  const names = session.names ?? {};
   const row = (/** @type {string} */ label, /** @type {string} */ value) => terminal.print(`  ${style.dim(label.padEnd(8))} ${value}`);
   const stageFacts = [stage.code, stage.state, stage.orderRef ? `order ${stage.orderRef}` : ""].filter(Boolean).join(" · ");
-  row("Org", org?.name ?? "");
+  // each party by its ENS name when Ordo issues names, with the plain name beside it
+  row("Org", names.org ? `${names.org}${org?.name ? style.dim(`  ${org.name}`) : ""}` : (org?.name ?? ""));
+  if (names.run) row("Lot", names.run);
   row("Stage", `${stage.name}${stageFacts ? style.dim(`  ${stageFacts}`) : ""}`);
-  const who = contributor?.name
-    ? `${contributor.name}${contributor.address ? style.dim(`  ${shortAddress(contributor.address)}`) : ""}`
-    : shortAddress(contributor?.address ?? "");
+  if (names.stage) row("", style.dim(names.stage));
+  const who = names.contributor
+    ? `${names.contributor}${contributor?.name ? style.dim(`  ${contributor.name}`) : ""}`
+    : contributor?.name
+      ? `${contributor.name}${contributor.address ? style.dim(`  ${shortAddress(contributor.address)}`) : ""}`
+      : shortAddress(contributor?.address ?? "");
   row("You", who);
   row(
     "Model",
@@ -279,7 +285,7 @@ function printBanner(terminal, session, { mock, model }) {
         )
       : `${model}  ${style.dim(`0G Router, ${trustText(session.router?.trustMode)}`)}`,
   );
-  if (stage.machine) row("Machine", `${stage.machine.name ?? stage.machine.id}${stage.machine.answers ? "" : style.dim("  (no running body: it cannot be asked questions)")}`);
+  if (stage.machine) row("Machine", `${names.machine ?? stage.machine.name ?? stage.machine.id}${stage.machine.answers ? "" : style.dim("  (no running body: it cannot be asked questions)")}`);
   const outcomes = stage.outcomes ?? [];
   if (outcomes.length) {
     const captured = outcomes.filter((o) => o.captured).length;

@@ -12,6 +12,7 @@ import { newId } from "../plant/plant.js";
 import type { BodyService } from "./bodies.js";
 import { KeyBox } from "./keybox.js";
 import type { MachineOutputs } from "./outputs.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import type { Replicas, ReplicaView } from "./replicas.js";
 import { scaled, specCommitment, subjectOf } from "./spec-proofs.js";
@@ -267,6 +268,8 @@ const SELECT = `SELECT c.*, u.display_name AS name, s.display_name AS selected_b
  * goes to 0G Storage. A stage takes any number of contributions; a validator selects the valid one.
  */
 export class Contributions {
+  /** ENS names, so the terminal agent's banner and the machine's assignment say who and what by name */
+  names: Pick<Names, "many"> | null = null;
   /** Called with the contribution a validator selected, to close the stage from it (set by the selection flow). */
   replicas: Replicas | null = null;
   /** the media the stages' machines captured, which the terminal agent shows the contributor (set in wiring) */
@@ -397,8 +400,13 @@ export class Contributions {
     const open = s.status === "open";
     const outcomes = await this.sessionOutcomes(s.site_id, run.id, st);
     const machine = st.assetId ? { id: st.assetId, name: st.assetName, answers: Boolean(bodies) } : null;
+    // each party by its ENS name (priya.acme.ordo.eth, 03-shell-build.so-7781.runs.acme.ordo.eth…), when it has one
+    const names = (await this.names
+      ?.many(s.site_id, { org: ["org", s.site_id], run: ["run", run.id], stage: ["stage", `${run.id}:${st.code}`], machine: ["machine", st.assetId], contributor: ["person", s.user_id] })
+      .catch(() => null)) ?? {};
     return {
       sessionId: s.id,
+      names,
       status: s.status,
       expiresAt: new Date(s.expires_at).toISOString(),
       org: { id: s.site_id, name: site?.name ?? s.site_id },

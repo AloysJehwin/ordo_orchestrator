@@ -44,6 +44,8 @@ export interface MeteredMcpConfig {
 /** The parts of a public passport verify_lot reads */
 export interface LotPassport {
   name: string;
+  /** the lot's ENS name (so-7781.runs.acme.ordo.eth) and its org's, when names are on */
+  properties?: { ens?: string; org?: string };
   passport: {
     runId: string;
     status: string;
@@ -76,6 +78,8 @@ export function lotVerdict(p: LotPassport) {
     : "conforming: released by three signers and the record checks out";
   return {
     lot: p.name,
+    ...(p.properties?.ens ? { ens: p.properties.ens } : {}),
+    ...(p.properties?.org ? { org: p.properties.org } : {}),
     runId: v.runId,
     verdict,
     accept: verdict.startsWith("conforming"),

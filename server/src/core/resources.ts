@@ -10,6 +10,7 @@ import { HttpError } from "../engine/errors.js";
 import { fundedBuyers, type RunEngine } from "../pipelines/engine.js";
 import { predecessors } from "../pipelines/graph.js";
 import { newId, type PlantService } from "../plant/plant.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import { amountFor, hbarToTinybar, resourceNeed, roundQty, runBudget, tinybarToHbar, type RunBudget } from "./run-budget.js";
 
@@ -228,7 +229,11 @@ export interface DeliveryView {
   purchaseId: string;
   status: "pending" | "delivered";
   site: string;
-  vendor: { id: string; company: string; payTo: string };
+  /** name: the vendor's ENS name (acme-steel.vendors.acme.ordo.eth), when it has one */
+  vendor: { id: string; company: string; payTo: string; name?: string };
+  /** the org's and the run's ENS names, when they have them */
+  orgName?: string;
+  runName?: string;
   offer: { sku: string; label: string; kind: string; unit: string; price: string; leadMin: number };
   qty: number;
   amount: string;
@@ -341,6 +346,8 @@ export class Resources {
   private seeded = new Set<string>();
   /** the storefront's x402 middleware, when Ordo sells over x402 (a Hedera network and a pay-to account are set) */
   store: import("hono").MiddlewareHandler | null = null;
+  /** ENS names, so a purchase's HCS line and the storefront say who sold, who bought and for which stage by name */
+  names: Pick<Names, "many" | "nameOf"> | null = null;
 
   constructor(
     private db: Db,
@@ -483,7 +490,8 @@ export class Resources {
     if (!v) throw new HttpError(404, "No such vendor");
     const payTo = await this.payTo(vendorId);
     const offers = (await this.offerRows(v.site_id, false)).filter((o) => o.vendor_id === vendorId).map(offerView);
-    return { vendor: v.company, payTo, offers: offers.map((o) => ({ sku: o.sku, kind: o.kind, label: o.label, unit: o.unit, price: o.price, priceTinybar: o.priceTinybar, leadMin: o.leadMin, path: `/v1/x402/vendors/${vendorId}/offers/${encodeURIComponent(o.sku)}?qty=` })) };
+    const n = (await this.names?.many(v.site_id, { vendorName: ["vendor", vendorId], orgName: ["org", v.site_id] }).catch(() => null)) ?? {};
+    return { vendor: v.company, ...n, payTo, offers: offers.map((o) => ({ sku: o.sku, kind: o.kind, label: o.label, unit: o.unit, price: o.price, priceTinybar: o.priceTinybar, leadMin: o.leadMin, path: `/v1/x402/vendors/${vendorId}/offers/${encodeURIComponent(o.sku)}?qty=` })) };
   }
 
   private async activeOffer(vendorId: string, sku: string) {
@@ -555,9 +563,32 @@ export class Resources {
     const offer = await this.activeOffer(s.vendorId, s.sku);
     const deliveredAt = new Date(this.now() + (offer ? Number(offer.lead_min) : 0) * 60_000);
     await this.db.query("UPDATE resource_purchases SET status = 'delivered', buyer_account = $1, tx_id = $2, by_asset = $3, delivered_at = $4 WHERE id = $5", [s.payer, s.transaction || null, byAsset, deliveredAt.toISOString(), row.id]);
+    const names =
+      (await this.names
+        ?.many(row.site_id, {
+          run: ["run", row.run_id],
+          stage: ["stage", row.run_id && row.stage_code ? `${row.run_id}:${row.stage_code}` : null],
+          vendor: ["vendor", s.vendorId],
+          buyer: ["machine", byAsset],
+        })
+        .catch(() => null)) ?? {};
     const audit = this.bank
       ? await this.bank
-          .audit({ kind: "resource.purchase", site: row.site_id, run: row.run_id, stage: row.stage_code, resource: row.resource_key, vendor: s.vendorId, sku: s.sku, qty: Number(row.qty), amount: row.amount_tinybar, buyer: s.payer, asset: byAsset, tx: s.transaction })
+          .audit({
+            kind: "resource.purchase",
+            site: row.site_id,
+            run: row.run_id,
+            stage: row.stage_code,
+            resource: row.resource_key,
+            vendor: s.vendorId,
+            sku: s.sku,
+            qty: Number(row.qty),
+            amount: row.amount_tinybar,
+            buyer: s.payer,
+            asset: byAsset,
+            tx: s.transaction,
+            ...(Object.keys(names).length ? { names } : {}),
+          })
           .catch(() => null)
       : null;
     const payTo = (await this.payTo(s.vendorId)) ?? "";
@@ -589,7 +620,7 @@ export class Resources {
       stageCode: row.stage_code,
       assetId: byAsset,
       summary: `${asset ? asset.name : (s.payer ?? "A buyer")} bought ${Number(row.qty)} ${row.unit} of ${offer?.label ?? row.sku} from ${pending.vendor.company} for ${tinybarToHbar(row.amount_tinybar)} HBAR over x402${row.stage_code ? ` for stage ${row.stage_code}` : ""}`,
-      data: { purchaseId: row.id, vendorId: s.vendorId, sku: s.sku, qty: Number(row.qty), amountTinybar: row.amount_tinybar, buyer: s.payer, tx: s.transaction, audit, receiptSigner: this.receiptKey.address },
+      data: { purchaseId: row.id, vendorId: s.vendorId, sku: s.sku, qty: Number(row.qty), amountTinybar: row.amount_tinybar, buyer: s.payer, tx: s.transaction, audit, receiptSigner: this.receiptKey.address, ...(Object.keys(names).length ? { names } : {}) },
     });
     if (row.run_id) await this.engine.tickRun(row.site_id, row.run_id).catch((e) => console.error(`[ordo] run ${row.run_id} after a delivery`, e));
     return new TextEncoder().encode(JSON.stringify(await this.delivery(row.id, payTo)));
@@ -609,11 +640,14 @@ export class Resources {
   private async delivery(id: string, payTo: string): Promise<DeliveryView> {
     const p = (await this.purchaseRow(id))!;
     const o = await this.activeOffer(p.vendor_id, p.sku);
+    const n = (await this.names?.many(p.site_id, { vendor: ["vendor", p.vendor_id], orgName: ["org", p.site_id], runName: ["run", p.run_id] }).catch(() => null)) ?? {};
     return {
       purchaseId: p.id,
       status: p.status === "delivered" ? "delivered" : "pending",
       site: p.site_id,
-      vendor: { id: p.vendor_id, company: p.company ?? "", payTo },
+      ...(n.orgName ? { orgName: n.orgName } : {}),
+      ...(n.runName ? { runName: n.runName } : {}),
+      vendor: { id: p.vendor_id, company: p.company ?? "", payTo, ...(n.vendor ? { name: n.vendor } : {}) },
       offer: { sku: p.sku, label: o?.label ?? p.sku, kind: p.kind, unit: p.unit, price: o ? tinybarToHbar(o.price) : "", leadMin: o ? Number(o.lead_min) : 0 },
       qty: Number(p.qty),
       amount: tinybarToHbar(p.amount_tinybar),

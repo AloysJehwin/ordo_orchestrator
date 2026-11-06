@@ -240,6 +240,13 @@ export class Passports {
     const lastSeq = Math.max(0, ...decisions.map((d) => d.ledgerSeq ?? 0), ...[...zk.values()].map((z) => z.ledgerSeq ?? 0));
     const view = { ...this.view(p), ens: (await this.lots?.ofLot(runId)) ?? null };
     const name = `Lot ${run.orderRef}`;
+    // every part of the lot by its ENS name: the run (the lot), its org, each stage and the machine that ran it
+    const want: Record<string, ["stage" | "machine" | "run" | "org", string | null]> = { run: ["run", runId], org: ["org", p.site_id] };
+    for (const s of run.stages) {
+      want[`stage:${s.code}`] = ["stage", `${runId}:${s.code}`];
+      want[`machine:${s.code}`] = ["machine", s.assetId ?? null];
+    }
+    const named = (await this.names?.many(p.site_id, want).catch(() => null)) ?? {};
     return {
       // HIP-412 fields, so wallets and explorers render the NFT
       name,
@@ -247,7 +254,15 @@ export class Passports {
       description: `${run.quantity} units of ${run.templateName} v${run.templateVersion}, made at ${site?.name ?? "an Ordo site"}. Every stage, signature and release is in Ordo's hash-chained ledger.`,
       image: this.base ? `${this.base}/favicon.svg` : undefined,
       type: "image/svg+xml",
-      properties: { runId, status: p.status, orderRef: run.orderRef, quantity: run.quantity, product: `${run.templateName} v${run.templateVersion}` },
+      properties: {
+        runId,
+        status: p.status,
+        orderRef: run.orderRef,
+        quantity: run.quantity,
+        product: `${run.templateName} v${run.templateVersion}`,
+        ...(named.run ? { ens: named.run } : {}),
+        ...(named.org ? { org: named.org } : {}),
+      },
       // the passport
       passport: {
         ...view,
@@ -260,6 +275,8 @@ export class Passports {
         stages: run.stages.map((s) => ({
           code: s.code,
           name: s.name,
+          ens: named[`stage:${s.code}`] ?? null,
+          machineEns: named[`machine:${s.code}`] ?? null,
           state: s.state,
           mode: s.mode,
           resource: s.assetName ?? s.resourceKind,

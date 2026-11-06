@@ -20,6 +20,8 @@ export interface BodyConfig {
   url: string;
   key: Hex;
   asset: string;
+  /** the machine's ENS name (cnc-07.machines.acme.ordo.eth), when Ordo issues names: what its logs call it */
+  name?: string | null;
   kind: Exclude<AssetKind, "system">;
   seed: string;
   dataDir: string | null;
@@ -140,8 +142,8 @@ export class Body {
 
   async start() {
     const ff = await ffmpegPath();
-    this.log.add({ kind: "start", seed: this.cfg.seed, asset: this.cfg.asset, machine: this.cfg.kind, device: this.device, brain: this.cfg.brain ? "0g" : "none", model: this.cfg.brain?.model ?? null, ffmpeg: ff, hedera: this.cfg.hedera?.accountId ?? null });
-    console.log(`body ${this.cfg.asset} (${this.cfg.kind}) device ${this.device}: ${this.cfg.brain ? `0G brain ${this.cfg.brain.model}` : "no 0G brain (ZG_ROUTER_URL/KEY unset): runs without an agent"}; video ${ff ? `via ${ff}` : "skipped (no ffmpeg)"}`);
+    this.log.add({ kind: "start", seed: this.cfg.seed, asset: this.cfg.asset, ...(this.cfg.name ? { name: this.cfg.name } : {}), machine: this.cfg.kind, device: this.device, brain: this.cfg.brain ? "0g" : "none", model: this.cfg.brain?.model ?? null, ffmpeg: ff, hedera: this.cfg.hedera?.accountId ?? null });
+    console.log(`body ${this.cfg.name ?? this.cfg.asset} (${this.cfg.kind}) device ${this.device}: ${this.cfg.brain ? `0G brain ${this.cfg.brain.model}` : "no 0G brain (ZG_ROUTER_URL/KEY unset): runs without an agent"}; video ${ff ? `via ${ff}` : "skipped (no ffmpeg)"}`);
     if (this.cfg.hedera) console.log(`machine account ${this.cfg.hedera.accountId} on ${this.cfg.hedera.network}${this.buying.enabled ? ": buys ahead over x402" : ""}`);
     while (!this.stopped) {
       const t0 = Date.now();

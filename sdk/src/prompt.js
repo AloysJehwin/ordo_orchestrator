@@ -41,9 +41,10 @@ function formatTarget(value) {
  */
 export function stageContext(session) {
   const { stage, org, contributor } = session;
+  const names = session.names ?? {};
   const lines = [];
-  lines.push(`Organization: ${org?.name ?? "unknown"}`);
-  lines.push(`Contributor: ${contributor?.name || contributor?.address || "unknown"}`);
+  lines.push(`Organization: ${org?.name ?? "unknown"}${names.org ? ` (ENS ${names.org})` : ""}`);
+  lines.push(`Contributor: ${contributor?.name || contributor?.address || "unknown"}${names.contributor ? ` (ENS ${names.contributor})` : ""}`);
   const facts = [
     stage.code ? `code ${stage.code}` : "",
     stage.state ? `state ${stage.state}` : "",
@@ -51,6 +52,9 @@ export function stageContext(session) {
     stage.templateName ? `template ${stage.templateName}` : "",
   ].filter(Boolean);
   lines.push(`Stage: ${stage.name}${facts.length ? ` (${facts.join(", ")})` : ""}`);
+  if (names.stage) lines.push(`Stage ENS name: ${names.stage}`);
+  if (names.run) lines.push(`Lot ENS name: ${names.run}`);
+  if (names.machine) lines.push(`Machine ENS name: ${names.machine}`);
 
   lines.push("");
   if (stage.criteria.length) {

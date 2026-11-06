@@ -12,6 +12,8 @@ Run it. A short interview asks what you did on the stage, the values you measure
 
 Requires Node.js 22 or newer. No dependencies.
 
+When the Ordo deployment issues ENS names (ENSv2 under `ordo.eth`), the banner shows each party by its name: the org (`acme.ordo.eth`), the lot (`so-7781.runs.acme.ordo.eth`), the stage, the machine and you (`priya.acme.ordo.eth`), with the plain names beside them. The interviewer is told the same names.
+
 ## Usage
 
 ```sh

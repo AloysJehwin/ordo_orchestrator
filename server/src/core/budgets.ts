@@ -12,6 +12,8 @@ import { newId } from "../plant/plant.js";
 import { runBudget } from "./run-budget.js";
 import type { Inbox } from "./inbox.js";
 import { hbar } from "./machines.js";
+import { BUDGET_LABEL, topupLabel } from "./name-scheme.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import type { Templates } from "./templates.js";
 import type { Trust } from "./trust.js";
@@ -195,6 +197,8 @@ const iso = (s: string | null) => (s ? new Date(s).toISOString() : null);
 export class Budgets {
   /** today's cheapest offer per resource kind (tinybars per unit), so a run budget counts what machines will pay */
   offerPrices: ((siteId: string) => Promise<Map<string, bigint>>) | null = null;
+  /** ENS names, so a schedule's memo and an over-budget HCS line say which run, stage and machine by name */
+  names: Pick<Names, "predict" | "many"> | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -210,6 +214,15 @@ export class Budgets {
 
   get live() {
     return Boolean(this.rail && this.trust.chain);
+  }
+
+  /**
+   * A schedule's memo: the ENS name its budget or top-up will have (budget.so-7781.runs.acme.ordo.eth), so HashScan
+   * shows it, when the name fits Hedera's 100 bytes; else the old ordo:… memo.
+   */
+  private async memo(siteId: string, runId: string, label: string, fallback: string): Promise<string> {
+    const name = await this.names?.predict(siteId, "run", runId, label).catch(() => null);
+    return name && new TextEncoder().encode(name).length <= 100 ? name : fallback;
   }
   private need(): TreasuryRail {
     if (!this.rail || !this.trust.chain) throw new HttpError(409, "Org treasuries need OrdoTreasury (TREASURY_CONTRACT_ADDRESS) and OrdoTrust on Hedera");
@@ -492,7 +505,7 @@ export class Budgets {
       // another Ordo may have scheduled it meanwhile
       const live = await this.db.query("SELECT 1 FROM budget_schedules WHERE run_id = $1 AND kind = 'run' AND NOT (status = 'failed' AND executed_at IS NOT NULL)", [r.id]);
       if (live.rows.length) continue;
-      await this.schedule(r.site_id, { runId: r.id, kind: "run", treasury: r.account_id, credits: p.credits, lines: p.lines, memo: `ordo:budget:${r.id}` });
+      await this.schedule(r.site_id, { runId: r.id, kind: "run", treasury: r.account_id, credits: p.credits, lines: p.lines, memo: await this.memo(r.site_id, r.id, BUDGET_LABEL, `ordo:budget:${r.id}`) });
     }
   }
 
@@ -728,7 +741,10 @@ export class Budgets {
     if (shortfall <= 0n)
       throw new HttpError(409, allowed === null ? `${asset.name}'s balance (${hbar(balance)}) already covers ${hbar(amount)}` : `${hbar(amount)} is within what the stage allows (${hbar(allowed)}) and ${asset.name}'s balance`);
     if (shortfall > this.opts.topUpMax) throw new HttpError(409, `A top-up is capped at ${hbar(this.opts.topUpMax)}; ${hbar(shortfall)} needs a run budget`);
-    // the reasoning, consensus-timestamped on HCS before the schedule exists
+    // the reasoning, consensus-timestamped on HCS before the schedule exists, naming what it is about
+    const names = (await this.names
+      ?.many(run.site_id, { run: ["run", run.id], stage: ["stage", `${run.id}:${b.stage}`], machine: ["machine", asset.id], vendor: ["vendor", b.vendorId] })
+      .catch(() => null)) ?? {};
     const hcs = await rail
       .audit({
         kind: "budget.overbudget",
@@ -749,6 +765,7 @@ export class Budgets {
         valueAtRisk: b.valueAtRisk ?? null,
         device,
         asset: asset.id,
+        ...(Object.keys(names).length ? { names } : {}),
       })
       .catch((e: unknown) => {
         throw new HttpError(502, `The reasoning could not be written to HCS, so no top-up was scheduled: ${e instanceof Error ? e.message : e}`);
@@ -777,7 +794,7 @@ export class Budgets {
       treasury: t.account_id,
       credits: [credit],
       lines: [line],
-      memo: `ordo:topup:${run.id}:${b.stage}:${b.resource}`,
+      memo: await this.memo(run.site_id, run.id, topupLabel(b.stage, b.resource), `ordo:topup:${run.id}:${b.stage}:${b.resource}`),
       stageCode: b.stage,
       resource: b.resource,
       extra: { reasoning: b.reasoning, ...(b.requestId ? { request_id: b.requestId } : {}), ...(b.valueAtRisk ? { value_at_risk: b.valueAtRisk } : {}), device: device.toLowerCase(), asset_id: asset.id, hcs_json: JSON.stringify(hcs) },

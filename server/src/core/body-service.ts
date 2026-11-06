@@ -15,6 +15,7 @@ import type { BodyAnswer, BodyEnv, BodyRunner, BodyRuntime, BodyService, BodySta
 import { KeyBox } from "./keybox.js";
 import type { Machines } from "./machines.js";
 import type { Readings } from "./readings.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 import type { Replicas } from "./replicas.js";
 
@@ -117,6 +118,8 @@ const iso = (s: string | null) => (s ? new Date(s).toISOString() : null);
  */
 export class Bodies implements BodyService {
   replicas: Replicas | null = null;
+  /** ENS names: a body is started with its machine's name, which its logs use */
+  names: Pick<Names, "ensure"> | null = null;
   private keys: KeyBox;
   private wallets: KeyBox;
   private lastReconcile = 0;
@@ -245,10 +248,12 @@ export class Bodies implements BodyService {
     const wallet = (
       await this.db.query<{ account_id: string | null; key_enc: string | null; status: string }>("SELECT account_id, key_enc, status FROM machine_wallets WHERE asset_id = $1", [assetId])
     ).rows[0];
+    const name = await this.names?.ensure(siteId, "machine", assetId).catch(() => null);
     const env: BodyEnv = {
       ORDO_URL: ordoUrl,
       BODY_KEY: this.keys.unseal(row.key_enc) as Hex,
       BODY_ASSET: assetId,
+      ...(name ? { BODY_NAME: name } : {}),
       BODY_PROFILE: asset.kind,
       BODY_SEED: row.seed,
       BODY_ASK_TOKEN: this.keys.unseal(row.ask_token_enc),

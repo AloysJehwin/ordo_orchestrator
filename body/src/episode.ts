@@ -10,7 +10,7 @@ import type { CaptureSpec } from "./media/capture.js";
  * includes what its machine bought ahead and every top-up it asked the treasury for.
  */
 export type Entry = { t: string; runId?: string; stage?: string } & (
-  | { kind: "start"; seed: string; asset: string; machine: AssetKind; device: string; brain: "0g" | "none"; model: string | null; ffmpeg: string | null; hedera: string | null }
+  | { kind: "start"; seed: string; asset: string; name?: string; machine: AssetKind; device: string; brain: "0g" | "none"; model: string | null; ffmpeg: string | null; hedera: string | null }
   | { kind: "stage"; event: "started" | "resumed" | "units_done" | "finished" | "held" | "released"; name: string; quantity?: number }
   | ({ kind: "capture"; sha256: string | null; previewSha256: string | null; mime: string | null; uploaded: boolean; version?: number; skipped?: string; error?: string } & Omit<CaptureSpec, "seed" | "asset" | "kind" | "device">)
   | { kind: "perception"; outcome: string; attempt: number; value: number | null; summary: string; anomaly: string | null; requestId: string | null; provider: string | null; teeVerified: boolean | null; model: string | null; ms: number }

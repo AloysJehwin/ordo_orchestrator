@@ -500,6 +500,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
       hederaNetwork: cfg.HEDERA_NETWORK,
     }, now);
     bodies.replicas = validation.replicas ?? null;
+    bodies.names = names;
     if (bodyRuntime) void bodies.resume().catch((e) => console.error("[ordo] bodies", e));
   }
 
@@ -572,6 +573,11 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const { Budgets } = await import("./core/budgets.js");
   const budgets = new Budgets(db, rec, sigs, inbox, engine, templates, trust, trustChain ? treasuryRail : null, { marginPct: cfg.TREASURY_BUDGET_MARGIN_PCT, hours: cfg.TREASURY_BUDGET_HOURS, seed: cfg.TREASURY_SEED_TINYBARS, topUpMax: cfg.TREASURY_TOPUP_MAX_TINYBARS }, now);
   budgets.offerPrices = (siteId) => resources.offerPrices(siteId);
+  budgets.names = names;
+  resources.names = names;
+  machines.names = names;
+  contributions.names = names;
+  payOnProof.names = names;
 
   // upload-heavy passes (evidence copies and agent memory on 0G Storage take tens of seconds each) run beside the cycle,
   // one at a time, so the engine and the org's money never wait on a file copy and two cycles never upload the same file

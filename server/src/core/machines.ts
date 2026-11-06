@@ -10,6 +10,7 @@ import { newId } from "../plant/plant.js";
 import type { AssessmentBuyer } from "./assessments.js";
 import type { Jobs } from "./jobs.js";
 import { KeyBox } from "./keybox.js";
+import type { Names } from "./names.js";
 import type { Recorder } from "./recorder.js";
 
 const OPEN_JOB = "machine.open";
@@ -69,6 +70,8 @@ export interface MachineWalletView {
  */
 export class Machines {
   private keys: KeyBox;
+  /** ENS names: a machine's account memo is its name (cnc-07.machines.acme.ordo.eth), so HashScan shows it */
+  names: Pick<Names, "ensure"> | null = null;
   constructor(
     private db: Db,
     private rec: Recorder,
@@ -147,7 +150,8 @@ export class Machines {
     if (!w || w.status !== "opening") return { skipped: "nothing to open" };
     const asset = await this.plant.asset(w.site_id, assetId);
     try {
-      const a = await this.bank!.open(BigInt(w.daily_budget), `ordo:machine:${asset.name}`);
+      const name = await this.names?.ensure(w.site_id, "machine", assetId).catch(() => null);
+      const a = await this.bank!.open(BigInt(w.daily_budget), name && name.length <= 100 ? name : `ordo:machine:${asset.name}`);
       await this.db.query("UPDATE machine_wallets SET account_id = $1, evm_address = $2, key_enc = $3, open_tx = $4, status = 'active', last_topup_at = $5, error = NULL, updated_at = now() WHERE asset_id = $6", [
         a.accountId,
         a.evmAddress,

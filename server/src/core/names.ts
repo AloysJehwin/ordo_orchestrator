@@ -420,6 +420,8 @@ export class Names {
       [siteId],
     );
     for (const f of parties.rows) {
+      // the plant's own pay-on-proof account belongs to the org, not to a customer
+      if (f.kind === "plant") continue;
       const kind = f.kind === "financier" ? "financier" : "customer";
       await upsert({
         kind,
@@ -905,6 +907,34 @@ export class Names {
   async nameOf(siteId: string, kind: NameKind, ref: string): Promise<string | null> {
     return (await this.db.query<{ name: string }>("SELECT name FROM ens_names WHERE id = $1", [`ens:${siteId}:${key(kind, ref)}`])).rows[0]?.name ?? null;
   }
+  /**
+   * Names for a set of entities at an org, under the keys given; entities without a name are left out. For HCS lines,
+   * memos, logs and summaries, so each says what it is about by name.
+   */
+  async many(siteId: string, want: Record<string, [NameKind, string | null | undefined]>): Promise<Record<string, string>> {
+    const ids = new Map<string, string[]>();
+    for (const [k, [kind, ref]] of Object.entries(want)) if (ref) ids.set(`ens:${siteId}:${key(kind, ref)}`, [...(ids.get(`ens:${siteId}:${key(kind, ref)}`) ?? []), k]);
+    if (!ids.size || !this.live) return {};
+    const r = await this.db.query<{ id: string; name: string }>("SELECT id, name FROM ens_names WHERE id = ANY($1) AND status <> 'revoked'", [[...ids.keys()]]);
+    const out: Record<string, string> = {};
+    for (const x of r.rows) for (const k of ids.get(x.id) ?? []) out[k] = x.name;
+    return out;
+  }
+
+  /**
+   * The name a new child of an entity will get (label.parent, with -2, -3… while taken): for a Hedera memo written
+   * before the child exists. Null when the parent has no name.
+   */
+  async predict(siteId: string, parentKind: NameKind, parentRef: string, label: string): Promise<string | null> {
+    const parent = await this.ensure(siteId, parentKind, parentRef);
+    if (!parent) return null;
+    for (let n = 1; n < 100; n++) {
+      const name = `${withSuffix(label, n)}.${parent}`;
+      if (!(await this.db.query("SELECT 1 FROM ens_names WHERE name = $1", [name])).rows.length) return name;
+    }
+    return null;
+  }
+
   /** Is an entity's name on-chain yet? */
   async statusOf(siteId: string, kind: NameKind, ref: string): Promise<Status | null> {
     return (await this.db.query<{ status: Status }>("SELECT status FROM ens_names WHERE id = $1", [`ens:${siteId}:${key(kind, ref)}`])).rows[0]?.status ?? null;
@@ -949,7 +979,7 @@ export class Names {
   /** A person's names across their orgs: their handle in each, and the role names they hold. */
   async ofUser(userId: string): Promise<{ siteId: string; kind: NameKind; name: string; status: Status; url: string }[]> {
     const r = await this.db.query<{ site_id: string; kind: NameKind; name: string; status: Status }>(
-      "SELECT site_id, kind, name, status FROM ens_names WHERE (kind = 'person' AND ref = $1) OR (kind = 'role' AND ref LIKE $2) AND id NOT LIKE '%:was:%' ORDER BY depth, created_at",
+      "SELECT site_id, kind, name, status FROM ens_names WHERE ((kind = 'person' AND ref = $1) OR (kind = 'role' AND ref LIKE $2)) AND id NOT LIKE '%:was:%' ORDER BY depth, created_at",
       [userId, `%:${userId}`],
     );
     return r.rows.filter((x) => x.status !== "revoked").map((x) => ({ siteId: x.site_id, kind: x.kind, name: x.name, status: x.status, url: this.rail?.appUrl(x.name) ?? "" }));
