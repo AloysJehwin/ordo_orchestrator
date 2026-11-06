@@ -15,7 +15,7 @@ One place holds every setting for every environment: **Vercel project environmen
 | Rail | Network | Variables |
 | --- | --- | --- |
 | OrdoTrust, OrdoWorkOrders, OrdoPolicies, OrdoPayOnProof, HCS anchors, lot passports, schedules | Hedera testnet (chain 296) | `TRUST_*`, `HEDERA_*`, `PAY_ON_PROOF_ADDRESS` |
-| ENS names, OrdoEnsRoles, OrdoLotResolver | Sepolia | `ENS_*` |
+| ENS names under ordo.eth, OrdoNames, OrdoRunResolver ([ens.md](ens.md)) | Sepolia | `ENS_*` |
 | 0G Storage, 0G Compute, OrdoAgentNFT | 0G Galileo testnet (chain 16602) | `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PRIVATE_KEY`, `ZG_INFT_ADDRESS` |
 | 0G Private Computer Router (proof-of-work interviews) | 0G mainnet by default, where the account's credits are; `ZG_ROUTER_NETWORK=testnet` switches it | `ZG_ROUTER_*` |
 
@@ -86,7 +86,7 @@ npx vercel env pull .env.preview --environment=preview && \
   (cd server && node --env-file=../.env.preview --import tsx scripts/doctor.ts)
 ```
 
-It validates every variable and checks each configured rail against the real service: database and schema, Gemini model, Hedera operator balance, ledger topic, JSON-RPC chain id, vault deployment and balance, policy registry match, ENS reverse resolution, 0G endpoints, the 0G Private Computer (management key, Router balance, a healthy private-mode TeeML provider for the chat model, the audio model served as TeeML), and whether OrdoTrust is v3. It exits non-zero on any failure, so it can gate a deploy. `pnpm run doctor` in `server/` is the same as `pnpm env:doctor` at the root.
+It validates every variable and checks each configured rail against the real service: database and schema, Gemini model, Hedera operator balance, ledger topic, JSON-RPC chain id, vault deployment and balance, policy registry match, ENS reverse resolution, ENS names (owner balance, who holds the root, OrdoNames' roles on the registry and resolver, the run resolver, the base fee), 0G endpoints, the 0G Private Computer (management key, Router balance, a healthy private-mode TeeML provider for the chat model, the audio model served as TeeML), and whether OrdoTrust is v3. It exits non-zero on any failure, so it can gate a deploy. `pnpm run doctor` in `server/` is the same as `pnpm env:doctor` at the root.
 
 ## Variables
 
@@ -114,7 +114,9 @@ It validates every variable and checks each configured rail against the real ser
 | (metered MCP) | – | on with x402 | on with x402 | No variables of their own: wherever x402 sells assessments (`HEDERA_NETWORK` and `X402_PAY_TO` or `HEDERA_OPERATOR_ID`), `/v1/x402/mcp` sells MCP tools at `X402_PRICE_TINYBARS` a call |
 | `STABLECOIN_ADDRESS`, `STABLECOIN_TOKEN_ADDRESS`, `PAY_ON_PROOF_ADDRESS` (+ `STABLECOIN_SYMBOL`, `STABLECOIN_DECIMALS`, `PAY_ON_PROOF_PARTY_TINYBARS`) | – | testnet | testnet | Pay on proof: Ordo USD, made with Stablecoin Studio, and OrdoPayOnProof, from **Hedera setup** (`stablecoin`, then `payonproof`, which write them to Vercel). Uses the OrdoTrust chain settings (`TRUST_RPC_URL`, `TRUST_CHAIN_ID`, `TRUST_RELAYER_KEY`, the stablecoin's cash-in role); parties' accounts open with `PAY_ON_PROOF_PARTY_TINYBARS` (5 HBAR) for gas |
 | `IDENTITY`, `ENS_RPC_URL` | plain | ens | ens | `ens` shows people's primary ENS names (mainnet reverse resolution) |
-| `ENS_PARENT_NAME`, `ENS_REGISTRY_ADDRESS`, `ENS_RESOLVER_ADDRESS`, `ENS_OWNER_KEY`, `ENS_SEPOLIA_RPC_URL` | – | sepolia | sepolia | ENSv2 names for the site, people, assets and agents, from the **ENS setup** workflow (which writes all four to Vercel). The RPC defaults to a public Sepolia endpoint |
+| `ENS_PARENT_NAME`, `ENS_REGISTRY_ADDRESS`, `ENS_RESOLVER_ADDRESS`, `ENS_OWNER_KEY`, `ENS_SEPOLIA_RPC_URL` | – | sepolia | sepolia | The ENSv2 root (`ordo.eth`), its registry, Ordo's resolver and the key that owns them, from `ENS_LABEL=ordo pnpm --filter @ordo/contracts setup:ens`. The RPC is a comma list, defaulting to `https://1rpc.io/sepolia,https://sepolia.drpc.org` |
+| `ENS_NAMES_ADDRESS`, `ENS_RUN_RESOLVER_ADDRESS` | – | sepolia | sepolia | OrdoNames (issues every name, roles read from it) and OrdoRunResolver (releases on run names), from `setup:ens-contracts`. Without the first nothing is named ([ens.md](ens.md)) |
+| `ENS_MAX_FEE_GWEI`, `ENS_DAILY_ETH`, `ENS_BATCH_GAS`, `ENS_NAME_YEARS` | 2 · 0.02 · 9000000 · 1 | same | same | Sending pauses above the base fee or past the day's spend; gas per batch; how long names are registered for. `ENS_ROLES_ADDRESS` and `ENS_LOT_RESOLVER_ADDRESS` are retired |
 | `EVIDENCE_STORE`, `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL` | local | 0g | 0g | `0g` copies validation evidence to 0G Storage (Galileo testnet), encrypted with a key derived from `ZG_PRIVATE_KEY`, and records each Merkle root in the ledger |
 | `LLM_PROVIDER=0g`, `ZG_PROVIDER_ADDRESS` | – | optional | optional | Diagnosis and recommendations on 0G Compute; each answer's TEE signature is checked. Needs a funded compute ledger (3 0G, plus 1 0G per provider); without `ZG_PROVIDER_ADDRESS` the first verifiable chatbot provider is used |
 | `ZG_INFT_ADDRESS`, `ZG_CHAIN_ID` | – | 0G | 0G | `OrdoAgentNFT` on 0G Galileo (16602), from the **0G setup** workflow (`inft`): each agent of each site is an ERC-7857 iNFT, minted and updated with `ZG_PRIVATE_KEY` |

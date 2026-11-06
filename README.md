@@ -18,6 +18,12 @@ Ordo runs production pipelines across machines, robots, vehicles and people. Sof
 10. **Money moves on Hedera, under the manager's signature.** Each org's treasury is a Hedera account keyed to its own contract, so no server key can move its HBAR. A run's budget and a machine's over-budget top-up are scheduled transfers that execute when a manager approves them through OrdoTreasury (HIP-755) and lapse on the ledger otherwise; the machine's reasoning is on HCS before the schedule exists ([docs/hedera.md](docs/hedera.md)).
 11. **Validation packages** prove a stage or change works: agent pre-check from run data, hashed evidence files, and a three-signature chain (performed, reviewed, approved) where one person cannot sign twice (an org's only manager may approve a package they performed; someone else still reviews it).
 12. **Verify** re-walks the ledger from genesis and checks each anchor (Ed25519 checkpoint, or a Hedera Consensus Service message via the mirror node).
+13. **A name for everything, on ENSv2.** Every org, person, role, machine, agent, line, vendor, run, stage, budget and work order has an ENS name under `ordo.eth` on Sepolia, registered on-chain in batches by `OrdoNames`.
+    - People pick a handle: `priya.acme.ordo.eth`, minted to their wallet.
+    - Holding `priya.validators.acme.ordo.eth` is holding the role, and contracts read roles from these names.
+    - A run's name is its lot. `OrdoRunResolver` records the release on it after checking the signers' role names and every proof.
+    - The console, the CLI, machine bodies, Hedera memos, HCS lines and the passport all show names in place of addresses and ids, and address fields take names.
+    - See [docs/ens.md](docs/ens.md).
 
 ![Validation package](docs/img/validation.png)
 
@@ -64,12 +70,12 @@ flowchart LR
     act -.-> kit["Hedera Agent Kit"] -.-> vault["OrdoWorkOrders (Hedera EVM)"]
     mon -.-> og["0G Compute"]
     pow["ordo-pow CLI"] -.-> pc["0G Private Computer"]
-    ui -.-> ens["ENS primary names"]
+    ui -.-> ens["ENSv2 names under ordo.eth (OrdoNames, OrdoRunResolver)"]
 ```
 
 | Rail | Default | Partner |
 | --- | --- | --- |
-| Identity | Wallet sign-in (EIP-4361) | ENS primary names shown for team members |
+| Identity | Wallet sign-in (EIP-4361) | ENSv2 on Sepolia: every entity named under `ordo.eth`, people by handle, roles as names held ([docs/ens.md](docs/ens.md)) |
 | Decisions | EIP-712 signatures verified server-side | ERC-1271 smart wallets via `AUTH_RPC_URL` |
 | Ledger anchor | Ed25519-signed checkpoint | Hedera Consensus Service topic, verified through the mirror node |
 | Roles and stakes | Four roles kept in Ordo, granted by a manager's signature | `OrdoTrust`: credentials, validator and tester stakes, release records; v3 adds cases and rewards. v3 live on Hedera testnet at [`0x9294…32fc`](https://hashscan.io/testnet/contract/0x9294c81d116a9924edbaec601589ab00dca832fc) |

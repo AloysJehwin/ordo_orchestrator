@@ -121,6 +121,46 @@ await check("ens", cfg.IDENTITY === "ens", async () => {
   return `reverse resolution works (${found.join(", ")})`;
 });
 
+// ---- ENS names (ENSv2 on Sepolia under ENS_PARENT_NAME, issued by OrdoNames) ----
+const ensSet = Boolean(cfg.ENS_PARENT_NAME && cfg.ENS_REGISTRY_ADDRESS && cfg.ENS_RESOLVER_ADDRESS && cfg.ENS_OWNER_KEY);
+await check(
+  "ens names",
+  ensSet,
+  async () => {
+    const { EnsV2, ENSV2_SEPOLIA, NAMES_ROOT_ROLES, NAMES_RESOLVER_ROLES } = await import("../src/chain/ensv2.js");
+    const ens = new EnsV2({
+      rpcUrl: cfg.ENS_SEPOLIA_RPC_URL,
+      ownerKey: cfg.ENS_OWNER_KEY!.replace(/^(0x)?/, "0x") as `0x${string}`,
+      parentName: cfg.ENS_PARENT_NAME!,
+      parentRegistry: cfg.ENS_REGISTRY_ADDRESS as `0x${string}`,
+      resolver: cfg.ENS_RESOLVER_ADDRESS as `0x${string}`,
+      chainId: cfg.ENS_CHAIN_ID,
+      names: cfg.ENS_NAMES_ADDRESS as `0x${string}` | undefined,
+      runResolver: cfg.ENS_RUN_RESOLVER_ADDRESS as `0x${string}` | undefined,
+    });
+    const balance = await ens.balanceEth();
+    if (balance < 0.002) throw new Error(`the ENS owner holds ${balance.toFixed(4)} Sepolia ETH: names cannot be sent (top it up)`);
+    const [label] = cfg.ENS_PARENT_NAME!.split(".");
+    if (cfg.ENS_PARENT_NAME!.split(".").length === 2) {
+      const holder = (await ens.ownerOf(ENSV2_SEPOLIA.ethRegistry as `0x${string}`, label!)).toLowerCase();
+      if (holder !== ens.owner.toLowerCase()) throw new Error(`${cfg.ENS_PARENT_NAME} is held by ${holder}, not the ENS owner key's account`);
+    }
+    if (!cfg.ENS_NAMES_ADDRESS) throw new Error("ENS_NAMES_ADDRESS is not set: names are off (pnpm --filter @ordo/contracts setup:ens-contracts)");
+    const names = cfg.ENS_NAMES_ADDRESS as `0x${string}`;
+    if (!(await ens.hasCode(names))) throw new Error(`no OrdoNames at ${names} on Sepolia`);
+    if (!(await ens.hasRootRoles(cfg.ENS_REGISTRY_ADDRESS as `0x${string}`, NAMES_ROOT_ROLES, names))) throw new Error("OrdoNames lacks its roles on the root registry (setup:ens-contracts grants them)");
+    if (!(await ens.hasRootRoles(cfg.ENS_RESOLVER_ADDRESS as `0x${string}`, NAMES_RESOLVER_ROLES, names))) throw new Error("OrdoNames lacks its roles on the resolver (setup:ens-contracts grants them)");
+    const releases = cfg.ENS_RUN_RESOLVER_ADDRESS && (await ens.hasCode(cfg.ENS_RUN_RESOLVER_ADDRESS as `0x${string}`));
+    const fee = await ens.baseFeeGwei();
+    if (fee > cfg.ENS_MAX_FEE_GWEI) warn("ens names", `Sepolia's base fee is ${fee.toFixed(2)} gwei, over ENS_MAX_FEE_GWEI (${cfg.ENS_MAX_FEE_GWEI}): sending waits until it drops`);
+    if (!releases) warn("ens names", "no OrdoRunResolver (ENS_RUN_RESOLVER_ADDRESS): runs are named, but releases are not recorded on them");
+    return `under ${cfg.ENS_PARENT_NAME} · OrdoNames ${names.slice(0, 10)}… holds its roles · owner ${balance.toFixed(4)} ETH · base fee ${fee.toFixed(2)} gwei${releases ? " · releases recorded on run names" : ""}`;
+  },
+  "ENS_PARENT_NAME, ENS_REGISTRY_ADDRESS, ENS_RESOLVER_ADDRESS and ENS_OWNER_KEY not set: nothing gets an ENS name",
+);
+for (const k of ["ENS_ROLES_ADDRESS", "ENS_LOT_RESOLVER_ADDRESS"] as const)
+  if (process.env[k]) warn("ens names", `${k} is retired (OrdoNames and OrdoRunResolver replace it): remove it`);
+
 // ---- 0G storage ----
 await check("evidence: 0g storage", cfg.EVIDENCE_STORE === "0g", async () => {
   if (!cfg.ZG_PRIVATE_KEY) throw new Error("ZG_PRIVATE_KEY missing");

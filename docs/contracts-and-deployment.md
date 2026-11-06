@@ -174,13 +174,25 @@ Contracts are **immutable** — no proxies. A fix means deploying a new address 
 
 ## 5. ENS (Sepolia, ENSv2)
 
-1. **ENS setup** workflow (`contracts/scripts/ens-setup.ts`): deploys Ordo's `PermissionedResolver` and a `UserRegistry` through ENS's `VerifiableFactory`, registers `<label>.eth` on the v2 `ETHRegistrar` pointing at both, and writes `ENS_PARENT_NAME`, `ENS_REGISTRY_ADDRESS`, `ENS_RESOLVER_ADDRESS` and `ENS_OWNER_KEY` to Vercel.
-2. The app (`server/src/core/names.ts`) reconciles names in the engine cycle: the site gets `<site>.<parent>` and its own `UserRegistry` (ENSv2's per-name registries); people, assets and agents get names in it.
-3. People's names are minted to their wallet with an empty role bitmap: the holder cannot transfer or repoint the name, and the site, which keeps the registry's root roles, unregisters it when the person holds no role. A role change updates the records.
-4. Records (Ordo's resolver): `addr` (people, and the maintenance agent's account), `description`, `url`, `com.ordo.type` (`site` / `person` / `asset` / `agent`), `com.ordo.site`, `com.ordo.roles`, `com.ordo.validator` (scope), `com.ordo.signed` (validation signatures given at the site), `com.ordo.kind` (assets), `com.ordo.status` (`revoked`).
-5. Names show wherever a person's address does: the team list and the public lot passport.
-6. **Names as credentials** (`OrdoEnsRoles`): a wallet holds an on-chain role at a site only while it owns its member name and the name's `com.ordo.roles` / `com.ordo.validator` records grant it. Revoking the name revokes the role in every contract that asks. Deployed with `contracts <url>` in `.github/deploy/ens.request` (`contracts/scripts/ens-contracts.ts`), which sets `ENS_ROLES_ADDRESS` and `ENS_LOT_RESOLVER_ADDRESS`. Live on Sepolia at [`0x100f…ab91`](https://sepolia.etherscan.io/address/0x100f40fbdec56c458d0aa350b9971040d83eab91) (24 Oct 2026).
-7. **Lot names** (`OrdoLotResolver`, `server/src/core/lot-names.ts`): the app links each site in `OrdoEnsRoles` and points the site name at the lot resolver, so `lot-<order>.<site>.<parent>` resolves for every lot with no gas. Released validation packages are recorded on the lot's name with their three signatures and their proofs: `OrdoStageVerifier` checks each stage's count proof and `OrdoSpecVerifier` each source-signed parameter proof, the signers' member names must hold the device or operator role, and the folded root must match the one the three signed. Signatures are accepted only from credentialed member names (`com.ordo.release`, `.package`, `.signers`, `.at`, `.count`). Other records (`url` to the passport, `com.ordo.status`, `com.ordo.product`, `com.ordo.order`, `com.ordo.quantity`, `com.ordo.nft`) come from the CCIP-Read gateway at `/v1/public/ens/{sender}/{data}.json`, signed with the ENS owner key. Live on Sepolia at [`0x83bc…5795`](https://sepolia.etherscan.io/address/0x83bcae34de88b862f9641a408d926e1964b25795), with `OrdoStageVerifier` [`0xadf0…3d22`](https://sepolia.etherscan.io/address/0xadf064b185151dad607a86f48166c36df1333d22) and `OrdoSpecVerifier` [`0xd4c4…ed17`](https://sepolia.etherscan.io/address/0xd4c4b8438c6519d6830668365068560e0239ed17) (24 Oct 2026).
+The full design is in [ens.md](ens.md). In short:
+
+1. **Register the root:** `ENS_LABEL=ordo pnpm --filter @ordo/contracts setup:ens` (`contracts/scripts/ens-setup.ts`).
+   - It deploys Ordo's `PermissionedResolver` and a `UserRegistry` through ENS's `VerifiableFactory`.
+   - It registers `ordo.eth` on the v2 `ETHRegistrar` for 2 years (`ENS_YEARS`), paid in Sepolia mock USDC, and sets the registry's parent.
+   - It prints `ENS_PARENT_NAME`, `ENS_REGISTRY_ADDRESS`, `ENS_RESOLVER_ADDRESS` and `ENS_OWNER_KEY`.
+2. **Deploy the contracts:** `pnpm --filter @ordo/contracts setup:ens-contracts` (`contracts/scripts/ens-contracts.ts`).
+   - It deploys `OrdoNames` and `OrdoRunResolver`, reusing `OrdoStageVerifier` and `OrdoSpecVerifier`.
+   - It grants OrdoNames `REGISTRAR | UNREGISTER | RENEW | SET_SUBREGISTRY | SET_RESOLVER` on the root registry and `0x111` on the resolver.
+   - It prints `ENS_NAMES_ADDRESS` and `ENS_RUN_RESOLVER_ADDRESS`.
+3. **The app names everything** (`server/src/core/names.ts`).
+   - Each engine cycle it plans every org's names: the org with its own registry and collections, people by handle, role names, machines, agents, lines, vendors, parties, pipelines, runs, stages, budgets, top-ups and work orders.
+   - It sends them to `OrdoNames.execute` in batches of up to 16 ops, under `ENS_MAX_FEE_GWEI` and `ENS_DAILY_ETH`.
+4. **Names as credentials** (`OrdoNames.roles`). Holding a name in an org's managers, validators, testers or contributors registry is holding that role. A machine name owned by a device key gives DEVICE, a vendor name VENDOR. Revoking the name revokes the role in every contract that asks.
+5. **Releases on run names** (`OrdoRunResolver`, `server/src/core/lot-names.ts`).
+   - A run's name is its lot. A released package is recorded there with its three signatures and its proofs.
+   - Each signer must hold the right role through a name. Every stage proof must verify with `OrdoStageVerifier` and every source-signed parameter proof with `OrdoSpecVerifier`, and the folded root must match the one the three signed.
+   - The run name then answers `com.ordo.release*`.
+6. **Retired:** `OrdoEnsRoles` (`0x100f…ab91`), `OrdoLotResolver` (`0x83bc…5795`) and the CCIP-Read gateway, with the parent `ordo-mfg.eth`. They stay on-chain, unused. The verifiers `OrdoStageVerifier` [`0xadf0…3d22`](https://sepolia.etherscan.io/address/0xadf064b185151dad607a86f48166c36df1333d22) and `OrdoSpecVerifier` [`0xd4c4…ed17`](https://sepolia.etherscan.io/address/0xd4c4b8438c6519d6830668365068560e0239ed17) are reused.
 
 ---
 

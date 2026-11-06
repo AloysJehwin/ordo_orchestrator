@@ -47,6 +47,11 @@ This page first maps every place Ordo uses Hedera, each confirmed in the code. I
 
 Outside a run, Ordo also sells three MCP tools at 0.1 HBAR a call over x402 (`chain/mcp.ts`, at `/v1/x402/mcp`).
 
+**Every Hedera account and record goes by its ENS name** ([ens.md](ens.md)).
+- **Records:** the org treasury, each machine wallet, each vendor and each pay-on-proof party has an ENSv2 name whose ENSIP-11 Hedera record (coin type `0x80000000 | 296`) holds the account. A name typed into the console resolves to the account through Ordo's names or ENS's Universal Resolver.
+- **Memos:** a run budget's schedule memo is `budget.so-7781.runs.acme.ordo.eth`, a top-up's `topup-03-ceramic-cores.so-7781.runs…`, and a machine account's memo is its name (`cnc-07.machines.acme.ordo.eth`). HashScan therefore shows what each one is.
+- **HCS lines:** `resource.purchase` and `budget.overbudget` lines carry `names: {run, stage, machine, vendor, buyer}`.
+
 ## Every integration
 
 All of them are assembled in `server/src/wiring.ts` (`buildSystem`). Each turns itself on when its env vars are set, and they are all on in local dev.
@@ -64,6 +69,7 @@ All of them are assembled in `server/src/wiring.ts` (`buildSystem`). Each turns 
 | Pay on proof | Stablecoin Studio holds, HTS fungible (OUSD), Smart Contracts, accounts with automatic associations | The customer's payment is held until the release is on-chain; receivables can be sold | `chain/payonproof.ts`, `core/finance.ts` |
 | Ledger anchoring | HCS, Mirror Node | The ledger head is consensus-timestamped; proofs verify against it | `chain/hedera.ts`, `core/proof.ts` |
 | HCS audit lines | HCS | Machine purchases, wallet openings, over-budget reasoning and Agent Kit calls each get a line | `core/resources.ts`, `core/budgets.ts`, `core/machines.ts` |
+| ENS names on Hedera | ENSIP-11 records (coin type 2147483944 on testnet), account memos, schedule memos, HCS | Every account Ordo opens or pays carries its ENS name: the treasury, machine wallets, vendors, customers and financiers resolve from their names, and memos and audit lines say which run, stage and machine by name | `core/names.ts`, `core/name-resolver.ts`, `core/budgets.ts`, `core/machines.ts`, [ens.md](ens.md) |
 | Trust and policies | Smart Contracts on Hedera EVM (chain 296), HBAR stakes | Roles, validator stakes, rewards, cases, acceptances, lot releases, each line's autonomy policy | `chain/trust.ts`, `contracts/src/OrdoTrust.sol`, `OrdoPolicies.sol` |
 
 ## Where Hedera has the most impact, for the pitch

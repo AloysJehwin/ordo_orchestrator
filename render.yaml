@@ -180,9 +180,13 @@ services:
         sync: false
       - key: ENS_SEPOLIA_RPC_URL
         sync: false
-      - key: ENS_ROLES_ADDRESS
+      - key: ENS_NAMES_ADDRESS
         sync: false
-      - key: ENS_LOT_RESOLVER_ADDRESS
+      - key: ENS_RUN_RESOLVER_ADDRESS
+        sync: false
+      - key: ENS_MAX_FEE_GWEI
+        sync: false
+      - key: ENS_DAILY_ETH
         sync: false
       # 0G (Galileo testnet) and the 0G Private Computer Router (mainnet)
       - key: EVIDENCE_STORE
