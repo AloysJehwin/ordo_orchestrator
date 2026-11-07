@@ -7,11 +7,12 @@ import { Actor, NamedText, Ref } from "../../ui/Name";
 import { go } from "../../lib/router";
 import { signTyped } from "../../lib/wallet";
 import { kindOf, signalsOf, targetText } from "../../lib/criteria";
-import type { DecisionView, InboxItemView, ReadingTyped, RunView, StageRunView } from "../../types";
+import type { DecisionView, InboxItemView, ReadingTyped, RunView, StagePendingView, StageRunView } from "../../types";
 import { Action, Drawer, Field, Modal, useToast } from "../../ui/kit";
 import { StageContributions } from "./Contribute";
 import { StageOutcomes } from "./Outcomes";
 import { StageResources } from "./Resources";
+import { PendingCard, type PendingRunner } from "./Pending";
 import { ParamCard, useStageSeries } from "./ParamCard";
 
 export function useStageActions(run: RunView, inbox: InboxItemView[], reload: () => Promise<void>) {
@@ -194,6 +195,9 @@ export function StageDrawer(props: {
   actions: ReturnType<typeof useStageActions>;
   onRecord: (s: StageRunView) => void;
   onHold: (s: StageRunView) => void;
+  /** what the stage waits on, and the actions that clear it */
+  pending?: StagePendingView | null;
+  runner?: PendingRunner;
 }) {
   const { can, sees, book } = useApp();
   const s = props.stage;
@@ -205,6 +209,12 @@ export function StageDrawer(props: {
   const alerts = props.inbox.filter((i) => i.stageCode === s.code);
   return (
     <Drawer open onClose={props.onClose} eyebrow={`Stage ${s.code} · ${STATE_LABEL[s.state]}`} title={s.name} width={480}>
+      {props.pending && props.runner && (
+        <section className="dsec dsec-first" aria-label="Pending actions">
+          <h3>Pending actions</h3>
+          <PendingCard stage={s} p={props.pending} runner={props.runner} />
+        </section>
+      )}
       <dl className="kv">
         {book.of("stage", `${props.run.id}:${s.code}`) && (
           <>

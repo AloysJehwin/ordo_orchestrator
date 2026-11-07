@@ -21,7 +21,7 @@ export function Floor() {
   const route = useRoute();
   const [tab, setTab] = useState<Tab>((route.id as Tab) || "assets");
   const [edit, setEdit] = useState<AssetView | "new" | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(route.query.get("asset"));
   const [vm, setVm] = useState(false);
   const [fleetOpen, setFleetOpen] = useState(false);
   const { fleet, load: loadFleet } = useFleet();

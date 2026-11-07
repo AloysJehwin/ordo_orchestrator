@@ -1148,3 +1148,35 @@ export interface BodyAnswer {
   requestId: string | null;
   model: string | null;
 }
+
+// ---------- What a waiting stage waits on (GET /runs/:id/pending, server core/stage-pending.ts) ----------
+export type PendingActionId = "start_body" | "waive_resources" | "step_run" | "approve_gate" | "record" | "open_machine" | "open_vendors" | "open_approvals";
+export interface PendingAction {
+  id: PendingActionId;
+  /** retry: try what failed again · bypass: go on without it · do: the next step a person takes · open: where it is fixed */
+  kind: "retry" | "bypass" | "do" | "open";
+  label: string;
+  detail: string;
+  /** the role that may take it */
+  role: Role;
+  assetId?: string;
+}
+export interface StagePendingView {
+  code: string;
+  headline: string;
+  /** blocked: nothing moves until someone acts · waiting: it moves on its own */
+  status: "blocked" | "waiting";
+  since: string | null;
+  /** the stages before it that are not done yet */
+  upstream: string[];
+  items: { tone: "bad" | "warn" | "info" | "ok"; text: string }[];
+  actions: PendingAction[];
+  /** the resources that have not arrived, by label */
+  missing?: string[];
+}
+export interface RunPendingView {
+  runId: string;
+  stages: StagePendingView[];
+  /** the stages holding the run up */
+  blocking: string[];
+}

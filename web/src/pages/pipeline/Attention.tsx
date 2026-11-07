@@ -1,7 +1,7 @@
 import { CircleCheck, CircleAlert, Hand, Clock, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useApp } from "../../lib/app";
-import type { InboxItemView, RunView } from "../../types";
+import type { InboxItemView, RunPendingView, RunView } from "../../types";
 import { atGate, roleWords } from "./layout";
 
 interface Item {
@@ -18,7 +18,7 @@ interface Item {
  * What on this run needs a person: gates waiting or held (and on whom), parameters out of their band, stages waiting
  * on data or an operator, and open exceptions. Each row opens its stage.
  */
-export function Attention({ run, inbox, onOpen }: { run: RunView; inbox: InboxItemView[]; onOpen: (code: string) => void }) {
+export function Attention({ run, inbox, onOpen, pending = null }: { run: RunView; inbox: InboxItemView[]; onOpen: (code: string) => void; pending?: RunPendingView | null }) {
   const { can } = useApp();
   const items: Item[] = [];
   for (const s of run.stages.filter(atGate)) {
@@ -54,7 +54,27 @@ export function Attention({ run, inbox, onOpen }: { run: RunView; inbox: InboxIt
       mine: false,
     });
   }
-  for (const s of run.stages) {
+  // stages that wait: what they wait on and the first thing in the way, from the run's pending actions
+  for (const p of pending?.stages ?? []) {
+    const s = run.stages.find((x) => x.code === p.code);
+    if (!s || atGate(s) || p.upstream.length) continue;
+    const first = p.items.find((i) => i.tone === "bad") ?? p.items.find((i) => i.tone === "warn");
+    const mine = p.actions.some((a) => a.kind !== "open" && can(a.role));
+    items.push({
+      key: `wait:${s.code}`,
+      code: s.code,
+      tone: p.status === "blocked" ? "bad" : "warn",
+      icon: <Clock size={15} aria-hidden />,
+      title: (
+        <>
+          <span className="mono">{s.code}</span> {p.headline}
+        </>
+      ),
+      detail: `${first ? first.text : s.name}${mine ? " · you can act on it" : ""}`,
+      mine,
+    });
+  }
+  for (const s of pending ? [] : run.stages) {
     if (!s.waitingReason || atGate(s) || (s.state !== "running" && s.state !== "queued")) continue;
     items.push({
       key: `wait:${s.code}`,

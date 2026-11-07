@@ -15,6 +15,7 @@ import { NameResolver } from "./core/name-resolver.js";
 import { Assessments } from "./core/assessments.js";
 import { Machines } from "./core/machines.js";
 import { Resources } from "./core/resources.js";
+import { StagePending } from "./core/stage-pending.js";
 import { AgentLicenses } from "./core/agent-licenses.js";
 import { AgentMemory } from "./core/agent-memory.js";
 import { AgentNfts } from "./core/agent-nfts.js";
@@ -130,6 +131,8 @@ export interface System {
   ensNames: { lookup(addresses: string[]): Promise<Record<string, string | null>> } | null;
   /** Stage resources: vendors' offers, the x402 storefront, machines' look-ahead purchases and the resource gate */
   resources: Resources;
+  /** what each waiting stage of a run waits on, and the actions that clear it */
+  pending: StagePending;
   /** Org treasuries (OrdoTreasury): run budgets and machine top-ups as Hedera schedules a manager approves */
   budgets: import("./core/budgets.js").Budgets;
   /** One engine cycle: pull data, advance runs, watch for anomalies, refund expired escrows, anchor. Throttled and lease-guarded. */
@@ -749,6 +752,7 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
     payOnProof,
     ensNames,
     resources,
+    pending: new StagePending(db, engine, plant, resources, { buyS: cfg.BODY_BUY_S, bodies: Boolean(bodyRuntime) }, now),
     budgets,
     advance,
     close: async () => {

@@ -1023,6 +1023,14 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const r = await sys.engine.step(sid(c), actor(c), c.req.param("runId"));
     return c.json({ ...r, run: await runFor(c, c.req.param("runId")) });
   });
+  // what each waiting stage waits on, the first thing in the way, and what a person can do: retry, bypass, act
+  site.get("/runs/:runId/pending", async (c) => {
+    lvl(c, 2, "a run's pending actions");
+    const run = await runFor(c, c.req.param("runId"));
+    const p = await sys.pending.of(sid(c), run.id, c.get("access").level);
+    const stages = p.stages.filter((s) => stageInScope(c.get("access"), run.lineId, s.code));
+    return c.json({ ...p, stages, blocking: p.blocking.filter((b) => stages.some((s) => s.code === b)) });
+  });
   site.post("/runs/:runId/abort", async (c) => {
     need(c, "manager");
     await sys.engine.abort(sid(c), actor(c), c.req.param("runId"), (await body(c, z.object({ reason: z.string().trim().min(3).max(300) }))).reason);

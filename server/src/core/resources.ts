@@ -183,6 +183,35 @@ export interface StageResourcesView {
   /** below level 4 the offers and purchases (finance) are left out */
   redacted: boolean;
 }
+/** Why a stage waits for its resources (`Resources.waitFor`), for its pending actions. */
+export interface ResourceWait {
+  waived: boolean;
+  /** every stage before it is done */
+  ready: boolean;
+  missing: {
+    key: string;
+    label: string;
+    unit: string;
+    kind: string;
+    need: number;
+    delivered: number;
+    pending: number;
+    /** the cheapest payable offer; withinMax as `needed()` decides it */
+    offer: { vendor: string; price: string; withinMax: boolean; amountTinybar: string } | null;
+    maxPrice: number;
+    /** the order is over the buying machine's Buyer cap per order */
+    overCap: "order" | null;
+    /** purchases that verified but never settled */
+    expired: number;
+    lastPurchaseAt: string | null;
+  }[];
+  /** the machine that buys them: ahead, the machine of a running stage before it; else the stage's own */
+  buyer: { assetId: string; name: string; ahead: boolean; holdsBuyer: boolean; wallet: { status: string; accountId: string | null; error: string | null } | null } | null;
+  /** top-ups asked for this stage (over the max price), newest first */
+  topups: { id: string; resource: string | null; status: string; error: string | null; at: string }[];
+  /** the run's budget (the treasury's transfer to the machines), when one was asked for */
+  runBudget: { status: string; error: string | null } | null;
+}
 /** One resource a machine should buy ahead: for a stage after its own, or for its own stage waiting to start. */
 export interface NeededResource {
   runId: string;
@@ -848,6 +877,72 @@ export class Resources {
       });
     }
     return { runId: run.id, stage: stage.code, quantity: run.quantity, state: stage.state, waived, resources, redacted: !finance };
+  }
+
+  /**
+   * Why a stage that is ready to start still waits for its resources, for the stage's pending actions: what has not
+   * arrived, which machine buys it (the one `needed()` would name), whether it can (Buyer role, an active wallet, a
+   * cap that allows the order, an offer within the stage's max price) and the top-ups asked for it.
+   */
+  async waitFor(siteId: string, run: { id: string; quantity: number; stages: StageRunView[] }, code: string, views: Map<string, { id: string; name: string; kind: string }>): Promise<ResourceWait | null> {
+    const s = run.stages.find((x) => x.code === code);
+    if (!s || !s.resources.length) return null;
+    await this.ensureDemo(siteId);
+    const waived = Boolean(await this.waiver(run.id, code));
+    const auth = this.machineRoles ? await this.machineRoles.of(siteId) : null;
+    const wallets = (await this.db.query<{ asset_id: string; account_id: string | null; status: string; error: string | null }>("SELECT asset_id, account_id, status, error FROM machine_wallets WHERE site_id = $1", [siteId])).rows;
+    const active = new Set(wallets.filter((w) => w.account_id && w.status === "active" && (!auth || auth.get(w.asset_id)?.buyer)).map((w) => w.asset_id));
+    // the machine of a running stage before it buys ahead; a stage ready to start buys for itself
+    const byCode = new Map(run.stages.map((x) => [x.code, x]));
+    const ps = (predecessors(run.stages).get(code) ?? []).map((c) => byCode.get(c)!);
+    const before = ps.find((p) => p.assetId && ACTIVE.includes(p.state) && active.has(p.assetId));
+    const ready = ps.every((p) => DONE.includes(p.state));
+    const buyerId = before?.assetId ?? (ready ? ownBuyer(s, (await fundedBuyers(this.db, run.id)).get(code), views, active) : null);
+    const caps = buyerId ? (auth?.get(buyerId)?.buyer ?? null) : null;
+    const approved = await this.approvals(run.id);
+    const all = await this.purchases(run.id, code);
+    const missing: ResourceWait["missing"] = [];
+    for (const r of s.resources) {
+      const need = resourceNeed(r, run.quantity);
+      const c = await this.counts(run.id, code, r.key);
+      if (c.delivered + EPS >= need) continue;
+      const remaining = Math.max(0, roundQty(need - c.delivered - c.pending));
+      const best = await this.bestOffer(siteId, r.kind);
+      const amount = best ? amountFor(BigInt(best.price), remaining || need) : 0n;
+      const mine = all.filter((p) => p.resource === r.key);
+      missing.push({
+        key: r.key,
+        label: r.label,
+        unit: r.unit,
+        kind: r.kind,
+        need,
+        delivered: c.delivered,
+        pending: c.pending,
+        offer: best
+          ? { vendor: best.company, price: tinybarToHbar(best.price), withinMax: this.within(BigInt(best.price), hbarToTinybar(r.maxPrice), amount, approved.get(`${code}/${r.key}`)), amountTinybar: amount.toString() }
+          : null,
+        maxPrice: r.maxPrice,
+        overCap: caps?.order != null && amount > caps.order ? "order" : null,
+        expired: mine.filter((p) => p.status === "expired").length,
+        lastPurchaseAt: mine[0]?.at ?? null,
+      });
+    }
+    const w = buyerId ? wallets.find((x) => x.asset_id === buyerId) : undefined;
+    const topups = (
+      await this.db.query<{ id: string; resource: string | null; status: string; error: string | null; created_at: string }>(
+        "SELECT id, resource, status, error, created_at::text FROM budget_schedules WHERE run_id = $1 AND kind = 'topup' AND stage_code = $2 ORDER BY created_at DESC LIMIT 10",
+        [run.id, code],
+      )
+    ).rows.map((t) => ({ id: t.id, resource: t.resource, status: t.status, error: t.error, at: iso(t.created_at)! }));
+    const budget = (await this.db.query<{ status: string; error: string | null }>("SELECT status, error FROM budget_schedules WHERE run_id = $1 AND kind = 'run' ORDER BY created_at DESC LIMIT 1", [run.id])).rows[0] ?? null;
+    return {
+      waived,
+      ready,
+      missing,
+      buyer: buyerId ? { assetId: buyerId, name: views.get(buyerId)?.name ?? buyerId, ahead: Boolean(before), holdsBuyer: !auth || Boolean(auth.get(buyerId)?.buyer), wallet: w ? { status: w.status, accountId: w.account_id, error: w.error } : null } : null,
+      topups,
+      runBudget: budget,
+    };
   }
 
   /** A run's resource budget (run-budget.ts), with the machines the run has bound or the template pins, at today's offers. */

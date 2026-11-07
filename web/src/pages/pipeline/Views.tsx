@@ -1,9 +1,15 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import type { RunView, StageRunView } from "../../types";
+import type { RunView, StagePendingView, StageRunView } from "../../types";
 import { AGENT_LABEL, STATE_LABEL, dur, num } from "../../lib/format";
 import { SpecBand } from "../../ui/SpecBand";
 import { Ref } from "../../ui/Name";
 import { atGate, columnCount, edgeClass, fitColumn, layout, neighbour, roleWords, swatch, type Layout } from "./layout";
+import { shortWhy } from "./Pending";
+
+/** What a stage waits on, when it waits (from the run's pending actions). */
+type PendingOf = (code: string) => StagePendingView | null;
+/** A stage that waits says so under its state: queued stages, and running ones waiting on a person. */
+const whyOf = (s: StageRunView, pending?: PendingOf) => (s.state === "queued" || s.state === "running" ? (pending?.(s.code) ?? null) : null);
 
 /** Where a stage was picked, so the caller can place its block beside it. */
 export type OnSelect = (code: string, el: Element) => void;
@@ -141,7 +147,7 @@ function Rework({ L, run, lift, top, dx = 0 }: { L: Layout; run: RunView; lift: 
   );
 }
 
-export function FlowView({ run, selected, onSelect }: { run: RunView; selected: string | null; onSelect: OnSelect }) {
+export function FlowView({ run, selected, onSelect, pending }: { run: RunView; selected: string | null; onSelect: OnSelect; pending?: PendingOf }) {
   const [box, w] = useWidth<HTMLDivElement>();
   const wrap = useRef<HTMLDivElement>(null);
   const padX = 100;
@@ -167,7 +173,7 @@ export function FlowView({ run, selected, onSelect }: { run: RunView; selected: 
               className="node-hit"
               tabIndex={0}
               role="button"
-              aria-label={`${n.s.code} ${n.s.name}, ${STATE_LABEL[n.s.state]}${paramsLabel(n.s)}`}
+              aria-label={`${n.s.code} ${n.s.name}, ${STATE_LABEL[n.s.state]}${paramsLabel(n.s)}${whyOf(n.s, pending) ? `, ${whyOf(n.s, pending)!.headline}` : ""}`}
               onClick={(e) => onSelect(n.s.code, e.currentTarget)}
               onKeyDown={keys(n.s.code)}
             >
@@ -185,6 +191,14 @@ export function FlowView({ run, selected, onSelect }: { run: RunView; selected: 
               {STATE_LABEL[n.s.state]}
               {progressText(n.s)}
             </span>
+            {(() => {
+              const p = whyOf(n.s, pending);
+              return p ? (
+                <span className={`fl-why w-${p.status}`} title={p.headline}>
+                  {shortWhy(p)}
+                </span>
+              ) : null;
+            })()}
           </div>
         ))}
       </div>
@@ -204,7 +218,7 @@ function elbow(x1: number, y1: number, x2: number, y2: number): string {
   return `M${x1},${y1} H${mx - r} Q${mx},${y1} ${mx},${y1 + d * r} V${y2 - d * r} Q${mx},${y2} ${mx + r},${y2} H${x2}`;
 }
 
-export function GraphView({ run, selected, onSelect }: { run: RunView; selected: string | null; onSelect: OnSelect }) {
+export function GraphView({ run, selected, onSelect, pending }: { run: RunView; selected: string | null; onSelect: OnSelect; pending?: PendingOf }) {
   const [box, w] = useWidth<HTMLDivElement>();
   const wrap = useRef<HTMLDivElement>(null);
   const padX = CW / 2 + 28;
@@ -246,14 +260,14 @@ export function GraphView({ run, selected, onSelect }: { run: RunView; selected:
           <Rework L={L} run={run} lift={CH / 2} top={10} dx={CW / 2 - 30} />
         </svg>
         {L.nodes.map((n) => (
-          <GraphCard key={n.s.code} s={n.s} run={run} x={n.x} y={n.y} selected={selected === n.s.code} onSelect={onSelect} onKeyDown={keys(n.s.code)} />
+          <GraphCard key={n.s.code} s={n.s} run={run} x={n.x} y={n.y} selected={selected === n.s.code} onSelect={onSelect} onKeyDown={keys(n.s.code)} why={whyOf(n.s, pending)} />
         ))}
       </div>
     </div>
   );
 }
 
-function GraphCard({ s, run, x, y, selected, onSelect, onKeyDown }: { s: StageRunView; run: RunView; x: number; y: number; selected: boolean; onSelect: OnSelect; onKeyDown: (e: KeyboardEvent<Element>) => void }) {
+function GraphCard({ s, run, x, y, selected, onSelect, onKeyDown, why }: { s: StageRunView; run: RunView; x: number; y: number; selected: boolean; onSelect: OnSelect; onKeyDown: (e: KeyboardEvent<Element>) => void; why: StagePendingView | null }) {
   const crit = s.criteriaResults;
   const pass = crit.filter((c) => c.ok === true).length;
   const bad = crit.some((c) => c.ok === false);
@@ -264,7 +278,7 @@ function GraphCard({ s, run, x, y, selected, onSelect, onKeyDown }: { s: StageRu
       data-code={s.code}
       className={`gcard s-${s.state}${selected ? " selected" : ""}`}
       style={{ left: x - CW / 2, top: y - CH / 2, width: CW, height: CH }}
-      aria-label={`${s.code} ${s.name}, ${STATE_LABEL[s.state]}${paramsLabel(s)}`}
+      aria-label={`${s.code} ${s.name}, ${STATE_LABEL[s.state]}${paramsLabel(s)}${why ? `, ${why.headline}` : ""}`}
       onClick={(e) => onSelect(s.code, e.currentTarget)}
       onKeyDown={onKeyDown}
     >
@@ -286,9 +300,15 @@ function GraphCard({ s, run, x, y, selected, onSelect, onKeyDown }: { s: StageRu
             <span style={{ width: `${Math.round(Math.max(done, s.progress) * 100)}%` }} />
           </span>
         ) : null}
-        <span className="num">
-          {s.unitsGood}/{run.quantity}
-        </span>
+        {why && s.state === "queued" ? (
+          <span className={`gc-why w-${why.status}`} title={why.headline}>
+            {shortWhy(why)}
+          </span>
+        ) : (
+          <span className="num">
+            {s.unitsGood}/{run.quantity}
+          </span>
+        )}
         {crit.length > 0 && (
           <span className={bad ? "bad-text" : pass === crit.length ? "ok-text" : "faint"}>
             {pass}/{crit.length} in spec

@@ -17,6 +17,7 @@ import { HoldModal, RecordModal, StageDrawer, useStageActions } from "./pipeline
 import { FlowView, GraphView, LedgerView } from "./pipeline/Views";
 import { DecisionStream } from "./pipeline/Stream";
 import { Attention } from "./pipeline/Attention";
+import { PendingCard, RunHoldUp, usePendingActions, useRunPending } from "./pipeline/Pending";
 import { atGate, roleWords } from "./pipeline/layout";
 
 type View = "flow" | "graph" | "ledger";
@@ -70,6 +71,9 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
     void load().catch((e) => toast(String(e instanceof Error ? e.message : e), "bad"));
   }, [load, live?.headSeq, toast]);
   const actions = useStageActions(data?.run ?? (runs[0] as RunView), data?.inbox ?? [], load);
+  // what each waiting stage waits on, and the retry or bypass that clears it
+  const pend = useRunPending(data?.run ?? null);
+  const runner = usePendingActions(data?.run ?? null, actions, setRecord, async () => void (await Promise.all([load(), pend.reload()])));
   const runOptions = useMemo(
     () =>
       runs.map((r) => ({
@@ -249,6 +253,8 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
         </div>
       </section>
 
+      <RunHoldUp run={run} pending={pend.pending} runner={runner} onOpen={openStage} />
+
       <section className="map card" aria-label="Stage map">
         <div className="map-bar">
           <Segmented<View>
@@ -286,8 +292,8 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
           <span className="faint small map-hint">{view === "ledger" ? "Select a row for its full details" : "Select a stage, or move with the arrow keys"}</span>
         </div>
         <div className={`canvas v-${view}`} ref={canvas} onClick={(e) => e.target === e.currentTarget && setSel(null)}>
-          {view === "flow" && <FlowView run={run} selected={sel?.code ?? null} onSelect={pick} />}
-          {view === "graph" && <GraphView run={run} selected={sel?.code ?? null} onSelect={pick} />}
+          {view === "flow" && <FlowView run={run} selected={sel?.code ?? null} onSelect={pick} pending={pend.of} />}
+          {view === "graph" && <GraphView run={run} selected={sel?.code ?? null} onSelect={pick} pending={pend.of} />}
           {view === "ledger" && <LedgerView run={run} onOpen={openStage} />}
           {s && sel && view !== "ledger" && (
             <div className="block" style={{ left: blockLeft, top: blockTop }} role="dialog" aria-label={`Stage ${s.code}`}>
@@ -307,7 +313,11 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
               <div className="faint small">
                 {AGENT_LABEL[s.agent]} · {s.assetId ? <Ref kind="machine" id={s.assetId} fallback={s.assetName ?? "no asset"} link={false} /> : (s.assetName ?? "no asset")}
               </div>
-              <p className="block-body">{s.outcome ?? s.waitingReason ?? (s.state === "queued" ? "Waiting on upstream stages." : "In progress.")}</p>
+              {!s.outcome && pend.of(s.code) ? (
+                <PendingCard compact stage={s} p={pend.of(s.code)!} runner={runner} />
+              ) : (
+                <p className="block-body">{s.outcome ?? s.waitingReason ?? (s.state === "queued" ? "Waiting on upstream stages." : "In progress.")}</p>
+              )}
               {atGate(s) && s.criteriaResults.some((c) => c.ok !== true) && (
                 <ul className="gate-why">
                   {s.criteriaResults
@@ -397,10 +407,11 @@ function RunScreen({ runId, runs, onNew }: { runId: string; runs: RunView[]; onN
 
       <div className="run-lower">
         <DecisionStream decisions={decisions} onStage={openStage} />
-        <Attention run={run} inbox={inbox} onOpen={openStage} />
+        <Attention run={run} inbox={inbox} onOpen={openStage} pending={pend.pending} />
       </div>
 
-      <StageDrawer run={run} stage={stage(drawer)} decisions={decisions} inbox={inbox} onClose={() => setDrawer(null)} actions={actions} onRecord={setRecord} onHold={setHold} />
+      <StageDrawer run={run} stage={stage(drawer)} decisions={decisions} inbox={inbox} onClose={() => setDrawer(null)} actions={actions} onRecord={setRecord} onHold={setHold} pending={pend.of(drawer)} runner={runner} />
+      {runner.modal}
       <RecordModal run={run} stage={record} onClose={() => setRecord(null)} onDone={async () => (await load(), await refresh())} />
       <HoldModal stage={hold} onClose={() => setHold(null)} onHold={(reason) => actions.holdRunning(hold!, reason)} />
       <AutonomyModal open={autonomy} onClose={() => setAutonomy(false)} lineId={line.id} current={line.autonomy} />

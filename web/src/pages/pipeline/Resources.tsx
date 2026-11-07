@@ -21,11 +21,9 @@ const qty = (n: number, unit: string) => `${num(n, 3)}${unit ? ` ${unit}` : ""}`
  * manager can sign a waiver to start without them. Offers and purchases (finance) need level 4.
  */
 export function StageResources({ run, stage }: { run: RunView; stage: StageRunView }) {
-  const { path, sees, can, live, refresh, book } = useApp();
-  const sign = useSign();
+  const { path, sees, can, live, book } = useApp();
   const [view, setView] = useState<StageResourcesView | null>(null);
   const [waiving, setWaiving] = useState(false);
-  const [reason, setReason] = useState("");
   const head = live?.headSeq ?? 0;
   const has = (stage.resources ?? []).length > 0;
   const load = useCallback(
@@ -44,19 +42,6 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
   const arrived = list.filter((r) => r.status === "delivered").length;
   const missing = list.some((r) => r.status !== "delivered");
   const canWaive = can("manager") && run.status === "running" && stage.state === "queued" && view && !view.waived && missing;
-  const waive = async () => {
-    const body = { reason: reason.trim() };
-    const r = await sign({
-      title: `Start ${stage.code} ${stage.name} without waiting for its resources`,
-      request: (chainId) => api.post<TypedSignature>(path(`/runs/${run.id}/stages/${stage.code}/resources/waive/sign-request`), { ...body, chainId }),
-      submit: (proof) => api.post(path(`/runs/${run.id}/stages/${stage.code}/resources/waive`), { ...body, ...proof }),
-      done: "Waived: the stage may start",
-    });
-    if (!r) return;
-    setWaiving(false);
-    setReason("");
-    await Promise.all([load(), refresh()]);
-  };
   return (
     <section className="dsec">
       <div className="row-between res-head">
@@ -171,29 +156,56 @@ export function StageResources({ run, stage }: { run: RunView; stage: StageRunVi
           </button>
         </div>
       )}
-      <Modal
-        open={waiving}
-        onClose={() => setWaiving(false)}
-        eyebrow={`Stage ${stage.code} · resources`}
-        title="Start without waiting for its resources"
-        footer={
-          <div className="btns end">
-            <button type="button" className="btn" onClick={() => setWaiving(false)}>
-              Cancel
-            </button>
-            <button type="button" className="btn primary" disabled={reason.trim().length < 3} onClick={() => void waive()}>
-              Sign and waive
-            </button>
-          </div>
-        }
-      >
-        <p className="muted small">
-          {stage.name} is waiting for {list.filter((r) => r.status !== "delivered").map((r) => r.label).join(", ")}. Your signature lets it start without them; the waiver and its reason go on the ledger.
-        </p>
-        <Field label="Why" hint="For example: stock already on site, or bought outside Ordo">
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
-        </Field>
-      </Modal>
+      <WaiveModal open={waiving} run={run} stage={stage} missing={list.filter((r) => r.status !== "delivered").map((r) => r.label)} onClose={() => setWaiving(false)} onDone={load} />
     </section>
+  );
+}
+
+/**
+ * A manager signs to start a stage without the resources that have not arrived: the waiver and its reason go on the
+ * ledger. Used by the stage's resources and by its pending actions.
+ */
+export function WaiveModal(props: { open: boolean; run: RunView; stage: StageRunView; missing: string[]; onClose: () => void; onDone?: () => unknown }) {
+  const { path, refresh } = useApp();
+  const sign = useSign();
+  const [reason, setReason] = useState("");
+  const { run, stage } = props;
+  const waive = async () => {
+    const body = { reason: reason.trim() };
+    const r = await sign({
+      title: `Start ${stage.code} ${stage.name} without waiting for its resources`,
+      request: (chainId) => api.post<TypedSignature>(path(`/runs/${run.id}/stages/${stage.code}/resources/waive/sign-request`), { ...body, chainId }),
+      submit: (proof) => api.post(path(`/runs/${run.id}/stages/${stage.code}/resources/waive`), { ...body, ...proof }),
+      done: "Waived: the stage may start",
+    });
+    if (!r) return;
+    setReason("");
+    props.onClose();
+    await Promise.all([props.onDone?.(), refresh()]);
+  };
+  return (
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      eyebrow={`Stage ${stage.code} · resources`}
+      title="Start without waiting for its resources"
+      footer={
+        <div className="btns end">
+          <button type="button" className="btn" onClick={props.onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn primary" disabled={reason.trim().length < 3} onClick={() => void waive()}>
+            Sign and waive
+          </button>
+        </div>
+      }
+    >
+      <p className="muted small">
+        {stage.name} is waiting for {props.missing.length ? props.missing.join(", ") : "its resources"}. Your signature lets it start without them; the waiver and its reason go on the ledger.
+      </p>
+      <Field label="Why" hint="For example: stock already on site, or bought outside Ordo">
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
+      </Field>
+    </Modal>
   );
 }

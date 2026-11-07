@@ -180,6 +180,41 @@ describe("pipelines", () => {
   });
 });
 
+describe("pending actions", () => {
+  it("a waiting stage says what it waits on and offers a retry or a bypass; a manager's signed waiver starts it", async () => {
+    const wax = { key: "pattern_wax", label: "Filled pattern wax", kind: "pattern_wax", unit: "kg", qty: 6, per: "batch", maxPrice: 0.9 };
+    const spec = {
+      stages: [
+        { code: "01", column: 1, name: "Wax pattern injection", agent: "scheduler", resourceKind: "cnc", mode: "manual", escalationRole: "manager", timeoutMin: 60, criteria: [], resources: [wax] },
+        { code: "02", column: 2, name: "Final inspection", agent: "vision_qa", resourceKind: "inspection", mode: "manual", escalationRole: "manager", timeoutMin: 30, criteria: [] },
+      ],
+      rework: null,
+    };
+    const t = (await admin.call("POST", `${S()}/templates`, { name: "Wax patterns", category: "Discrete", description: "Resources", spec })).json;
+    const id = (await admin.call("POST", `${S()}/runs`, { templateVersionId: t.versionId, orderRef: "SO-WAX", quantity: 4 })).json.id as string;
+    await tick();
+    const p = (await admin.call("GET", `${S()}/runs/${id}/pending`)).json;
+    const s1 = p.stages.find((s: any) => s.code === "01");
+    expect(s1).toMatchObject({ headline: "Waiting for Filled pattern wax", status: "blocked", upstream: [] });
+    expect(s1.items[0].text).toBe("Filled pattern wax: 0 of 6 kg arrived");
+    // the machine that would buy it may not, and nobody sells it: each is fixed where it lives; a manager may also start without the wax
+    expect(s1.items.map((i: any) => i.text)).toEqual(expect.arrayContaining(["CNC-01 does not hold the Buyer role, so it may not buy", "No vendor sells pattern_wax"]));
+    expect(s1.actions.map((a: any) => [a.id, a.kind, a.role])).toEqual(expect.arrayContaining([["open_machine", "open", "manager"], ["open_vendors", "open", "manager"], ["waive_resources", "bypass", "manager"]]));
+    expect(p.stages.find((s: any) => s.code === "02")).toMatchObject({ headline: "Waits for 01 Wax pattern injection", status: "waiting", upstream: ["01"] });
+    expect(p.blocking).toEqual(["01"]);
+    // a contributor sees why too
+    expect((await operator.call("GET", `${S()}/runs/${id}/pending`)).status).toBe(200);
+    // bypass: the manager signs the waiver and the stage starts, waiting on an operator now
+    const body = { reason: "Wax already on site" };
+    const typed = (await admin.call("POST", `${S()}/runs/${id}/stages/01/resources/waive/sign-request`, body)).json;
+    expect((await admin.call("POST", `${S()}/runs/${id}/stages/01/resources/waive`, { ...body, nonce: typed.message.nonce, signature: await admin.sign(typed) })).status).toBe(200);
+    const after = (await admin.call("GET", `${S()}/runs/${id}/pending`)).json;
+    expect(after.stages.find((s: any) => s.code === "01")).toMatchObject({ headline: "An operator records it", actions: [expect.objectContaining({ id: "record", role: "manager" })] });
+    await admin.call("POST", `${S()}/runs/${id}/abort`, { reason: "Test run" });
+    expect((await admin.call("GET", `${S()}/runs/${id}/pending`)).json.stages).toEqual([]);
+  });
+});
+
 describe("agents on real telemetry", () => {
   it("opens an incident and escalates the out-of-policy action", async () => {
     for (const v of [55, 62, 71, 84]) await admin.call("POST", `${S()}/assets/${cnc}/readings`, { signal: "temperature", value: v });

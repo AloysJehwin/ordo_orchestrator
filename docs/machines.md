@@ -170,3 +170,15 @@ Without the three `VERCEL_*` values, Ordo starts with the warning "BODY_RUNTIME=
 - **"npm install failed":** the error carries npm's last lines. The sandbox has full internet access by default; `ffmpeg-static` downloads its binary while installing.
 - **A snapshot expired:** the next start creates the sandbox again and reinstalls the body (slower, nothing to do).
 - **Code:** `sandboxBodies(cfg)` builds the runner (null, with a warning, until the settings are complete); `listBodySandboxes(creds)` lists every machine sandbox with its state, for the doctor and the Floor.
+
+## Why a stage waits: pending actions
+
+A run that stops moving says why. `GET /v1/sites/:site/runs/:runId/pending` (access level 2; `server/src/core/stage-pending.ts`) returns, for each stage not done, what it waits on and the chain down to the first thing that is stuck:
+
+- **Stages before it** that are not done: it moves on its own once they finish.
+- **Its resources**, for a stage that is ready: what has not arrived and what is on its way, then the machine that buys them (`Resources.waitFor`, the same choice as `/edge/purchases/needed`) and whether it can: the run's budget paid, the Buyer role, an active wallet, the Buyer cap per order, a vendor offer within the stage's max price or an approved top-up, and the machine's body (failed, stopped, silent for 10 minutes, or running).
+- **No machine holds Runner**, no machine to run it, a line at L1 that waits for a manager to step the run, a gate, or a running stage an operator records.
+
+Each stuck link comes with actions, each naming the role that may take it: **retry** (start the buying machine's body again: `POST /machines/:assetId/start`), **bypass** (a manager signs a waiver to start without the resources), **the next step** (step the run, approve the gate, record by hand) or **where it is fixed** (the machine on the floor, Team → Vendors, Approvals). `blocking` lists the stages holding the run up.
+
+The pipeline page shows it in three places: a "Held up at…" band above the stage map with the retry and bypass, a short line under each waiting stage in the Flow and Graph views, and a Pending actions section at the top of the stage's drawer. A person sees the actions their role allows, and is told who can take the others. A failed body is never restarted on its own (look-ahead starts only stopped ones), so a body that failed to start stays failed until someone retries it.
