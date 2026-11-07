@@ -674,7 +674,7 @@ export function createApp(sys: System, opts: AppOptions = {}) {
     const b = await body(c, AssetBody);
     const id = await sys.plant.createAsset(sid(c), b, me(c).user.id);
     await sys.rec.decide(sid(c), { agent: actor(c), kind: "asset.created", assetId: id, summary: `Registered ${b.name} (${ASSET_KIND_LABEL[b.kind]}) · ${b.source.type}` });
-    await sys.advance(true);
+    await within(sys.advance(true), sys.cfg.VERCEL ? 2_500 : Infinity);
     return c.json({ id });
   });
   // ---- Machine roles: Attester, Buyer and Runner, each an ENS role name a manager grants with a signature ----
@@ -1448,13 +1448,13 @@ export function createApp(sys: System, opts: AppOptions = {}) {
   site.post("/machines/fleet", async (c) => {
     need(c, "manager");
     const r = await sys.fleet.create(sid(c), me(c).user, c.get("roles"), await body(c, SignedBody));
-    await sys.advance(true);
+    await within(sys.advance(true), sys.cfg.VERCEL ? 2_500 : Infinity);
     return c.json(r);
   });
   site.post("/machines", async (c) => {
     need(c, "manager");
     const r = await sys.bodies.create(sid(c), me(c).user, c.get("roles"), await body(c, BodyCreate));
-    await sys.advance(true);
+    await within(sys.advance(true), sys.cfg.VERCEL ? 2_500 : Infinity);
     return c.json(r);
   });
   site.post("/machines/:assetId/start", async (c) => {

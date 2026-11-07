@@ -85,7 +85,17 @@ export class Jobs {
        WHERE status = 'pending' AND kind = ANY($1) AND next_try_at <= $2 ORDER BY next_try_at LIMIT ${limit}`,
       [kinds, new Date(this.now()).toISOString()],
     );
+    let ran = 0;
     for (const j of due.rows) {
+      // claim it first, so a pass running elsewhere does not run it too (an upload done twice is paid twice); a claim
+      // whose runner dies lapses after 10 minutes and the job runs again
+      const claimed = await this.db.query("UPDATE chain_jobs SET next_try_at = $1 WHERE id = $2 AND status = 'pending' AND next_try_at <= $3 RETURNING id", [
+        new Date(this.now() + 10 * 60_000).toISOString(),
+        j.id,
+        new Date(this.now()).toISOString(),
+      ]);
+      if (!claimed.rows.length) continue;
+      ran += 1;
       try {
         const result = await this.handlers.get(j.kind)!(JSON.parse(j.payload_json), { id: j.id, siteId: j.site_id, ref: j.ref });
         await this.db.query("UPDATE chain_jobs SET status = 'done', result_json = $1, error = NULL, attempts = attempts + 1, updated_at = now() WHERE id = $2", [JSON.stringify(result), j.id]);
@@ -101,7 +111,7 @@ export class Jobs {
         ]);
       }
     }
-    return due.rows.length;
+    return ran;
   }
 
   /** The latest job of a kind for a ref. */

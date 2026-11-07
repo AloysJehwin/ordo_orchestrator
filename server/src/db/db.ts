@@ -8,15 +8,19 @@ export interface Db extends Queryable {
   tx<T>(fn: (q: Queryable) => Promise<T>): Promise<T>;
   close(): Promise<void>;
   readonly kind: "pglite" | "postgres";
+  /** connections in use and queries waiting for one (Postgres only), for the slow-cycle log */
+  stats?(): { total: number; idle: number; waiting: number };
 }
 
 /** Postgres when DATABASE_URL is set; otherwise embedded Postgres (PGlite) on disk or in memory. */
 export async function openDb(opts: { url?: string; dataDir?: string }): Promise<Db> {
   if (opts.url) {
     const { default: pg } = await import("pg");
-    const pool = new pg.Pool({ connectionString: opts.url, max: 5 });
+    // a query that cannot get a connection fails after 10 s instead of hanging until the platform kills the request
+    const pool = new pg.Pool({ connectionString: opts.url, max: 10, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 30_000 });
     return {
       kind: "postgres",
+      stats: () => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount }),
       query: async (sql, params) => pool.query(sql, params as unknown[]) as never,
       tx: async (fn) => {
         const client = await pool.connect();

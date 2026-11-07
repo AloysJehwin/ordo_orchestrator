@@ -609,40 +609,99 @@ export async function buildSystem(cfg: Config, opts: { now?: () => number; polic
   const inBackground = async (name: string, pass: () => Promise<unknown>) => {
     if (!slowStore) return pass().catch((e) => console.error(`[ordo] ${name}`, e));
     if (beside.has(name)) return;
+    // one pass at a time across instances too (the lease lapses on its own if an instance dies mid-upload)
+    if (!(await plant.tryLease(`beside:${name}`, 3 * 60_000).catch(() => false))) return;
     beside.add(name);
     void pass()
       .catch((e) => console.error(`[ordo] ${name}`, e))
-      .finally(() => beside.delete(name));
+      .finally(() => {
+        beside.delete(name);
+        void plant.releaseLease(`beside:${name}`).catch(() => undefined);
+      });
   };
 
-  const advance = async (force = false) => {
-    // throttle: one cycle per 4 s across all instances (the lease is left to expire, not released)
-    if (!force && !(await plant.tryLease("advance", 4_000))) return;
-    // one failing site or service must not stop the cycle for everyone else
-    await plant.ingest().catch((e) => console.error("[ordo] ingest", e));
-    await engine.tick();
+  // A step of the cycle: one failing site or service must not stop the cycle for everyone else, and a slow one says so
+  // in the logs (with how many queries wait for a database connection), so a cycle that drags can be traced to its step.
+  const step = async (name: string, run: () => Promise<unknown>, rethrow = false) => {
+    const t0 = Date.now();
+    try {
+      await run();
+    } catch (e) {
+      if (rethrow) throw e;
+      console.error(`[ordo] ${name}`, e);
+    } finally {
+      const ms = Date.now() - t0;
+      if (ms > 5_000) console.warn(`[ordo] slow cycle step ${name}: ${(ms / 1000).toFixed(1)} s${db.stats ? ` · db ${JSON.stringify(db.stats())}` : ""}`);
+    }
+  };
+  const cycle = async () => {
+    await step("ingest", () => plant.ingest());
+    await step("engine", () => engine.tick(), true);
     // budgets right after the engine: a run's budget and its top-ups are what let its machines buy
-    await budgets.reconcile().catch((e) => console.error("[ordo] budgets", e));
+    await step("budgets", () => budgets.reconcile());
     const sites = await db.query<{ id: string }>("SELECT id FROM sites");
-    for (const s of sites.rows) await monitor.scan(s.id).catch((e) => console.error(`[ordo] monitor ${s.id}`, e));
-    await schedules?.reconcile().catch((e) => console.error("[ordo] schedules", e));
-    await workOrders.refundExpired().catch((e) => console.error("[ordo] refunds", e));
-    await passports.reconcile().catch((e) => console.error("[ordo] passports", e));
-    await stageProofs.reconcile().catch((e) => console.error("[ordo] stage proofs", e));
+    for (const s of sites.rows) await step(`monitor ${s.id}`, () => monitor.scan(s.id));
+    await step("schedules", async () => schedules?.reconcile());
+    await step("refunds", () => workOrders.refundExpired());
+    await step("passports", () => passports.reconcile());
+    await step("stage proofs", () => stageProofs.reconcile());
     await inBackground("jobs", () => jobs.run());
-    await payOnProof.reconcile().catch((e) => console.error("[ordo] pay on proof", e));
-    await machines!.topUps().catch((e) => console.error("[ordo] machine top-ups", e));
-    await names.reconcile().catch((e) => console.error("[ordo] ens", e));
-    await lotNames.reconcile().catch((e) => console.error("[ordo] ens releases", e));
-    await agentLicenses.reconcile().catch((e) => console.error("[ordo] licences", e));
+    await step("pay on proof", () => payOnProof.reconcile());
+    await step("machine top-ups", () => machines!.topUps());
+    await step("ens", () => names.reconcile());
+    await step("ens releases", () => lotNames.reconcile());
+    await step("licences", () => agentLicenses.reconcile());
     await inBackground("agent memory", () => agentMemory.reconcile());
-    await agentNfts.reconcile().catch((e) => console.error("[ordo] inft", e));
-    await contributions.reconcile().catch((e) => console.error("[ordo] proof-of-work sessions", e));
-    await selection.reconcile().catch((e) => console.error("[ordo] reward settlement", e));
-    await bodies.reconcile().catch((e) => console.error("[ordo] machine bodies", e));
+    await step("inft", () => agentNfts.reconcile());
+    await step("proof-of-work sessions", () => contributions.reconcile());
+    await step("reward settlement", () => selection.reconcile());
+    await step("machine bodies", () => bodies.reconcile());
     const head = await ledger.head();
     const last = (await proof.anchors(1))[0];
-    if (head && (!last || head.seq - last.toSeq >= cfg.ANCHOR_EVERY || (head.seq > last.toSeq && now() - Date.parse(last.ts) > 30 * 60_000))) await proof.anchorHead(null, null).catch((e) => console.error("[ordo] anchor", e));
+    if (head && (!last || head.seq - last.toSeq >= cfg.ANCHOR_EVERY || (head.seq > last.toSeq && now() - Date.parse(last.ts) > 30 * 60_000))) await step("anchor", () => proof.anchorHead(null, null));
+  };
+
+  // One cycle at a time. Cycles take seconds to minutes (chain receipts, uploads, sandboxes), while polls and the timer
+  // ask for one every few seconds: a short throttle let them pile up, each repeating the same work (the same evidence
+  // uploaded four times, the same body started twice) and holding the database connections that requests wait for.
+  // So the lease is held for the whole cycle across instances (it lapses on its own if an instance dies mid-cycle) and
+  // left 4 s past its end as the throttle; within one instance a request that finds a cycle running does not start another.
+  const CYCLE_MS = cfg.VERCEL ? 55_000 : 5 * 60_000;
+  let running: { id: number; done: Promise<void>; since: number } | null = null;
+  let cycles = 0;
+  let again = false;
+  const advance = (force = false): Promise<void> => {
+    // a cycle frozen with its instance (a function past its time limit) stops counting once its lease would have lapsed
+    if (running && Date.now() - running.since > CYCLE_MS) running = null;
+    if (running) {
+      if (!force) return Promise.resolve();
+      // a change a person just made: one more cycle right after this one, which this call waits for
+      again = true;
+      return running.done;
+    }
+    const id = ++cycles;
+    again = force;
+    // recorded before its first await, so a second call in this instance sees it running
+    const done = (async () => {
+      try {
+        // a forced cycle runs even while another instance holds the lease; otherwise another instance's cycle wins
+        const held = (await plant.tryLease("advance", CYCLE_MS)) || (again && (await plant.holdLease("advance", now() + CYCLE_MS), true));
+        if (!held) return;
+        try {
+          do {
+            again = false;
+            await cycle();
+          } while (again);
+        } finally {
+          await plant.holdLease("advance", now() + 4_000).catch(() => undefined);
+        }
+      } finally {
+        // (a stale cycle that ends late must not clear the one that replaced it)
+        if ((running as { id: number } | null)?.id === id) running = null;
+      }
+    })();
+    running = { id, done, since: Date.now() };
+    return done;
   };
 
   const rails: RailStatus[] = [

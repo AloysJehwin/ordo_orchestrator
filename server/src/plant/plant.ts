@@ -464,6 +464,10 @@ export class PlantService {
   async releaseLease(name: string) {
     await this.db.query("UPDATE engine_lease SET lease_until = 0 WHERE name = $1", [name]);
   }
+  /** Hold a lease until `until` (ms) whoever holds it now: a forced cycle takes it, a finished one keeps a short gap. */
+  async holdLease(name: string, until: number) {
+    await this.db.query("INSERT INTO engine_lease (name, lease_until) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET lease_until = EXCLUDED.lease_until", [name, until]);
+  }
 
   /** Pull new data from every source that is due. Safe to call from every request. */
   async ingest(): Promise<{ polled: number; inserted: number; errors: number }> {
