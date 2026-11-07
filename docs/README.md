@@ -9,10 +9,8 @@ Markdown versions of the Ordo product, architecture and validation documentation
 | [contracts-and-deployment.md](contracts-and-deployment.md) | On-chain accounts, Hedera resources, Solidity contracts, ENS, 0G, and app deployment (GCP, Neon, Vercel, CI/CD), step by step |
 | [hedera.md](hedera.md) | Every place Ordo uses Hedera (a run walked through step by step, each integration with its code, the ranking for the pitch), then the org treasury in depth: run budgets and machines' top-ups as scheduled transfers a manager approves (HIP-755), and what the testnet spike showed |
 | [improvements.md](improvements.md) | Review of PRD, plan and docs: blockers, inconsistencies, safety and engineering fixes |
-| [ethglobal-mumbai-strategy.md](ethglobal-mumbai-strategy.md) | ETHGlobal Mumbai partner choice (Hedera, 0G, ENS) |
 | [proof-of-work.md](proof-of-work.md) | Proof of work through 0G Private Computer: sessions, the terminal agent, signing, selection, cases, rewards; signed stage readings, zero-knowledge proofs, release statements; ceremony |
 | [../sdk/README.md](../sdk/README.md) | ordo-pow, the contributor's terminal agent |
-| [ethglobal-mumbai-build-plan.md](ethglobal-mumbai-build-plan.md) | Event schedule, proof-of-work protocol, submission checklist |
 | [research.md](research.md) | Related work for the autonomous-lab pitch: self-driving labs, the A-Lab verification case, reproducibility, blockchain for research records, and how Ordo maps onto a protein lab |
 | [architecture.md](architecture.md) | Full system architecture: design principles, the five layers and every service in detail, end-to-end flows, autonomy and policy guard, events and messages, deployment, failure modes, technology options, open decisions |
 | [product.md](product.md) | What Ordo does, roles, core concepts (pipelines, node states, agents, autonomy, gates) and all seven console screens |
@@ -27,4 +25,3 @@ Markdown versions of the Ordo product, architecture and validation documentation
 | [machines.md](machines.md) | Virtual machines and their bodies: the local and sandbox runtimes, media capture, 0G in the loop, safe stop, the episode log and replay |
 
 The original designed versions are kept alongside: [`Ordo Documentation.dc.html`](../Ordo%20Documentation.dc.html) (printable) and [`Ordo Architecture.dc.html`](../Ordo%20Architecture.dc.html) (diagram). If you change behaviour here, update the prototype or note the difference.
-- [web3-roadmap.md](web3-roadmap.md): roles as on-chain credentials, onboarding, staking, and the ranked web3 build list
