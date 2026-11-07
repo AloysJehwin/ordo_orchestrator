@@ -102,9 +102,9 @@ export function Actor({ actor, link = false }: { actor: string; link?: boolean }
   if (n) return <Name name={n} link={link} />;
   // a gateway's key with no name yet: the machine it reports for
   const [kind, rest = ""] = actor.split(/:(.*)/s);
-  if (kind === "device") {
+  if (kind === "device" || (kind === "machine" && /^0x[0-9a-f]{40}$/i.test(rest))) {
     const a = live?.assets.find((x) => x.source.type === "gateway" && x.source.device === rest.toLowerCase());
-    if (a) return <>Gateway · {a.name}</>;
+    if (a) return <>{kind === "device" ? `Gateway · ${a.name}` : a.name}</>;
   }
   return <>{actorLabel(actor, names)}</>;
 }

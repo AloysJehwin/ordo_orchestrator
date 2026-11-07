@@ -91,21 +91,64 @@ export class Brain {
     return this.o.trustMode ?? "private";
   }
 
+  /** the Router refused `chat_template_kwargs` once: send requests without it from then on */
+  private plain = false;
+
+  /**
+   * One chat completion. The agent's tasks are short JSON answers, so thinking is turned off
+   * (`chat_template_kwargs.enable_thinking: false`): 0G's private-mode model `0gm-1.0-35b-a3b` reasons by default and
+   * spends a small token budget on its reasoning, answering with no content at all. A model that reasons anyway, and
+   * runs out of room, is asked once more with four times the budget.
+   */
   async chat(messages: unknown[], maxTokens: number, timeoutMs = this.o.timeoutMs ?? 60_000): Promise<BrainReply> {
+    const first = await this.once(messages, maxTokens, timeoutMs);
+    if (first.kind === "reply") return first.reply;
+    if (first.thought) {
+      const again = await this.once(messages, Math.min(maxTokens * 4, 4000), timeoutMs);
+      if (again.kind === "reply") return again.reply;
+      throw new BrainError(`0G Router answered without content: ${this.o.model} spent its whole ${Math.min(maxTokens * 4, 4000)}-token budget reasoning`);
+    }
+    throw new BrainError(`0G Router answered without content${first.finish ? ` (finish: ${first.finish})` : ""}`);
+  }
+
+  private async once(messages: unknown[], maxTokens: number, timeoutMs: number): Promise<{ kind: "reply"; reply: BrainReply } | { kind: "empty"; thought: boolean; finish: string | null }> {
     const t0 = Date.now();
     let res: Response;
-    try {
-      res = await (this.o.fetch ?? fetch)(`${this.o.url.replace(/\/+$/, "")}/chat/completions`, {
+    const send = () =>
+      (this.o.fetch ?? fetch)(`${this.o.url.replace(/\/+$/, "")}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${this.o.key}`, "content-type": "application/json", accept: "application/json", "x-0g-provider-trust-mode": this.trustMode },
-        body: JSON.stringify({ model: this.o.model, messages, max_tokens: maxTokens, temperature: 0.2, stream: false, ...(this.trustMode === "private" ? { verify_tee: true } : {}) }),
+        body: JSON.stringify({
+          model: this.o.model,
+          messages,
+          max_tokens: maxTokens,
+          temperature: 0.2,
+          stream: false,
+          ...(this.plain ? {} : { chat_template_kwargs: { enable_thinking: false } }),
+          ...(this.trustMode === "private" ? { verify_tee: true } : {}),
+        }),
         signal: AbortSignal.timeout(timeoutMs),
       });
+    try {
+      res = await send();
+      // a provider that does not take chat_template_kwargs: drop it and ask again
+      if (res.status === 400 && !this.plain) {
+        const text = await res.clone().text();
+        if (/chat_template_kwargs|enable_thinking|unrecognized|unknown (field|param)/i.test(text)) {
+          this.plain = true;
+          res = await send();
+        }
+      }
     } catch (e) {
       throw new BrainError(`0G Router unreachable: ${(e as Error).name === "TimeoutError" ? "timed out" : (e as Error).message}`);
     }
     const raw = await res.text();
-    let body: { choices?: { message?: { content?: unknown } }[]; x_0g_trace?: { request_id?: string; provider?: string; tee_verified?: boolean }; error?: { message?: string } | string; model?: string } = {};
+    let body: {
+      choices?: { message?: { content?: unknown; reasoning_content?: unknown }; finish_reason?: string }[];
+      x_0g_trace?: { request_id?: string; provider?: string; tee_verified?: boolean };
+      error?: { message?: string } | string;
+      model?: string;
+    } = {};
     try {
       body = JSON.parse(raw) as typeof body;
     } catch {
@@ -115,11 +158,12 @@ export class Brain {
       const msg = typeof body.error === "string" ? body.error : body.error?.message;
       throw new BrainError(`0G Router answered ${res.status}${msg ? `: ${msg.slice(0, 200)}` : ""}`);
     }
-    const content = body.choices?.[0]?.message?.content;
+    const choice = body.choices?.[0];
+    const content = choice?.message?.content;
     const text = (typeof content === "string" ? content : Array.isArray(content) ? content.map((p: { text?: string }) => p.text ?? "").join("") : "").replace(THINK, "").trim();
-    if (!text) throw new BrainError("0G Router answered without content");
+    if (!text) return { kind: "empty", thought: typeof choice?.message?.reasoning_content === "string" && choice.message.reasoning_content.length > 0 && choice.finish_reason === "length", finish: choice?.finish_reason ?? null };
     const trace = body.x_0g_trace ?? {};
-    return {
+    const reply: BrainReply = {
       text,
       json: jsonIn(text),
       requestId: trace.request_id ?? res.headers.get("x-request-id") ?? res.headers.get("zg-res-key") ?? null,
@@ -128,6 +172,7 @@ export class Brain {
       model: body.model ?? this.o.model,
       ms: Date.now() - t0,
     };
+    return { kind: "reply", reply };
   }
 
   /** Read one capture: the image (or its spectrogram, keyframe, chart or page), against what the outcome measures. */

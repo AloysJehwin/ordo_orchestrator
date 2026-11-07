@@ -51,7 +51,8 @@ export function nameBook(dir: Directory | null, assets: { id: string; name: stri
       if (kind === "user" || kind === "device") return byAddress(rest)?.name ?? null;
       if (kind === "agent" || kind === "system") return of("agent", rest)?.name ?? of("agent", rest.replace(/_/g, "-"))?.name ?? null;
       if (AGENT_REF[kind]) return of("agent", AGENT_REF[kind])?.name ?? null;
-      if (kind === "machine") return of("machine", assetByName.get(rest) ?? rest)?.name ?? null;
+      // a machine is named by its asset name (machine:CNC-07), or by its device key when its body acted (machine:0x…)
+      if (kind === "machine") return /^0x[0-9a-f]{40}$/i.test(rest) ? (byAddress(rest)?.name ?? null) : (of("machine", assetByName.get(rest) ?? rest)?.name ?? null);
       if (kind === "x402") return byHedera(rest)?.name ?? byAddress(rest)?.name ?? null;
       return null;
     },

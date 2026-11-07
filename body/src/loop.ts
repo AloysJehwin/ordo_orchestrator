@@ -78,6 +78,8 @@ interface Work {
   closed: boolean;
   agentHeld: boolean;
   safeHeld: boolean;
+  /** a person released the stage while the machine was safe-stopped: it works without its agent until 0G answers */
+  released: boolean;
   reportedAt: number;
   reportedEntries: number;
   final: boolean;
@@ -108,6 +110,8 @@ export class Body {
   private lastProbe = 0;
   private lastReport = 0;
   private lastError = "";
+  /** the last 0G failure, kept apart from tick errors (which clear each tick) so a hold says what failed */
+  private brainError = "";
   private stopped = false;
   private saved: Saved | null = null;
   /** the stage the machine is working this tick */
@@ -191,6 +195,13 @@ export class Body {
         if (now.state === "held") this.add({ kind: "stage", event: "held", runId: now.runId, stage: now.stage, name: now.name });
         if (w.st.state === "held" && now.state === "running") {
           this.add({ kind: "stage", event: "released", runId: now.runId, stage: now.stage, name: now.name });
+          // released while 0G is still down: a person decided, so the machine carries on without its agent rather
+          // than holding the stage again on the next tick
+          if (this.mode === "safe_stopped") {
+            w.released = true;
+            this.add({ kind: "note", runId: now.runId, stage: now.stage, text: `A person released the stage while 0G is unreachable (${this.brainError || "no answer"}): the machine works without its agent until 0G answers again, and nothing reads its captures meanwhile.` });
+            console.log(`${w.key} released by a person while 0G is unreachable: working without the agent`);
+          }
           w.safeHeld = false;
         }
         w.st = now;
@@ -205,8 +216,12 @@ export class Body {
     if (this.mode === "safe_stopped") {
       await this.probe();
       if (this.mode === "safe_stopped") {
-        this.process.execution = st || open.size ? "FEED_HOLD" : "READY";
-        if (st) await this.safeHold(this.workFor(st), this.lastError || "the 0G Router did not answer");
+        const w = st ? this.workFor(st) : null;
+        if (w?.released) await this.work(w);
+        else {
+          this.process.execution = st || open.size ? "FEED_HOLD" : "READY";
+          if (w) await this.safeHold(w, this.brainError || "the 0G Router did not answer");
+        }
       }
     }
     if (this.mode === "running") {
@@ -220,6 +235,15 @@ export class Body {
     if (mine.some((s) => s.endedAt !== null && (!s.signed || (s.parameters.length > 0 && !s.measurementsSigned)))) await this.gw.signFinished();
     await this.reports();
     this.save();
+  }
+
+  /** The stage is worked: the machine runs, or a person released it while the machine is safe-stopped. */
+  private active(w: Work) {
+    return this.mode === "running" || w.released;
+  }
+  /** The agent for this stage's work: none while safe-stopped (a released stage is worked without it). */
+  private brainFor(w: Work): Brain | null {
+    return this.mode === "running" ? this.cfg.brain : w.released ? null : this.cfg.brain;
   }
 
   private workFor(st: EdgeStage): Work {
@@ -244,6 +268,7 @@ export class Body {
       closed: false,
       agentHeld: false,
       safeHeld: false,
+      released: false,
       reportedAt: 0,
       reportedEntries: 0,
       final: false,
@@ -285,7 +310,7 @@ export class Body {
     const n = st.outcomes.length;
     let done = 0;
     for (const [i, o] of st.outcomes.entries()) {
-      if (this.mode !== "running" || done >= 2) break;
+      if (!this.active(w) || done >= 2) break;
       const c = w.captures.get(o.key);
       const due = progress >= 0.1 + (0.75 * (i + 0.5)) / Math.max(1, n);
       if ((c?.pending || (!c && due) || w.again.has(o.key)) && !(c?.done && !w.again.has(o.key))) {
@@ -293,19 +318,19 @@ export class Body {
         done++;
       }
     }
-    if (this.mode !== "running") return;
+    if (!this.active(w)) return;
 
     // the agent decides on a cadence, after each perception, and once before the stage's last unit
-    const brain = this.cfg.brain;
+    const brain = this.brainFor(w);
     const required = st.outcomes.filter((o) => o.required);
     const outcomesIn = required.every((o) => w.captures.get(o.key)?.done) && w.again.size === 0 && ![...w.captures.values()].some((c) => c.pending);
     if (brain && (w.decideSoon || now - w.lastDecision >= this.cfg.decideS * 1000)) await this.decide(w, false);
-    if (brain && outcomesIn && progress >= 1 && !w.closed && this.mode === "running" && w.st.state === "running") {
+    if (brain && outcomesIn && progress >= 1 && !w.closed && this.active(w) && w.st.state === "running") {
       // only a decision the agent made closes the stage: a failed one is tried again next tick
       w.closed = await this.decide(w, true);
       return;
     }
-    if (this.mode !== "running" || w.st.state !== "running") return;
+    if (!this.active(w) || w.st.state !== "running") return;
 
     // units: the last one waits for the required outcomes (and the agent's closing decision)
     const finish = outcomesIn && progress >= 1 && (!brain || (w.closed && w.again.size === 0));
@@ -357,9 +382,10 @@ export class Body {
         return;
       }
       let analysis: Analysis;
-      if (this.cfg.brain) {
+      const brain = this.brainFor(w);
+      if (brain) {
         try {
-          const p = await this.cfg.brain.perceive(spec, res.perceive);
+          const p = await brain.perceive(spec, res.perceive);
           this.fails = 0;
           c.agentRead = p.value;
           c.anomaly = p.anomaly;
@@ -373,6 +399,8 @@ export class Body {
           await this.brainFailed(e as Error);
           return;
         }
+      } else if (this.cfg.brain) {
+        analysis = { summary: `0G unreachable (${this.brainError || "no answer"}): a person released the stage, so the machine works without its agent and nothing read this capture. The value is the instrument's.` };
       } else {
         analysis = { summary: "No 0G brain: this virtual machine runs without an on-board agent, so nothing read this capture. The value is the instrument's." };
       }
@@ -467,13 +495,14 @@ export class Body {
     if (!(e instanceof BrainError)) throw e;
     this.fails++;
     this.lastError = e.message;
+    this.brainError = e.message;
     this.add({ kind: "brain_error", error: e.message, consecutive: this.fails });
     console.error(`0G failed (${this.fails}/${this.cfg.failLimit}): ${e.message}`);
     if (this.fails < this.cfg.failLimit || this.mode === "safe_stopped") return;
     this.mode = "safe_stopped";
     this.lastProbe = Date.now();
     this.process.execution = "FEED_HOLD";
-    for (const w of this.works.values()) if (!w.final && w.st.state === "running") await this.safeHold(w, e.message);
+    for (const w of this.works.values()) if (!w.final && !w.released && w.st.state === "running") await this.safeHold(w, e.message);
     await this.reports(true).catch(() => undefined);
   }
 
@@ -504,11 +533,15 @@ export class Body {
       const r = await this.cfg.brain.probe();
       this.fails = 0;
       this.mode = "running";
+      this.brainError = "";
+      // the agent is back: it reads and decides for the stages a person released meanwhile
+      for (const w of this.works.values()) w.released = false;
       this.add({ kind: "brain_back", requestId: r.requestId });
       console.log(`0G answers again; running (a held stage waits for a person to release it)`);
       await this.reports(true).catch(() => undefined);
     } catch (e) {
       this.lastError = (e as Error).message;
+      this.brainError = (e as Error).message;
     }
   }
 

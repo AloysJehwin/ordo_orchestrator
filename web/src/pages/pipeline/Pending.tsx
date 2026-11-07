@@ -49,9 +49,12 @@ export function usePendingActions(run: RunView | null, stageActions: ReturnType<
   const act = async (s: StageRunView, p: StagePendingView, a: PendingAction) => {
     if (!run) return;
     switch (a.id) {
+      case "restart_body":
       case "start_body":
+        // a body that stopped safely is still alive: starting it alone does nothing, so it is stopped first
+        if (a.id === "restart_body") await api.post(path(`/machines/${a.assetId}/stop`));
         await api.post(path(`/machines/${a.assetId}/start`));
-        toast(`${a.label.replace(/^(Restart|Start) /, "").replace(/ now$/, "")}'s body is starting: it buys what is missing on its first cycle`, "ok");
+        toast(`${a.label.replace(/^(Restart|Start) /, "").replace(/ now$/, "")}'s body is starting`, "ok");
         await Promise.all([reload(), refresh()]);
         return;
       case "waive_resources":

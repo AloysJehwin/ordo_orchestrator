@@ -13,7 +13,7 @@ import { predecessors } from "../pipelines/graph.js";
 import type { PlantService } from "../plant/plant.js";
 import type { Resources, ResourceWait } from "./resources.js";
 
-export type PendingActionId = "start_body" | "waive_resources" | "step_run" | "approve_gate" | "record" | "open_machine" | "open_vendors" | "open_approvals";
+export type PendingActionId = "start_body" | "restart_body" | "waive_resources" | "step_run" | "approve_gate" | "record" | "open_machine" | "open_vendors" | "open_approvals";
 export interface PendingAction {
   id: PendingActionId;
   /** retry: try what failed again · bypass: go on without it · do: the next step a person takes · open: where it is fixed */
@@ -130,13 +130,17 @@ export class StagePending {
     if (s.state === "awaiting_approval" || s.state === "held") {
       const out = s.criteriaResults.filter((x) => x.ok === false).map((x): PendingItem => ({ tone: "bad", text: `${x.label} ${x.actual ?? "?"}, target ${x.target}` }));
       const unknown = s.criteriaResults.filter((x) => x.ok === null).map((x): PendingItem => ({ tone: "warn", text: `${x.label} not measured: confirm it before release` }));
-      return view(
-        s.state === "held" ? `Held at its gate for a ${s.escalationRole.replaceAll("_", " ")}` : `Waits at its gate for a ${s.escalationRole.replaceAll("_", " ")}`,
-        "blocked",
-        s.workDoneAt ?? s.startedAt,
-        [...out, ...unknown],
-        [{ id: "approve_gate", kind: "do", label: s.state === "held" ? "Release the gate" : "Approve the gate", detail: "Release the stage so the run goes on", role: s.escalationRole }],
-      );
+      const actions: PendingAction[] = [];
+      const items = [...out, ...unknown];
+      // a machine that stopped safely (0G unreachable) or failed holds its stage again after a release: restart it first
+      const body = s.assetId ? c.bodies.get(s.assetId) : undefined;
+      const who = s.assetId ? (c.views.get(s.assetId)?.name ?? s.assetName ?? "its machine") : null;
+      if (body && who && (body.state === "safe_stopped" || body.state === "failed")) {
+        items.unshift({ tone: "bad", text: body.state === "safe_stopped" ? `${who}'s body stopped safely${body.error ? `: ${body.error}` : ""}` : `${who}'s body failed${body.error ? `: ${body.error}` : ""}` });
+        actions.push({ id: body.state === "failed" ? "start_body" : "restart_body", kind: "retry", label: `Restart ${who}`, detail: "Start its body again with a fresh 0G key and the latest body code, then release the stage", role: "manager", assetId: s.assetId! });
+      }
+      actions.push({ id: "approve_gate", kind: "do", label: s.state === "held" ? "Release the gate" : "Approve the gate", detail: "Release the stage so the run goes on", role: s.escalationRole });
+      return view(s.state === "held" ? `Held at its gate for a ${s.escalationRole.replaceAll("_", " ")}` : `Waits at its gate for a ${s.escalationRole.replaceAll("_", " ")}`, "blocked", s.workDoneAt ?? s.startedAt, items, actions);
     }
 
     if (s.state === "running") {
@@ -256,6 +260,10 @@ export class StagePending {
         add(b.auto_start ? "warn" : "bad", b.auto_start ? `${who}'s body is stopped: Ordo starts it on its next look-ahead` : `A person stopped ${who}'s body`);
         actions.push({ id: "start_body", kind: "retry", label: `Start ${who} now`, detail: "Start its body: it buys what is missing on its first cycle", role: "manager", assetId: buyer.assetId });
       } else if (b.state === "starting") add("info", `${who}'s body is starting`);
+      else if (b.state === "safe_stopped") {
+        add("bad", `${who}'s body stopped safely, so it does not buy${b.error ? `: ${b.error}` : ""}`);
+        actions.push({ id: "restart_body", kind: "retry", label: `Restart ${who}`, detail: "Stop and start its body: it comes back with a fresh 0G key and the latest body code", role: "manager", assetId: buyer.assetId });
+      }
       else if (b.last_ok_at && now - Date.parse(b.last_ok_at) > SILENT_MS) {
         add("bad", `${who}'s body has not reported since ${ago(b.last_ok_at, now)}`);
         actions.push({ id: "start_body", kind: "retry", label: `Restart ${who}`, detail: "Start its body again", role: "manager", assetId: buyer.assetId });

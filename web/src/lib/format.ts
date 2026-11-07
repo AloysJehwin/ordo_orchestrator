@@ -44,7 +44,7 @@ export function actorLabel(actor: string, names: Map<string, string> = new Map()
   if (kind === "guard") return "Policy guard";
   if (kind === "system") return "System";
   if (kind === "device") return `Device ${/^0x[0-9a-f]{40}$/i.test(rest) ? shortAddr(rest) : rest}`;
-  if (kind === "machine") return rest;
+  if (kind === "machine") return /^0x[0-9a-f]{40}$/i.test(rest) ? `Machine ${shortAddr(rest)}` : rest;
   // anything else: its kind and a short form of a long id, never a raw 40-hex string that cannot wrap
   return /^0x[0-9a-f]{40}$/i.test(rest) ? `${kind} ${shortAddr(rest)}` : rest ? `${kind} ${rest}` : actor;
 }

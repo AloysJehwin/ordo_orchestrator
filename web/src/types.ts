@@ -1150,7 +1150,7 @@ export interface BodyAnswer {
 }
 
 // ---------- What a waiting stage waits on (GET /runs/:id/pending, server core/stage-pending.ts) ----------
-export type PendingActionId = "start_body" | "waive_resources" | "step_run" | "approve_gate" | "record" | "open_machine" | "open_vendors" | "open_approvals";
+export type PendingActionId = "start_body" | "restart_body" | "waive_resources" | "step_run" | "approve_gate" | "record" | "open_machine" | "open_vendors" | "open_approvals";
 export interface PendingAction {
   id: PendingActionId;
   /** retry: try what failed again · bypass: go on without it · do: the next step a person takes · open: where it is fixed */

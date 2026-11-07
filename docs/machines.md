@@ -69,6 +69,11 @@ Without a Router configured the body runs without a brain: captures go up unread
 
 A body with a brain never decides without it. After three 0G failures in a row (`BODY_FAIL_LIMIT`) it holds its running stage over `POST /v1/edge/hold` (`kind: safe_stop`; the engine records the hold by `machine:<device>`), stops its process (`FEED_HOLD`) and reports itself safe-stopped. It tries the Router every 30 seconds; when 0G answers it runs again, but the stage stays held until a person releases it from Approvals.
 
+- **A release while 0G is still down sticks.** A person decided, so the machine works the stage without its agent (nothing reads its captures, and each says so) until 0G answers, and does not hold it again. Before this, every release was followed by another safe stop on the next tick.
+- **The hold names the real failure** (the last 0G error, which tick errors no longer clear).
+- **Thinking is off for the agent's calls.** Its tasks are short JSON answers, so each request sends `chat_template_kwargs: {enable_thinking: false}`. 0G's private-mode model `0gm-1.0-35b-a3b` reasons by default and spent the whole budget (20 tokens for the probe, 300 to decide, 400 to read a capture) on its reasoning, answering with no content: three of those in a row safe-stopped every body, and the probe never came back. A model that reasons anyway is asked once more with four times the budget; a provider that refuses the parameter gets requests without it.
+- **Restart from the pipeline page.** A stage held by a safe-stopped or failed machine offers "Restart <machine>" in its pending actions: the body is stopped and started, so it comes back with a fresh 0G key and the current body bundle (a new bundle installs on its first start).
+
 ## The episode log
 
 Every capture (with everything it was rendered from), perception, decision, hold, purchase (bought, skipped, or over budget with the top-up it asked for) and 0G failure is an entry in the body's episode log, with the 0G request ID where there is one. The body keeps it on its own disk (`BODY_DATA_DIR/episode.jsonl`) and posts each stage's episode to Ordo, which stores it, records `machine.episode_logged` on the ledger with the request IDs, and copies it to 0G Storage when that rail is on (at the end of a stage, and at most every five minutes otherwise). Level 3 opens it from the Floor.
